@@ -28,7 +28,6 @@ luac.out
 *.bak
 *_old.*
 *_backup.*
-assets.bak/
 
 # Logs
 *.log
