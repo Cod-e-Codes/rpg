@@ -13,7 +13,8 @@ function World:new()
         interactables = {},
         npcs = {}, -- NPCs per map
         enemies = {}, -- Enemies per map
-        gameState = nil -- Reference to game state for quest filtering
+        gameState = nil, -- Reference to game state for quest filtering
+        decorations = {} -- Quest-conditional decorations per map
     }
     setmetatable(world, {__index = self})
     return world
@@ -229,6 +230,16 @@ function World:createExampleOverworld()
         })
     )
     
+    -- Add cave entrance (appears after completing sword quest)
+    table.insert(self.interactables["overworld"],
+        Interactable:new(6*32, 29*32, 64, 64, "cave", {
+            targetMap = "cave_level1",
+            spawnX = 3*32,  -- Spawn on west side (opposite of exit)
+            spawnY = 10*32, -- Middle height
+            questRequired = "sword_collected" -- Only appears after getting sword
+        })
+    )
+    
     -- Add merchant NPC near the house (southwest of the front door)
     self.npcs["overworld"] = {}
     table.insert(self.npcs["overworld"],
@@ -344,6 +355,56 @@ function World:createHouseInterior()
     )
 end
 
+function World:createCaveLevel1()
+    -- Cave interior - empty dark level for now
+    local map = TileMap:new(25, 20, 32)
+    
+    -- Cave floor (dark stone)
+    local ground = {}
+    for y = 0, 19 do
+        ground[y] = {}
+        for x = 0, 24 do
+            ground[y][x] = 3 -- Stone floor
+        end
+    end
+    
+    -- Cave walls (natural cavern shape)
+    local collision = {}
+    for y = 0, 19 do
+        collision[y] = {}
+        for x = 0, 24 do
+            -- Create cave boundaries
+            if x == 0 or x == 24 or y == 0 or y == 19 then
+                collision[y][x] = 2  -- Rock walls
+            else
+                collision[y][x] = 0
+            end
+        end
+    end
+    
+    -- Cave entrance/exit at middle of east wall
+    local exitY = math.floor(19 / 2)  -- Middle of 20-tile height
+    collision[exitY][24] = 0
+    collision[exitY + 1][24] = 0
+    
+    map:loadFromData({ground = ground, collision = collision})
+    self.maps["cave_level1"] = map
+    
+    -- Cave exit (leads back to overworld) - on east wall at opened tile
+    self.interactables["cave_level1"] = {}
+    table.insert(self.interactables["cave_level1"], 
+        Interactable:new(23*32, exitY*32, 64, 64, "cave_exit", {
+            destination = "overworld",
+            spawnX = 7*32,
+            spawnY = 31*32  -- Spawn just outside cave
+        })
+    )
+    
+    -- No enemies or NPCs in cave yet (placeholder for future content)
+    self.npcs["cave_level1"] = {}
+    self.enemies["cave_level1"] = {}
+end
+
 function World:loadMap(mapName)
     self.currentMap = self.maps[mapName]
     return self.currentMap
@@ -352,7 +413,21 @@ end
 function World:getCurrentInteractables()
     for mapName, interactables in pairs(self.interactables) do
         if self.maps[mapName] == self.currentMap then
-            return interactables
+            -- Filter interactables based on quest requirements
+            local filtered = {}
+            for _, obj in ipairs(interactables) do
+                local shouldShow = true
+                
+                -- Check if this interactable requires a quest state
+                if obj.data.questRequired and self.gameState then
+                    shouldShow = (self.gameState.questState == obj.data.questRequired)
+                end
+                
+                if shouldShow then
+                    table.insert(filtered, obj)
+                end
+            end
+            return filtered
         end
     end
     return {}

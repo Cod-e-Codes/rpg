@@ -64,6 +64,23 @@ local inCutscene = false
 local cutsceneWalkTarget = nil
 local cutsceneOnComplete = nil
 
+-- Fade transition state
+local fadeState = "none" -- "none", "fade_out", "fade_in"
+local fadeAlpha = 0
+local fadeSpeed = 2 -- How fast to fade (alpha per second)
+local fadeTargetMap = nil
+local fadeSpawnX = nil
+local fadeSpawnY = nil
+
+-- Camera pan cutscene state
+local cameraPanState = "none" -- "none", "pan_to_target", "pause", "pan_back"
+local cameraPanTarget = {x = 0, y = 0}
+local cameraPanSpeed = 300 -- Pixels per second
+local cameraPanPauseTimer = 0
+local cameraPanPauseDuration = 2 -- Seconds to pause at target
+local cameraPanOriginal = {x = 0, y = 0}
+local cameraPanCutsceneShown = false -- Track if we've shown the cave cutscene
+
 -- Direction mappings
 local directions = {
     "north", "north-east", "east", "south-east",
@@ -88,6 +105,7 @@ function love.load()
     -- Create example maps
     world:createExampleOverworld()
     world:createHouseInterior()
+    world:createCaveLevel1()
     world:loadMap("overworld")
     
     -- Sync all interactables with game state
@@ -144,6 +162,29 @@ end
 
 function love.update(dt)
     gameTime = gameTime + dt
+    
+    -- Update fade transitions
+    if fadeState == "fade_out" then
+        fadeAlpha = fadeAlpha + fadeSpeed * dt
+        if fadeAlpha >= 1 then
+            fadeAlpha = 1
+            -- Transition to new map
+            if fadeTargetMap then
+                gameState:changeMap(fadeTargetMap, fadeSpawnX, fadeSpawnY)
+                world:loadMap(gameState.currentMap)
+                player.x = gameState.playerSpawn.x
+                player.y = gameState.playerSpawn.y
+            end
+            fadeState = "fade_in"
+        end
+    elseif fadeState == "fade_in" then
+        fadeAlpha = fadeAlpha - fadeSpeed * dt
+        if fadeAlpha <= 0 then
+            fadeAlpha = 0
+            fadeState = "none"
+            fadeTargetMap = nil
+        end
+    end
     
     -- Update player immunity timer
     if player.immunityTimer > 0 then
@@ -321,16 +362,53 @@ function love.update(dt)
                 interactable:syncWithGameState(gameState)
             end
             
-            -- Better dialogue based on where we're going
-            if gameState.currentMap == "overworld" then
-                currentMessage = "Back outside..."
-            elseif gameState.currentMap == "house_interior" then
-                currentMessage = "Inside the house"
-            else
-                currentMessage = gameState.currentMap
+            -- Trigger cave reveal cutscene when exiting house with sword
+            local triggerCaveCutscene = false
+            if gameState.currentMap == "overworld" and 
+               gameState.questState == "sword_collected" and 
+               not cameraPanCutsceneShown then
+                cameraPanCutsceneShown = true
+                triggerCaveCutscene = true
+                
+                -- Start a walking cutscene first (player walks out)
+                inCutscene = true
+                player.isMoving = false -- Stop any current movement
+                cutsceneWalkTarget = {x = player.x, y = player.y + 64} -- Walk south a bit
+                cutsceneOnComplete = function()
+                    -- After walking out, clear cutscene walk state
+                    cutsceneWalkTarget = nil
+                    cutsceneOnComplete = nil
+                    
+                    -- Start camera pan
+                    local screenWidth = love.graphics.getWidth()
+                    local screenHeight = love.graphics.getHeight()
+                    local caveX = 6*32 + 32  -- Cave center
+                    local caveY = 29*32 + 32
+                    
+                    cameraPanOriginal.x = player.x - screenWidth / 2
+                    cameraPanOriginal.y = player.y - screenHeight / 2
+                    cameraPanTarget.x = caveX - screenWidth / 2
+                    cameraPanTarget.y = caveY - screenHeight / 2
+                    cameraPanState = "pan_to_target"
+                    
+                    currentMessage = "A mysterious cave has appeared to the west!"
+                    currentMessageItem = nil -- Clear any item icon
+                    messageTimer = 999 -- Keep message until cutscene ends
+                end
             end
-            currentMessageItem = nil  -- Clear item icon for door transitions
-            messageTimer = 2
+            
+            -- Better dialogue based on where we're going (skip if cave cutscene)
+            if not triggerCaveCutscene then
+                if gameState.currentMap == "overworld" then
+                    currentMessage = "Back outside..."
+                elseif gameState.currentMap == "house_interior" then
+                    currentMessage = "Inside the house"
+                else
+                    currentMessage = gameState.currentMap
+                end
+                currentMessageItem = nil  -- Clear item icon for door transitions
+                messageTimer = 2
+            end
         end
     end
     
@@ -387,15 +465,20 @@ function love.update(dt)
             -- Reached target, complete cutscene
             player.x = cutsceneWalkTarget.x
             player.y = cutsceneWalkTarget.y
+            player.isMoving = false
             if cutsceneOnComplete then
                 cutsceneOnComplete()
+            else
+                -- No follow-up action, end cutscene
+                inCutscene = false
+                cutsceneWalkTarget = nil
             end
         else
             -- Move towards target
             dx = targetDx / distance
             dy = targetDy / distance
+            player.isMoving = true
         end
-        player.isMoving = true
     else
         -- Normal player input (only when not in cutscene)
         if not inCutscene then
@@ -537,11 +620,72 @@ function love.update(dt)
         end
     end
     
-    -- Update camera to follow player
-    local screenWidth = love.graphics.getWidth()
-    local screenHeight = love.graphics.getHeight()
-    camera.x = player.x - screenWidth / 2
-    camera.y = player.y - screenHeight / 2
+    -- Update camera pan cutscene
+    if cameraPanState == "pan_to_target" then
+        local dx = cameraPanTarget.x - camera.x
+        local dy = cameraPanTarget.y - camera.y
+        local distance = math.sqrt(dx * dx + dy * dy)
+        
+        if distance < 10 then
+            -- Reached target
+            camera.x = cameraPanTarget.x
+            camera.y = cameraPanTarget.y
+            cameraPanState = "pause"
+            cameraPanPauseTimer = cameraPanPauseDuration
+            
+            if DEBUG_MODE then
+                print("Camera reached cave, pausing...")
+            end
+        else
+            -- Move towards target
+            local moveX = (dx / distance) * cameraPanSpeed * dt
+            local moveY = (dy / distance) * cameraPanSpeed * dt
+            camera.x = camera.x + moveX
+            camera.y = camera.y + moveY
+        end
+    elseif cameraPanState == "pause" then
+        cameraPanPauseTimer = cameraPanPauseTimer - dt
+        if cameraPanPauseTimer <= 0 then
+            cameraPanState = "pan_back"
+            
+            if DEBUG_MODE then
+                print("Panning back to player...")
+            end
+        end
+    elseif cameraPanState == "pan_back" then
+        local dx = cameraPanOriginal.x - camera.x
+        local dy = cameraPanOriginal.y - camera.y
+        local distance = math.sqrt(dx * dx + dy * dy)
+        
+        if distance < 10 then
+            -- Back to player
+            camera.x = cameraPanOriginal.x
+            camera.y = cameraPanOriginal.y
+            cameraPanState = "none"
+            inCutscene = false
+            player.isMoving = false -- Ensure player stops
+            currentMessage = nil
+            messageTimer = 0
+            
+            if DEBUG_MODE then
+                print("Cave cutscene completed")
+            end
+        else
+            -- Move back to player
+            local moveX = (dx / distance) * cameraPanSpeed * dt
+            local moveY = (dy / distance) * cameraPanSpeed * dt
+            camera.x = camera.x + moveX
+            camera.y = camera.y + moveY
+        end
+    end
+    
+    -- Update camera to follow player (only when not in camera pan cutscene)
+    if cameraPanState == "none" then
+        local screenWidth = love.graphics.getWidth()
+        local screenHeight = love.graphics.getHeight()
+        camera.x = player.x - screenWidth / 2
+        camera.y = player.y - screenHeight / 2
+    end
     
     -- Update message timer
     if currentMessage and messageTimer > 0 then
@@ -786,6 +930,13 @@ function love.draw()
     -- Draw UI (screen space)
     drawUI()
     drawMessage()
+    
+    -- Draw fade overlay (for cave transitions)
+    if fadeAlpha > 0 then
+        love.graphics.setColor(0, 0, 0, fadeAlpha)
+        love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+        love.graphics.setColor(1, 1, 1, 1)
+    end
 end
 
 function drawPlayer()
@@ -1323,6 +1474,15 @@ checkInteraction = function()
     local obj = getNearestInteractable()
     if obj then
         local result = obj:interact(gameState)
+        
+        -- Handle fade transitions (caves)
+        if type(result) == "table" and result.type == "fade_transition" then
+            fadeState = "fade_out"
+            fadeTargetMap = result.targetMap
+            fadeSpawnX = result.spawnX
+            fadeSpawnY = result.spawnY
+            return
+        end
         
         -- Door transitions are now handled in update loop after animation
         if result then

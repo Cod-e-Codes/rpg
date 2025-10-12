@@ -20,8 +20,8 @@ function Interactable:new(x, y, width, height, type, data)
 end
 
 function Interactable:isPlayerNear(playerX, playerY, distance)
-    -- Doors have larger interaction radius
-    if self.type == "door" then
+    -- Doors and caves have larger interaction radius
+    if self.type == "door" or self.type == "cave" or self.type == "cave_exit" then
         distance = distance or 64
     else
         distance = distance or 48
@@ -99,6 +99,25 @@ function Interactable:interact(gameState)
         end
     elseif self.type == "sign" then
         return self.data.message or "..."
+    elseif self.type == "cave" or self.type == "cave_exit" then
+        -- Cave entrance with fade transition
+        if self.data.targetMap then
+            -- Mark for fade transition (handled by main.lua)
+            return {
+                type = "fade_transition",
+                targetMap = self.data.targetMap,
+                spawnX = self.data.spawnX,
+                spawnY = self.data.spawnY
+            }
+        elseif self.data.destination then
+            -- Alternative format (same as door)
+            return {
+                type = "fade_transition",
+                targetMap = self.data.destination,
+                spawnX = self.data.spawnX,
+                spawnY = self.data.spawnY
+            }
+        end
     end
 end
 
@@ -298,6 +317,97 @@ function Interactable:draw()
         love.graphics.setColor(0.20, 0.14, 0.08)
         love.graphics.setLineWidth(3)
         love.graphics.rectangle("line", self.x + 12, self.y + 16, 8, 16)  -- Only bottom part of post
+        love.graphics.setLineWidth(1)
+        
+    elseif self.type == "cave" or self.type == "cave_exit" then
+        -- Cave entrance - toon-shaded with irregular rocky shape
+        local centerX = self.x + self.width/2
+        local centerY = self.y + self.height/2
+        local baseRadius = self.width * 0.45
+        
+        -- Create irregular rock shape with noise
+        local rockPoints = {}
+        local segments = 12
+        for i = 0, segments do
+            local angle = (i / segments) * math.pi * 2
+            -- Add noise to radius for irregular shape
+            local noiseOffset = math.sin(angle * 3) * 6 + math.cos(angle * 5) * 4
+            local r = baseRadius + noiseOffset
+            local px = centerX + math.cos(angle) * r
+            local py = centerY + math.sin(angle) * r * 0.9 -- Slightly oval
+            table.insert(rockPoints, px)
+            table.insert(rockPoints, py)
+        end
+        
+        -- Main rock body (medium brown) - toon base
+        love.graphics.setColor(0.42, 0.32, 0.22)
+        love.graphics.polygon("fill", rockPoints)
+        
+        -- Rock texture patches (darker brown)
+        love.graphics.setColor(0.32, 0.24, 0.16)
+        for i = 0, 4 do
+            local angle = (i / 5) * math.pi * 2 + 0.3
+            local r = baseRadius * 0.6
+            local px = centerX + math.cos(angle) * r
+            local py = centerY + math.sin(angle) * r * 0.9
+            love.graphics.circle("fill", px, py, baseRadius * 0.25)
+        end
+        
+        -- Toon highlights (lighter brown)
+        love.graphics.setColor(0.52, 0.42, 0.32)
+        for i = 0, 3 do
+            local angle = (i / 4) * math.pi * 2 + 1.2
+            local r = baseRadius * 0.7
+            local px = centerX + math.cos(angle) * r
+            local py = centerY + math.sin(angle) * r * 0.9
+            love.graphics.circle("fill", px, py, baseRadius * 0.15)
+        end
+        
+        -- Cave opening (irregular oval with noise)
+        local openingPoints = {}
+        local openingSegments = 10
+        local openingRadiusX = baseRadius * 0.4
+        local openingRadiusY = baseRadius * 0.5
+        for i = 0, openingSegments do
+            local angle = (i / openingSegments) * math.pi * 2
+            -- Add noise to opening edge
+            local noise = math.sin(angle * 4) * 2 + math.cos(angle * 6) * 1.5
+            local rx = (openingRadiusX + noise)
+            local ry = (openingRadiusY + noise)
+            local px = centerX + math.cos(angle) * rx
+            local py = centerY + math.sin(angle) * ry
+            table.insert(openingPoints, px)
+            table.insert(openingPoints, py)
+        end
+        
+        -- Black opening
+        love.graphics.setColor(0.02, 0.02, 0.02)
+        love.graphics.polygon("fill", openingPoints)
+        
+        -- Inner shadow (even darker)
+        love.graphics.setColor(0, 0, 0)
+        local innerPoints = {}
+        for i = 0, openingSegments do
+            local angle = (i / openingSegments) * math.pi * 2
+            local noise = math.sin(angle * 4) * 1.5
+            local rx = (openingRadiusX * 0.7 + noise)
+            local ry = (openingRadiusY * 0.7 + noise)
+            local px = centerX + math.cos(angle) * rx
+            local py = centerY + 2 + math.sin(angle) * ry
+            table.insert(innerPoints, px)
+            table.insert(innerPoints, py)
+        end
+        love.graphics.polygon("fill", innerPoints)
+        
+        -- Toon outline (dark brown, follows irregular shape)
+        love.graphics.setColor(0.18, 0.12, 0.08)
+        love.graphics.setLineWidth(3)
+        love.graphics.polygon("line", rockPoints)
+        
+        -- Opening outline (darker)
+        love.graphics.setColor(0.08, 0.05, 0.03)
+        love.graphics.setLineWidth(2)
+        love.graphics.polygon("line", openingPoints)
         love.graphics.setLineWidth(1)
     end
     
