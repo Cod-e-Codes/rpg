@@ -82,6 +82,11 @@ function Interactable:interact(gameState)
         end
     elseif self.type == "door" then
         if self.data.destination then
+            -- Check if this is the locked house door
+            if self.data.isHouseDoor and gameState:isHouseDoorLocked() then
+                return "The door is locked. You need a key..."
+            end
+            
             -- Don't transition immediately - let door animate first
             self.targetProgress = 1
             self.doorTransition = {

@@ -1,6 +1,7 @@
 -- World/Map Management
 local TileMap = require("tilemap")
 local Interactable = require("interactable")
+local NPC = require("npc")
 
 local World = {}
 
@@ -8,7 +9,9 @@ function World:new()
     local world = {
         maps = {},
         currentMap = nil,
-        interactables = {}
+        interactables = {},
+        npcs = {}, -- NPCs per map
+        gameState = nil -- Reference to game state for quest filtering
     }
     setmetatable(world, {__index = self})
     return world
@@ -163,8 +166,9 @@ function World:createExampleOverworld()
     local bushPlaces = {
         {23, 6}, {44, 10}, {63, 8}, {33, 16}, {70, 18},
         {7, 22}, {27, 34}, {50, 40}, {60, 44}, {13, 50},
-        {26, 46}, {50, 52}, {68, 46}, {20, 25}, {56, 20},
-        {10, 38}, {42, 44}, {54, 12}
+        {26, 46}, {50, 52}, {68, 46}, {20, 25},
+        {10, 38}, {42, 44}
+        -- Removed {56, 20} and {54, 12} - they block house entrance
     }
     
     for _, pos in ipairs(bushPlaces) do
@@ -173,9 +177,11 @@ function World:createExampleOverworld()
         local onHorizontalPath = (by >= 28 and by <= 31)
         local onVerticalPath = (bx >= 38 and bx <= 41)
         local onWater = (bx >= 15 and bx <= 19)
+        -- Also avoid house area (door at 55, 18)
+        local nearHouse = (bx >= 50 and bx <= 60 and by >= 18 and by <= 22)
         
-        -- Only place if no collision exists and not on paths/water
-        if collision[by] and collision[by][bx] == 0 and not onHorizontalPath and not onVerticalPath and not onWater then
+        -- Only place if no collision exists and not on paths/water/house
+        if collision[by] and collision[by][bx] == 0 and not onHorizontalPath and not onVerticalPath and not onWater and not nearHouse then
             decorations[by][bx] = 2 -- Bush
             collision[by][bx] = 2 -- Bushes now block movement
         end
@@ -203,13 +209,14 @@ function World:createExampleOverworld()
         })
     )
     
-    -- Add a door to house (at bottom wall center)
+    -- Add a door to house (at bottom wall center) - LOCKED initially
     -- Position it ON the bottom wall (y=18) so it's clearly visible
     table.insert(self.interactables["overworld"], 
         Interactable:new(55*32, 18*32 - 16, 32, 48, "door", {
             destination = "house_interior",
             spawnX = 7*32,
-            spawnY = 9*32  -- Spawn inside, away from walls
+            spawnY = 9*32,  -- Spawn inside, away from walls
+            isHouseDoor = true -- Mark as the house door for lock checking
         })
     )
     
@@ -218,6 +225,12 @@ function World:createExampleOverworld()
         Interactable:new(35*32, 25*32, 32, 32, "sign", {
             message = "Welcome, traveler. Many secrets lie hidden in this land..."
         })
+    )
+    
+    -- Add merchant NPC near the house (southwest of the front door)
+    self.npcs["overworld"] = {}
+    table.insert(self.npcs["overworld"],
+        NPC:new(53*32, 21*32, "merchant", {})
     )
 end
 
@@ -264,12 +277,18 @@ function World:createHouseInterior()
         })
     )
     
-    -- Chest inside house
+    -- Chest inside house (Magic Sword reward)
     table.insert(self.interactables["house_interior"], 
         Interactable:new(7*32, 2*32, 32, 32, "chest", {
             id = "house_chest",
             item = "Magic Sword"
         })
+    )
+    
+    -- Merchant will also be inside the house after quest progression
+    self.npcs["house_interior"] = {}
+    table.insert(self.npcs["house_interior"],
+        NPC:new(7*32, 6*32, "merchant", {})
     )
 end
 
@@ -285,6 +304,40 @@ function World:getCurrentInteractables()
         end
     end
     return {}
+end
+
+function World:getCurrentNPCs()
+    local npcs = {}
+    for mapName, npcList in pairs(self.npcs) do
+        if self.maps[mapName] == self.currentMap then
+            -- Filter NPCs based on quest state
+            for _, npc in ipairs(npcList) do
+                local shouldShow = true
+                
+                if npc.npcType == "merchant" and self.gameState then
+                    if mapName == "overworld" then
+                        -- Show merchant outside only before entering house
+                        shouldShow = (self.gameState.questState ~= "inside_house" and 
+                                     self.gameState.questState ~= "sword_collected")
+                    elseif mapName == "house_interior" then
+                        -- Show merchant inside only after entering house
+                        shouldShow = (self.gameState.questState == "inside_house" or 
+                                     self.gameState.questState == "sword_collected")
+                    end
+                end
+                
+                if shouldShow then
+                    table.insert(npcs, npc)
+                end
+            end
+            return npcs
+        end
+    end
+    return {}
+end
+
+function World:setGameState(gs)
+    self.gameState = gs
 end
 
 function World:draw(camera, gameTime)

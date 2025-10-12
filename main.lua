@@ -50,6 +50,12 @@ local messageDuration = 3
 -- UI state
 local showInventory = false
 local showHelp = false
+local showDebugPanel = false
+
+-- Cutscene state
+local inCutscene = false
+local cutsceneWalkTarget = nil
+local cutsceneOnComplete = nil
 
 -- Direction mappings
 local directions = {
@@ -58,13 +64,8 @@ local directions = {
 }
 
 -- Forward declarations
-local loadAnimations
-local getDirection
-local drawPlayer
-local drawUI
-local drawMessage
-local checkInteraction
-local getNearestInteractable
+local loadAnimations, getDirection, drawPlayer, drawUI, drawMessage
+local checkInteraction, getNearestInteractable, getNearestNPC
 
 function love.load()
     -- Set up window
@@ -75,6 +76,7 @@ function love.load()
     -- Initialize game systems
     gameState = GameState:new()
     world = World:new()
+    world:setGameState(gameState)
     
     -- Create example maps
     world:createExampleOverworld()
@@ -101,7 +103,7 @@ function loadAnimations()
     for _, direction in ipairs(directions) do
         animations.walk[direction] = {}
         for i = 0, 5 do
-            local path = string.format("assets/animations/walk/%s/frame_%03d.png", direction, i)
+            local path = string.format("assets/player/animations/walk/%s/frame_%03d.png", direction, i)
             local success, image = pcall(love.graphics.newImage, path)
             if success then
                 table.insert(animations.walk[direction], image)
@@ -117,7 +119,7 @@ function loadAnimations()
         local foundIdleAnimation = false
         
         for i = 0, 3 do
-            local path = string.format("assets/animations/breathing-idle/%s/frame_%03d.png", direction, i)
+            local path = string.format("assets/player/animations/breathing-idle/%s/frame_%03d.png", direction, i)
             local success, image = pcall(love.graphics.newImage, path)
             if success then
                 table.insert(animations.idle[direction], image)
@@ -135,6 +137,38 @@ end
 
 function love.update(dt)
     gameTime = gameTime + dt
+    
+    -- Update all NPCs
+    local npcs = world:getCurrentNPCs()
+    for _, npc in ipairs(npcs) do
+        local npcResult = npc:update(dt, player.x, player.y)
+        
+        -- Handle NPC-triggered events
+        if npcResult == "enter_house" and not inCutscene then
+            -- Start cutscene: player walks to door, then transitions
+            inCutscene = true
+            cutsceneWalkTarget = {x = 55 * 32, y = 19 * 32} -- Door position
+            cutsceneOnComplete = function()
+                -- Transition to house interior
+                gameState:changeMap("house_interior", 7*32, 9*32)
+                world:loadMap(gameState.currentMap)
+                player.x = gameState.playerSpawn.x
+                player.y = gameState.playerSpawn.y
+                
+                currentMessage = "Inside the merchant's house..."
+                currentMessageItem = nil
+                messageTimer = 2
+                
+                inCutscene = false
+                cutsceneWalkTarget = nil
+                cutsceneOnComplete = nil
+            end
+            
+            currentMessage = "Following the merchant inside..."
+            currentMessageItem = nil
+            messageTimer = 2
+        end
+    end
     
     -- Update all interactables (for animations)
     local interactables = world:getCurrentInteractables()
@@ -174,22 +208,51 @@ function love.update(dt)
     local dx = 0
     local dy = 0
     
-    -- Check input
-    if love.keyboard.isDown("w") or love.keyboard.isDown("up") then
-        dy = dy - 1
+    -- Handle cutscene movement
+    if inCutscene and cutsceneWalkTarget then
+        -- Calculate direction to target
+        local targetDx = cutsceneWalkTarget.x - player.x
+        local targetDy = cutsceneWalkTarget.y - player.y
+        local distance = math.sqrt(targetDx * targetDx + targetDy * targetDy)
+        
+        if DEBUG_MODE then
+            print(string.format("Cutscene: Distance to door = %.2f, Target = (%.0f, %.0f), Player = (%.0f, %.0f)", 
+                distance, cutsceneWalkTarget.x, cutsceneWalkTarget.y, player.x, player.y))
+        end
+        
+        if distance < 20 then -- Increased threshold from 10 to 20
+            -- Reached target, complete cutscene
+            player.x = cutsceneWalkTarget.x
+            player.y = cutsceneWalkTarget.y
+            if cutsceneOnComplete then
+                cutsceneOnComplete()
+            end
+        else
+            -- Move towards target
+            dx = targetDx / distance
+            dy = targetDy / distance
+        end
+        player.isMoving = true
+    else
+        -- Normal player input (only when not in cutscene)
+        if not inCutscene then
+            if love.keyboard.isDown("w") or love.keyboard.isDown("up") then
+                dy = dy - 1
+            end
+            if love.keyboard.isDown("s") or love.keyboard.isDown("down") then
+                dy = dy + 1
+            end
+            if love.keyboard.isDown("a") or love.keyboard.isDown("left") then
+                dx = dx - 1
+            end
+            if love.keyboard.isDown("d") or love.keyboard.isDown("right") then
+                dx = dx + 1
+            end
+        end
+        
+        -- Determine if player is moving
+        player.isMoving = (dx ~= 0 or dy ~= 0)
     end
-    if love.keyboard.isDown("s") or love.keyboard.isDown("down") then
-        dy = dy + 1
-    end
-    if love.keyboard.isDown("a") or love.keyboard.isDown("left") then
-        dx = dx - 1
-    end
-    if love.keyboard.isDown("d") or love.keyboard.isDown("right") then
-        dx = dx + 1
-    end
-    
-    -- Determine if player is moving
-    player.isMoving = (dx ~= 0 or dy ~= 0)
     
     -- Reset animation frame when transitioning between states
     if player.isMoving ~= player.wasMoving then
@@ -212,6 +275,11 @@ function love.update(dt)
         
         -- Helper function to check if position has collision
         local function checkCollision(testX, testY)
+            -- Disable collision during cutscenes
+            if inCutscene then
+                return false
+            end
+            
             -- Calculate collision box edges
             local boxLeft = testX + player.collisionLeft
             local boxRight = testX + player.collisionRight
@@ -246,6 +314,14 @@ function love.update(dt)
                        boxBottom > obj.y then
                         return true
                     end
+                end
+            end
+            
+            -- Check collision with NPCs
+            local npcs = world:getCurrentNPCs()
+            for _, npc in ipairs(npcs) do
+                if npc.isSolid and npc:checkCollision(boxLeft, boxTop, boxWidth, boxHeight) then
+                    return true
                 end
             end
             
@@ -358,10 +434,17 @@ function love.draw()
         draw = drawPlayer
     })
     
-    -- Add decorations (trees, bushes)
+    -- Add decorations (trees, bushes) - only visible ones
     if world.currentMap then
-        for y = 0, world.currentMap.height - 1 do
-            for x = 0, world.currentMap.width - 1 do
+        local screenWidth = love.graphics.getWidth()
+        local screenHeight = love.graphics.getHeight()
+        local startX = math.max(0, math.floor(camera.x / world.currentMap.tileSize) - 2)
+        local endX = math.min(world.currentMap.width - 1, math.ceil((camera.x + screenWidth) / world.currentMap.tileSize) + 2)
+        local startY = math.max(0, math.floor(camera.y / world.currentMap.tileSize) - 2)
+        local endY = math.min(world.currentMap.height - 1, math.ceil((camera.y + screenHeight) / world.currentMap.tileSize) + 2)
+        
+        for y = startY, endY do
+            for x = startX, endX do
                 local deco = world.currentMap:getTile(x, y, "decorations")
                 if deco > 0 then
                     local px = x * world.currentMap.tileSize
@@ -391,6 +474,17 @@ function love.draw()
         })
     end
     
+    -- Add NPCs
+    local npcs = world:getCurrentNPCs()
+    for _, npc in ipairs(npcs) do
+        -- Use bottom of NPC for sorting
+        local sortY = npc.y + 16
+        table.insert(entities, {
+            y = sortY,
+            draw = function() npc:draw() end
+        })
+    end
+    
     -- Sort by Y position
     table.sort(entities, function(a, b) return a.y < b.y end)
     
@@ -402,11 +496,95 @@ function love.draw()
     -- Draw roofs AFTER entities (but they won't draw if player is near)
     world:drawRoofs(camera, player.x, player.y)
     
+    -- Debug: Draw collision boxes for interactables
+    if DEBUG_MODE then
+        local interactables = world:getCurrentInteractables()
+        for _, obj in ipairs(interactables) do
+            -- Check if this object has collision
+            local hasCollision = false
+            if obj.type == "chest" or obj.type == "sign" then
+                hasCollision = true
+            elseif obj.type == "door" then
+                hasCollision = (obj.openProgress == 0) -- Only closed doors
+            end
+            
+            if hasCollision then
+                love.graphics.setColor(1, 0, 0, 0.3)
+                love.graphics.rectangle("fill", obj.x, obj.y, obj.width, obj.height)
+            else
+                -- Draw open doors in different color
+                love.graphics.setColor(0, 1, 0, 0.2)
+                love.graphics.rectangle("fill", obj.x, obj.y, obj.width, obj.height)
+            end
+        end
+        
+        -- Debug: Draw collision boxes for NPCs
+        local npcs = world:getCurrentNPCs()
+        for _, npc in ipairs(npcs) do
+            if npc.isSolid then
+                love.graphics.setColor(1, 0.5, 0, 0.3)
+                love.graphics.rectangle("fill", npc.x - 16, npc.y - 16, 32, 32)
+            end
+        end
+        
+        -- Debug: Draw collision boxes for tiles (trees, bushes, rocks, walls) - only visible
+        if world.currentMap then
+            local screenWidth = love.graphics.getWidth()
+            local screenHeight = love.graphics.getHeight()
+            local startX = math.max(0, math.floor(camera.x / world.currentMap.tileSize) - 1)
+            local endX = math.min(world.currentMap.width - 1, math.ceil((camera.x + screenWidth) / world.currentMap.tileSize) + 1)
+            local startY = math.max(0, math.floor(camera.y / world.currentMap.tileSize) - 1)
+            local endY = math.min(world.currentMap.height - 1, math.ceil((camera.y + screenHeight) / world.currentMap.tileSize) + 1)
+            
+            for y = startY, endY do
+                for x = startX, endX do
+                    local collision = world.currentMap:getTile(x, y, "collision")
+                    
+                    -- Draw all collision tiles (type 2 = walls/decorations)
+                    if collision == 2 then
+                        local px = x * world.currentMap.tileSize
+                        local py = y * world.currentMap.tileSize
+                        love.graphics.setColor(0.6, 0.3, 0, 0.3)
+                        love.graphics.rectangle("fill", px, py, world.currentMap.tileSize, world.currentMap.tileSize)
+                    end
+                end
+            end
+        end
+        
+        love.graphics.setColor(1, 1, 1)
+    end
+    
     -- Draw interaction indicator (on top of everything)
     local nearObj = getNearestInteractable()
     if nearObj then
+        local ex = nearObj.x + nearObj.width/2 - 4
+        local ey = nearObj.y - 20
+        -- Subtle dark background
+        love.graphics.setColor(0, 0, 0, 0.5)
+        love.graphics.rectangle("fill", ex - 4, ey - 2, 16, 16, 3, 3)
+        -- Drop shadow
+        love.graphics.setColor(0, 0, 0, 0.7)
+        love.graphics.print("E", ex + 2, ey + 2)
+        -- Yellow "E"
         love.graphics.setColor(1, 1, 0)
-        love.graphics.print("E", nearObj.x + nearObj.width/2 - 4, nearObj.y - 20)
+        love.graphics.print("E", ex, ey)
+        love.graphics.setColor(1, 1, 1)
+    end
+    
+    -- Draw NPC interaction indicator
+    local nearNPC = getNearestNPC()
+    if nearNPC then
+        local ex = nearNPC.x - 4
+        local ey = nearNPC.y - 70
+        -- Subtle dark background
+        love.graphics.setColor(0, 0, 0, 0.5)
+        love.graphics.rectangle("fill", ex - 4, ey - 2, 16, 16, 3, 3)
+        -- Drop shadow
+        love.graphics.setColor(0, 0, 0, 0.7)
+        love.graphics.print("E", ex + 2, ey + 2)
+        -- Yellow "E"
+        love.graphics.setColor(1, 1, 0)
+        love.graphics.print("E", ex, ey)
         love.graphics.setColor(1, 1, 1)
     end
     
@@ -567,7 +745,7 @@ end
 function drawUI()
     -- Draw toggle hints at bottom
     love.graphics.setColor(1, 1, 1, 0.7)
-    love.graphics.print("[I] Inventory  [H] Help", 10, love.graphics.getHeight() - 20)
+    love.graphics.print("[I] Inventory  [H] Help  [F3] Debug", 10, love.graphics.getHeight() - 20)
     
     -- Draw help panel
     if showHelp then
@@ -622,6 +800,92 @@ function drawUI()
         -- Item count
         love.graphics.setColor(0.9, 0.85, 0.6)
         love.graphics.print(string.format("Items Collected: %d", #gameState.inventory), panelX + padding + 8, yPos + lineHeight * 6.5)
+    end
+    
+    -- Draw debug panel
+    if showDebugPanel then
+        local screenWidth = love.graphics.getWidth()
+        local panelWidth = 320
+        local panelHeight = 240
+        local panelX = screenWidth - panelWidth - 115  -- Moved further left to avoid inventory
+        local panelY = 15
+        local headerHeight = 28
+        local padding = 12
+        
+        -- Main background panel
+        love.graphics.setColor(0.08, 0.08, 0.10, 0.85)
+        love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 4, 4)
+        
+        -- Outer border (gold)
+        love.graphics.setColor(0.75, 0.65, 0.25)
+        love.graphics.setLineWidth(3)
+        love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 4, 4)
+        love.graphics.setLineWidth(1)
+        
+        -- Header background
+        love.graphics.setColor(0.12, 0.10, 0.08, 0.9)
+        love.graphics.rectangle("fill", panelX + 2, panelY + 2, panelWidth - 4, headerHeight - 2, 3, 3)
+        
+        -- Header text (centered)
+        love.graphics.setColor(1, 0.95, 0.7)
+        local headerText = "Debug Info"
+        local textWidth = love.graphics.getFont():getWidth(headerText)
+        love.graphics.print(headerText, panelX + (panelWidth - textWidth) / 2, panelY + 7)
+        
+        -- Divider line below header
+        love.graphics.setColor(0.65, 0.55, 0.20)
+        love.graphics.setLineWidth(2)
+        love.graphics.line(
+            panelX + 8, panelY + headerHeight,
+            panelX + panelWidth - 8, panelY + headerHeight
+        )
+        love.graphics.setLineWidth(1)
+        
+        -- Debug info
+        love.graphics.setColor(1, 1, 1)
+        local yPos = panelY + headerHeight + padding + 8
+        local lineHeight = 18
+        
+        -- Player position
+        love.graphics.print(string.format("Position: (%.0f, %.0f)", player.x, player.y), panelX + padding + 8, yPos)
+        yPos = yPos + lineHeight
+        
+        -- Tile position
+        local tileX = math.floor(player.x / 32)
+        local tileY = math.floor(player.y / 32)
+        love.graphics.print(string.format("Tile: (%d, %d)", tileX, tileY), panelX + padding + 8, yPos)
+        yPos = yPos + lineHeight
+        
+        -- Current map
+        love.graphics.print(string.format("Map: %s", gameState.currentMap), panelX + padding + 8, yPos)
+        yPos = yPos + lineHeight
+        
+        -- Quest state
+        love.graphics.print(string.format("Quest: %s", gameState.questState), panelX + padding + 8, yPos)
+        yPos = yPos + lineHeight
+        
+        -- Direction & movement
+        love.graphics.print(string.format("Direction: %s", player.direction), panelX + padding + 8, yPos)
+        yPos = yPos + lineHeight
+        love.graphics.print(string.format("Moving: %s", tostring(player.isMoving)), panelX + padding + 8, yPos)
+        yPos = yPos + lineHeight
+        
+        -- Cutscene state
+        love.graphics.print(string.format("In Cutscene: %s", tostring(inCutscene)), panelX + padding + 8, yPos)
+        yPos = yPos + lineHeight
+        
+        -- NPC count
+        local npcs = world:getCurrentNPCs()
+        love.graphics.print(string.format("NPCs: %d", #npcs), panelX + padding + 8, yPos)
+        yPos = yPos + lineHeight
+        
+        -- FPS
+        love.graphics.setColor(0.9, 0.85, 0.6)
+        love.graphics.print(string.format("FPS: %d", love.timer.getFPS()), panelX + padding + 8, yPos)
+        
+        -- Note about hitboxes
+        love.graphics.setColor(0.7, 0.7, 0.7)
+        love.graphics.print("(Collision boxes visible)", panelX + padding + 8, panelY + panelHeight - padding - 12)
     end
     
     -- Draw inventory panel (vertical layout)
@@ -814,7 +1078,7 @@ function drawMessage()
     end
 end
 
-function getNearestInteractable()
+getNearestInteractable = function()
     local interactables = world:getCurrentInteractables()
     for _, obj in ipairs(interactables) do
         if obj:isPlayerNear(player.x, player.y) then
@@ -824,7 +1088,30 @@ function getNearestInteractable()
     return nil
 end
 
-function checkInteraction()
+getNearestNPC = function()
+    local npcs = world:getCurrentNPCs()
+    for _, npc in ipairs(npcs) do
+        if npc:isPlayerNear(player.x, player.y) then
+            return npc
+        end
+    end
+    return nil
+end
+
+checkInteraction = function()
+    -- Check NPC interaction first
+    local npc = getNearestNPC()
+    if npc then
+        local result = npc:interact(gameState)
+        if result then
+            currentMessage = result
+            messageTimer = messageDuration
+            currentMessageItem = nil
+        end
+        return
+    end
+    
+    -- Then check interactable objects
     local obj = getNearestInteractable()
     if obj then
         local result = obj:interact(gameState)
@@ -848,13 +1135,14 @@ end
 function love.keypressed(key)
     if key == "escape" then
         love.event.quit()
-    elseif key == "e" then
+    elseif key == "e" and not inCutscene then
         checkInteraction()
     elseif key == "f3" then
-        DEBUG_MODE = not DEBUG_MODE
-    elseif key == "i" then
+        showDebugPanel = not showDebugPanel
+        DEBUG_MODE = showDebugPanel -- Also toggle hitboxes when debug panel is shown
+    elseif key == "i" and not inCutscene then
         showInventory = not showInventory
-    elseif key == "h" then
+    elseif key == "h" and not inCutscene then
         showHelp = not showHelp
     end
 end

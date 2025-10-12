@@ -83,9 +83,17 @@ end
 function TileMap:draw(camera, gameTime)
     gameTime = gameTime or 0
     
-    -- Draw ground layer
-    for y = 0, self.height - 1 do
-        for x = 0, self.width - 1 do
+    -- Calculate visible tile range (viewport culling)
+    local screenWidth = love.graphics.getWidth()
+    local screenHeight = love.graphics.getHeight()
+    local startX = math.max(0, math.floor(camera.x / self.tileSize) - 1)
+    local endX = math.min(self.width - 1, math.ceil((camera.x + screenWidth) / self.tileSize) + 1)
+    local startY = math.max(0, math.floor(camera.y / self.tileSize) - 1)
+    local endY = math.min(self.height - 1, math.ceil((camera.y + screenHeight) / self.tileSize) + 1)
+    
+    -- Draw ground layer (only visible tiles)
+    for y = startY, endY do
+        for x = startX, endX do
             local tile = self:getTile(x, y, "ground")
             if tile > 0 then
                 local px = x * self.tileSize
@@ -270,9 +278,9 @@ function TileMap:draw(camera, gameTime)
         end
     end
     
-    -- Draw organic edges for grass and dirt paths
-    for y = 0, self.height - 1 do
-        for x = 0, self.width - 1 do
+    -- Draw organic edges for grass and dirt paths (only visible tiles)
+    for y = startY, endY do
+        for x = startX, endX do
             local tile = self:getTile(x, y, "ground")
             local px = x * self.tileSize
             local py = y * self.tileSize
@@ -402,9 +410,9 @@ function TileMap:draw(camera, gameTime)
         end
     end
     
-    -- Draw water layer (animated)
-    for y = 0, self.height - 1 do
-        for x = 0, self.width - 1 do
+    -- Draw water layer (animated, only visible tiles)
+    for y = startY, endY do
+        for x = startX, endX do
             local waterType = self:getTile(x, y, "water")
             if waterType == 1 then
                 local px = x * self.tileSize
@@ -494,9 +502,9 @@ function TileMap:draw(camera, gameTime)
         end
     end
     
-    -- Draw walls/rocks (collision type 2) with noise distortion and toon shader
-    for y = 0, self.height - 1 do
-        for x = 0, self.width - 1 do
+    -- Draw walls/rocks (collision type 2) with noise distortion and toon shader (only visible)
+    for y = startY, endY do
+        for x = startX, endX do
             local deco = self:getTile(x, y, "decorations")
             -- Only draw rocks if collision is 2 AND there's no decoration (bush/tree) here
             if self:getTile(x, y, "collision") == 2 and deco == 0 then
@@ -581,21 +589,6 @@ function TileMap:draw(camera, gameTime)
                 love.graphics.setLineWidth(3)
                 love.graphics.polygon("line", noisePoints)
                 love.graphics.setLineWidth(1)
-            end
-        end
-    end
-    
-    -- Debug: Draw collision tiles overlay
-    if DEBUG_MODE then
-        love.graphics.setColor(1, 0, 0, 0.3)
-        for y = 0, self.height - 1 do
-            for x = 0, self.width - 1 do
-                local collisionTile = self:getTile(x, y, "collision")
-                if collisionTile == 1 or collisionTile == 2 then
-                    local px = x * self.tileSize
-                    local py = y * self.tileSize
-                    love.graphics.rectangle("fill", px, py, self.tileSize, self.tileSize)
-                end
             end
         end
     end
