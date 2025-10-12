@@ -7,10 +7,11 @@ function NPC:new(x, y, npcType, data)
         y = y,
         width = 32,
         height = 32,
-        npcType = npcType, -- "merchant", etc.
+        npcType = npcType, -- "merchant", "villager", etc.
         data = data or {},
         direction = "south", -- Current facing direction (north, south, east, west)
         rotations = {}, -- Loaded rotation images
+        animations = {walk = {}, idle = {}}, -- Loaded walk/idle animations
         scale = 2,
         -- Collision (same as player for consistency)
         isSolid = true,
@@ -19,43 +20,122 @@ function NPC:new(x, y, npcType, data)
         isMoving = false,
         moveTarget = nil,
         moveSpeed = 80,
-        -- Animation
+        -- Animation frames
+        currentFrame = 1,
+        frameTimer = 0,
+        walkFrameDelay = 0.1,
+        idleFrameDelay = 0.15,
         rotationUpdateTimer = 0,
-        rotationUpdateDelay = 0.1 -- Update facing direction periodically
+        rotationUpdateDelay = 0.1,
+        -- Patrol system
+        patrolRoute = data.patrolRoute or {}, -- Array of {x, y} waypoints
+        currentWaypoint = 1,
+        patrolPauseTimer = 0,
+        patrolPauseTime = 2, -- Seconds to pause at each waypoint
+        useAnimations = data.useAnimations or false, -- Use full animations vs static rotations
+        -- Obstacle avoidance
+        stuckTimer = 0,
+        stuckThreshold = 2.0, -- Seconds before considering NPC stuck
+        lastPosition = {x = x, y = y}
     }
     setmetatable(npc, {__index = self})
     
-    -- Load rotation sprites
+    -- Load sprites (rotations or animations)
     npc:loadSprites()
     
     return npc
 end
 
 function NPC:loadSprites()
-    -- Load 4 directional rotation sprites
-    local basePath = string.format("assets/npcs/%s/rotations/", self.npcType)
     local directions = {"north", "south", "east", "west"}
     
-    for _, dir in ipairs(directions) do
-        local path = basePath .. dir .. ".png"
-        local success, image = pcall(love.graphics.newImage, path)
-        if success then
-            self.rotations[dir] = image
-        else
-            print("Failed to load NPC rotation: " .. path)
+    if self.useAnimations then
+        -- Load walk animations (6 frames per direction)
+        for _, direction in ipairs(directions) do
+            self.animations.walk[direction] = {}
+            for i = 0, 5 do
+                local path = string.format("assets/npcs/%s/animations/walk/%s/frame_%03d.png", 
+                    self.npcType, direction, i)
+                local success, image = pcall(love.graphics.newImage, path)
+                if success then
+                    table.insert(self.animations.walk[direction], image)
+                end
+            end
+        end
+        
+        -- Load idle/breathing animations (4 frames per direction)
+        for _, direction in ipairs(directions) do
+            self.animations.idle[direction] = {}
+            local foundIdleAnimation = false
+            
+            for i = 0, 3 do
+                local path = string.format("assets/npcs/%s/animations/breathing-idle/%s/frame_%03d.png", 
+                    self.npcType, direction, i)
+                local success, image = pcall(love.graphics.newImage, path)
+                if success then
+                    table.insert(self.animations.idle[direction], image)
+                    foundIdleAnimation = true
+                end
+            end
+            
+            -- Fallback to first walk frame if no idle animation
+            if not foundIdleAnimation and #self.animations.walk[direction] > 0 then
+                table.insert(self.animations.idle[direction], self.animations.walk[direction][1])
+            end
+        end
+    else
+        -- Load simple 4 directional rotation sprites (for merchant)
+        local basePath = string.format("assets/npcs/%s/rotations/", self.npcType)
+        
+        for _, dir in ipairs(directions) do
+            local path = basePath .. dir .. ".png"
+            local success, image = pcall(love.graphics.newImage, path)
+            if success then
+                self.rotations[dir] = image
+            else
+                print("Failed to load NPC rotation: " .. path)
+            end
         end
     end
 end
 
 function NPC:update(dt, playerX, playerY)
-    -- Update facing direction to look at player
-    self.rotationUpdateTimer = self.rotationUpdateTimer + dt
-    if self.rotationUpdateTimer >= self.rotationUpdateDelay then
-        self.rotationUpdateTimer = 0
-        self:facePlayer(playerX, playerY)
+    -- Handle patrol route
+    if #self.patrolRoute > 0 then
+        self:updatePatrol(dt, playerX, playerY)
+    else
+        -- Update facing direction to look at player (only if not patrolling)
+        self.rotationUpdateTimer = self.rotationUpdateTimer + dt
+        if self.rotationUpdateTimer >= self.rotationUpdateDelay then
+            self.rotationUpdateTimer = 0
+            self:facePlayer(playerX, playerY)
+        end
     end
     
-    -- Handle auto-enter timer (for quest sequence)
+    -- Update animation frames
+    if self.useAnimations then
+        self.frameTimer = self.frameTimer + dt
+        local animType = self.isMoving and "walk" or "idle"
+        local frameDelay = self.isMoving and self.walkFrameDelay or self.idleFrameDelay
+        
+        -- Ensure current frame is valid for the current animation type
+        local maxFrames = #self.animations[animType][self.direction]
+        if maxFrames > 0 and self.currentFrame > maxFrames then
+            self.currentFrame = 1 -- Reset to first frame if out of range
+        end
+        
+        if self.frameTimer >= frameDelay then
+            self.frameTimer = self.frameTimer - frameDelay
+            if maxFrames > 0 then
+                self.currentFrame = self.currentFrame + 1
+                if self.currentFrame > maxFrames then
+                    self.currentFrame = 1
+                end
+            end
+        end
+    end
+    
+    -- Handle auto-enter timer (for quest sequences)
     if self.data.autoEnterTimer and self.data.autoEnterTimer > 0 then
         self.data.autoEnterTimer = self.data.autoEnterTimer - dt
         if self.data.autoEnterTimer <= 0 then
@@ -68,7 +148,7 @@ function NPC:update(dt, playerX, playerY)
     end
     
     -- Handle movement (for quest sequences)
-    if self.isMoving and self.moveTarget then
+    if self.moveTarget then
         local dx = self.moveTarget.x - self.x
         local dy = self.moveTarget.y - self.y
         local distance = math.sqrt(dx * dx + dy * dy)
@@ -86,6 +166,7 @@ function NPC:update(dt, playerX, playerY)
             end
         else
             -- Move towards target
+            self.isMoving = true
             local moveX = (dx / distance) * self.moveSpeed * dt
             local moveY = (dy / distance) * self.moveSpeed * dt
             self.x = self.x + moveX
@@ -101,6 +182,117 @@ function NPC:update(dt, playerX, playerY)
     end
     
     return nil
+end
+
+function NPC:updatePatrol(dt, playerX, playerY)
+    if #self.patrolRoute == 0 then return end
+    
+    -- Check if player is very close - pause and face them
+    local playerDx = playerX - self.x
+    local playerDy = playerY - self.y
+    local playerDistance = math.sqrt(playerDx * playerDx + playerDy * playerDy)
+    
+    if playerDistance < 60 then
+        -- Player is close, stop and face them
+        self.isMoving = false
+        self:facePlayer(playerX, playerY)
+        return
+    end
+    
+    -- Handle pause at waypoint
+    if self.patrolPauseTimer > 0 then
+        self.patrolPauseTimer = self.patrolPauseTimer - dt
+        self.isMoving = false
+        return
+    end
+    
+    -- Get current waypoint
+    local waypoint = self.patrolRoute[self.currentWaypoint]
+    local dx = waypoint.x - self.x
+    local dy = waypoint.y - self.y
+    local distance = math.sqrt(dx * dx + dy * dy)
+    
+    if distance < 5 then
+        -- Reached waypoint
+        self.x = waypoint.x
+        self.y = waypoint.y
+        self.isMoving = false
+        
+        -- Pause at waypoint
+        self.patrolPauseTimer = self.patrolPauseTime
+        
+        -- Move to next waypoint
+        self.currentWaypoint = self.currentWaypoint + 1
+        if self.currentWaypoint > #self.patrolRoute then
+            self.currentWaypoint = 1
+        end
+    else
+        -- Move towards waypoint
+        self.isMoving = true
+        local moveX = (dx / distance) * self.moveSpeed * dt
+        local moveY = (dy / distance) * self.moveSpeed * dt
+        
+        local newX = self.x + moveX
+        local newY = self.y + moveY
+        local didMove = false
+        
+        -- Check collision with interactables (if callback is set)
+        if self.checkInteractableCollision then
+            if not self.checkInteractableCollision(newX, newY) then
+                self.x = newX
+                self.y = newY
+                didMove = true
+            elseif not self.checkInteractableCollision(newX, self.y) then
+                -- Try X only
+                self.x = newX
+                didMove = true
+            elseif not self.checkInteractableCollision(self.x, newY) then
+                -- Try Y only
+                self.y = newY
+                didMove = true
+            end
+        else
+            -- No collision checking available, just move
+            self.x = newX
+            self.y = newY
+            didMove = true
+        end
+        
+        -- Smart obstacle avoidance - detect if stuck
+        if didMove then
+            -- Check if actually moved significantly
+            local moveDist = math.sqrt((self.x - self.lastPosition.x)^2 + (self.y - self.lastPosition.y)^2)
+            if moveDist > 0.5 then
+                -- Made progress, reset stuck timer
+                self.stuckTimer = 0
+                self.lastPosition.x = self.x
+                self.lastPosition.y = self.y
+            else
+                -- Not making progress, increment stuck timer
+                self.stuckTimer = self.stuckTimer + dt
+            end
+        else
+            -- Completely blocked, increment stuck timer faster
+            self.stuckTimer = self.stuckTimer + dt * 2
+        end
+        
+        -- If stuck for too long, skip to next waypoint
+        if self.stuckTimer > self.stuckThreshold then
+            self.stuckTimer = 0
+            self.currentWaypoint = self.currentWaypoint + 1
+            if self.currentWaypoint > #self.patrolRoute then
+                self.currentWaypoint = 1
+            end
+            self.patrolPauseTimer = 0.5 -- Brief pause before continuing
+        end
+        
+        -- Update facing direction based on movement
+        if math.abs(dx) > math.abs(dy) then
+            self.direction = dx > 0 and "east" or "west"
+        else
+            self.direction = dy > 0 and "south" or "north"
+        end
+    end
 end
 
 function NPC:facePlayer(playerX, playerY)
@@ -139,12 +331,30 @@ function NPC:isPlayerNear(playerX, playerY, distance)
 end
 
 function NPC:interact(gameState)
-    -- Return dialogue based on quest state
+    -- Return dialogue based on NPC type
     if self.npcType == "merchant" then
         return self:merchantDialogue(gameState)
+    elseif self.npcType == "villager" then
+        return self:villagerDialogue(gameState)
     end
     
     return "..."
+end
+
+function NPC:villagerDialogue(gameState)
+    -- Villager gives hints and comments on the quest
+    if gameState.questState == "initial" or gameState.questState == "looking_for_key" then
+        -- Before key is found - give hint
+        return "I saw something shiny near the trees to the west... Maybe that's what the merchant is looking for?"
+    elseif gameState.questState == "has_key" or 
+           gameState.questState == "merchant_unlocking" or
+           gameState.questState == "merchant_at_door" then
+        -- After finding key but before entering house
+        return "Oh, you found something! The merchant will be so happy!"
+    else
+        -- After quest is complete
+        return "It's nice to see neighbors helping each other. Thank you for being so kind!"
+    end
 end
 
 function NPC:merchantDialogue(gameState)
@@ -210,8 +420,21 @@ function NPC:moveToHouse(gameState)
 end
 
 function NPC:draw()
-    if self.rotations[self.direction] then
-        local image = self.rotations[self.direction]
+    local image = nil
+    
+    if self.useAnimations then
+        -- Use full animations
+        local animType = self.isMoving and "walk" or "idle"
+        if self.animations[animType][self.direction] and 
+           #self.animations[animType][self.direction] > 0 then
+            image = self.animations[animType][self.direction][self.currentFrame]
+        end
+    else
+        -- Use static rotations
+        image = self.rotations[self.direction]
+    end
+    
+    if image then
         local imageWidth = image:getWidth()
         local imageHeight = image:getHeight()
         

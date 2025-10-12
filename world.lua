@@ -2,6 +2,7 @@
 local TileMap = require("tilemap")
 local Interactable = require("interactable")
 local NPC = require("npc")
+local Enemy = require("enemy")
 
 local World = {}
 
@@ -11,6 +12,7 @@ function World:new()
         currentMap = nil,
         interactables = {},
         npcs = {}, -- NPCs per map
+        enemies = {}, -- Enemies per map
         gameState = nil -- Reference to game state for quest filtering
     }
     setmetatable(world, {__index = self})
@@ -232,6 +234,56 @@ function World:createExampleOverworld()
     table.insert(self.npcs["overworld"],
         NPC:new(53*32, 21*32, "merchant", {})
     )
+    
+    -- Add villager NPC with patrol route (wider path avoiding sign area)
+    local villagerPatrol = {
+        {x = 22*32, y = 18*32}, -- Start: Far west near trees
+        {x = 30*32, y = 18*32}, -- East (before sign area)
+        {x = 30*32, y = 28*32}, -- South (avoiding sign)
+        {x = 48*32, y = 28*32}, -- Far east
+        {x = 48*32, y = 38*32}, -- South
+        {x = 22*32, y = 38*32}, -- Back west
+        {x = 22*32, y = 18*32}  -- North to start
+    }
+    local villager = NPC:new(25*32, 20*32, "villager", {
+        useAnimations = true,
+        patrolRoute = villagerPatrol
+    })
+    -- Villager has collision like merchant
+    table.insert(self.npcs["overworld"], villager)
+    
+    -- Add skeleton enemies
+    self.enemies["overworld"] = {}
+    
+    -- Skeleton 1: Patrol western forest area (dangerous area)
+    local skeleton1Patrol = {
+        {x = 8*32, y = 30*32},
+        {x = 12*32, y = 30*32},
+        {x = 12*32, y = 35*32},
+        {x = 8*32, y = 35*32}
+    }
+    table.insert(self.enemies["overworld"],
+        Enemy:new(10*32, 32*32, "skeleton", {
+            patrolRoute = skeleton1Patrol,
+            aggroRange = 120,
+            deaggroRange = 200
+        })
+    )
+    
+    -- Skeleton 2: Patrol northwest clearing (further west)
+    local skeleton2Patrol = {
+        {x = 10*32, y = 12*32},
+        {x = 14*32, y = 12*32},
+        {x = 14*32, y = 16*32},
+        {x = 10*32, y = 16*32}
+    }
+    table.insert(self.enemies["overworld"],
+        Enemy:new(12*32, 14*32, "skeleton", {
+            patrolRoute = skeleton2Patrol,
+            aggroRange = 100,
+            deaggroRange = 180
+        })
+    )
 end
 
 function World:createHouseInterior()
@@ -331,6 +383,15 @@ function World:getCurrentNPCs()
                 end
             end
             return npcs
+        end
+    end
+    return {}
+end
+
+function World:getCurrentEnemies()
+    for mapName, enemies in pairs(self.enemies) do
+        if self.maps[mapName] == self.currentMap then
+            return enemies
         end
     end
     return {}

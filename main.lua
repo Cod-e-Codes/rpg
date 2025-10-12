@@ -21,7 +21,14 @@ local player = {
     collisionLeft = -13,    -- Left edge of hitbox (negative = left of center)
     collisionRight = 13,    -- Right edge of hitbox (positive = right of center)
     collisionTop = -4,      -- Top edge of hitbox (negative = above center, small value = near feet)
-    collisionBottom = 28    -- Bottom edge of hitbox (positive = below center, at feet)
+    collisionBottom = 28,   -- Bottom edge of hitbox (positive = below center, at feet)
+    -- Knockback state
+    knockbackVelocityX = 0,
+    knockbackVelocityY = 0,
+    knockbackDecay = 0.88,  -- How quickly knockback fades (lower = faster fade)
+    -- Immunity frames (invincibility after being hit)
+    immunityTimer = 0,
+    immunityDuration = 1.2  -- Seconds of immunity after being hit
 }
 
 local animations = {
@@ -138,9 +145,93 @@ end
 function love.update(dt)
     gameTime = gameTime + dt
     
+    -- Update player immunity timer
+    if player.immunityTimer > 0 then
+        player.immunityTimer = player.immunityTimer - dt
+    end
+    
+    -- Failsafe: Check if player is stuck in water/collision and teleport to safety
+    if world.currentMap and not inCutscene then
+        local boxLeft = player.x + player.collisionLeft
+        local boxTop = player.y + player.collisionTop
+        local boxWidth = player.collisionRight - player.collisionLeft
+        local boxHeight = player.collisionBottom - player.collisionTop
+        
+        if world.currentMap:isColliding(boxLeft, boxTop, boxWidth, boxHeight) then
+            -- Player is stuck! Cancel all velocity first
+            player.knockbackVelocityX = 0
+            player.knockbackVelocityY = 0
+            
+            -- Try to find nearest safe position in all 8 directions
+            local tileSize = world.currentMap.tileSize
+            local directions = {
+                {x = 0, y = -1},  -- North
+                {x = 1, y = 0},   -- East
+                {x = 0, y = 1},   -- South
+                {x = -1, y = 0},  -- West
+                {x = 1, y = -1},  -- NE
+                {x = 1, y = 1},   -- SE
+                {x = -1, y = 1},  -- SW
+                {x = -1, y = -1}  -- NW
+            }
+            
+            local found = false
+            -- Try increasingly far distances in each direction
+            for distance = 1, 5 do
+                if found then break end
+                for _, dir in ipairs(directions) do
+                    local checkX = player.x + (dir.x * tileSize * distance)
+                    local checkY = player.y + (dir.y * tileSize * distance)
+                    local checkBoxLeft = checkX + player.collisionLeft
+                    local checkBoxTop = checkY + player.collisionTop
+                    
+                    if not world.currentMap:isColliding(checkBoxLeft, checkBoxTop, boxWidth, boxHeight) then
+                        player.x = checkX
+                        player.y = checkY
+                        found = true
+                        if DEBUG_MODE then
+                            print("Rescued player from collision at distance " .. distance .. " in direction " .. dir.x .. "," .. dir.y)
+                        end
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
     -- Update all NPCs
     local npcs = world:getCurrentNPCs()
     for _, npc in ipairs(npcs) do
+        -- Provide collision checking for interactables
+        npc.checkInteractableCollision = function(x, y)
+            local npcLeft = x - 16
+            local npcRight = x + 16
+            local npcTop = y - 16
+            local npcBottom = y + 16
+            
+            local interactables = world:getCurrentInteractables()
+            for _, obj in ipairs(interactables) do
+                -- Check collision with signs, chests, and closed doors
+                local hasCollision = false
+                if obj.type == "chest" or obj.type == "sign" then
+                    hasCollision = true
+                elseif obj.type == "door" then
+                    hasCollision = (obj.openProgress == 0)
+                end
+                
+                if hasCollision then
+                    if npcLeft < obj.x + obj.width and
+                       npcRight > obj.x and
+                       npcTop < obj.y + obj.height and
+                       npcBottom > obj.y then
+                        return true
+                    end
+                end
+            end
+            
+            return false
+        end
+        
         local npcResult = npc:update(dt, player.x, player.y)
         
         -- Handle NPC-triggered events
@@ -167,6 +258,44 @@ function love.update(dt)
             currentMessage = "Following the merchant inside..."
             currentMessageItem = nil
             messageTimer = 2
+        end
+    end
+    
+    -- Update all enemies
+    local enemies = world:getCurrentEnemies()
+    for _, enemy in ipairs(enemies) do
+        -- Provide terrain collision checking (same method as player)
+        enemy.checkTerrainCollision = function(x, y)
+            if not world.currentMap then return false end
+            
+            -- Enemy collision box (32x32 centered on position)
+            local boxLeft = x - 16
+            local boxTop = y - 16
+            local boxWidth = 32
+            local boxHeight = 32
+            
+            -- Use the same isColliding method as the player
+            return world.currentMap:isColliding(boxLeft, boxTop, boxWidth, boxHeight)
+        end
+        
+        -- Only check for hits if player doesn't have immunity
+        local canBeHit = (player.immunityTimer <= 0)
+        local enemyResult = enemy:update(dt, player.x, player.y, gameTime, canBeHit)
+        
+        -- Handle knockback
+        if enemyResult and enemyResult.type == "knockback" and canBeHit then
+            local knockDir = enemyResult.direction
+            local distance = math.sqrt(knockDir.x * knockDir.x + knockDir.y * knockDir.y)
+            
+            if distance > 0 then
+                -- Apply strong knockback velocity
+                local knockbackSpeed = 750 -- Strong initial push
+                player.knockbackVelocityX = (knockDir.x / distance) * knockbackSpeed
+                player.knockbackVelocityY = (knockDir.y / distance) * knockbackSpeed
+                
+                -- Grant immunity frames
+                player.immunityTimer = player.immunityDuration
+            end
         end
     end
     
@@ -207,6 +336,40 @@ function love.update(dt)
     
     local dx = 0
     local dy = 0
+    
+    -- Apply knockback velocity (smooth lerping with collision checking)
+    if math.abs(player.knockbackVelocityX) > 1 or math.abs(player.knockbackVelocityY) > 1 then
+        local oldX = player.x
+        local oldY = player.y
+        
+        -- Calculate new position
+        local newX = player.x + player.knockbackVelocityX * dt
+        local newY = player.y + player.knockbackVelocityY * dt
+        
+        -- Check collision before moving
+        local boxLeft = newX + player.collisionLeft
+        local boxTop = newY + player.collisionTop
+        local boxWidth = player.collisionRight - player.collisionLeft
+        local boxHeight = player.collisionBottom - player.collisionTop
+        
+        if world.currentMap and world.currentMap:isColliding(boxLeft, boxTop, boxWidth, boxHeight) then
+            -- Would collide, stop knockback immediately
+            player.knockbackVelocityX = 0
+            player.knockbackVelocityY = 0
+        else
+            -- Safe to move
+            player.x = newX
+            player.y = newY
+            
+            -- Decay knockback velocity for smooth stopping
+            player.knockbackVelocityX = player.knockbackVelocityX * player.knockbackDecay
+            player.knockbackVelocityY = player.knockbackVelocityY * player.knockbackDecay
+        end
+    else
+        -- Stop knockback if velocity is very small
+        player.knockbackVelocityX = 0
+        player.knockbackVelocityY = 0
+    end
     
     -- Handle cutscene movement
     if inCutscene and cutsceneWalkTarget then
@@ -324,6 +487,9 @@ function love.update(dt)
                     return true
                 end
             end
+            
+            -- Enemies don't block movement (you can walk through them)
+            -- Only knockback affects player position
             
             return false
         end
@@ -485,6 +651,17 @@ function love.draw()
         })
     end
     
+    -- Add Enemies
+    local enemies = world:getCurrentEnemies()
+    for _, enemy in ipairs(enemies) do
+        -- Use bottom of enemy for sorting
+        local sortY = enemy.y + 16
+        table.insert(entities, {
+            y = sortY,
+            draw = function() enemy:draw() end
+        })
+    end
+    
     -- Sort by Y position
     table.sort(entities, function(a, b) return a.y < b.y end)
     
@@ -524,6 +701,22 @@ function love.draw()
             if npc.isSolid then
                 love.graphics.setColor(1, 0.5, 0, 0.3)
                 love.graphics.rectangle("fill", npc.x - 16, npc.y - 16, 32, 32)
+            end
+        end
+        
+        -- Debug: Draw collision boxes for enemies (distinct red color)
+        local enemies = world:getCurrentEnemies()
+        for _, enemy in ipairs(enemies) do
+            if enemy.isSolid then
+                -- Filled collision box
+                love.graphics.setColor(1, 0, 0, 0.4)
+                love.graphics.rectangle("fill", enemy.x - 16, enemy.y - 16, 32, 32)
+                
+                -- Thicker outline to distinguish from NPCs
+                love.graphics.setColor(1, 0, 0, 0.8)
+                love.graphics.setLineWidth(3)
+                love.graphics.rectangle("line", enemy.x - 16, enemy.y - 16, 32, 32)
+                love.graphics.setLineWidth(1)
             end
         end
         
@@ -602,6 +795,18 @@ function drawPlayer()
         local imageWidth = image:getWidth()
         local imageHeight = image:getHeight()
         
+        -- Flash when immune (invincibility frames)
+        if player.immunityTimer > 0 then
+            -- Flash effect: alternate between visible and transparent
+            local flashRate = 8 -- Flashes per second
+            local flashCycle = (gameTime * flashRate) % 1
+            if flashCycle < 0.5 then
+                love.graphics.setColor(1, 1, 1, 0.4) -- Semi-transparent
+            else
+                love.graphics.setColor(1, 1, 1, 1) -- Normal
+            end
+        end
+        
         love.graphics.draw(
             image,
             player.x,
@@ -612,6 +817,9 @@ function drawPlayer()
             imageWidth / 2,
             imageHeight / 2
         )
+        
+        -- Reset color
+        love.graphics.setColor(1, 1, 1, 1)
     end
     
     -- Debug: draw collision box
