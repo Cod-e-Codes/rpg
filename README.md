@@ -40,7 +40,9 @@ love .
 - **E** - Interact
 - **1-5** - Cast spell (slot)
 - **B** - Spellbook
-- **I** - Inventory
+- **I** - Quick slots
+- **I+I** (double tap) - Full inventory
+- **6-0** - Use quick slot
 - **ESC / P** - Pause
 - **F3** - Debug info
 - **F12** - Dev mode
@@ -60,7 +62,7 @@ Save files are stored in your LOVE save directory:
 - **macOS**: `~/Library/Application Support/LOVE/rpg-game/`
 - **Linux**: `~/.local/share/love/rpg-game/`
 
-Files are named: `save_slot_1.sav`, `save_slot_2.sav`, etc.
+Save file: `savegame.sav`
 
 ## Current Progress
 
