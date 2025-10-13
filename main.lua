@@ -244,6 +244,10 @@ local saveManager
 ---@field riverCurrentVolume number
 ---@field riverFadeSpeed number
 ---@field riverPreviousTargetVolume number
+---@field caveSound any
+---@field caveTargetVolume number
+---@field caveCurrentVolume number
+---@field caveFadeSpeed number
 ---@field chestCreakSound any
 ---@field doorCreakSound any
 local audio = {
@@ -256,6 +260,10 @@ local audio = {
     riverCurrentVolume = 0,
     riverFadeSpeed = 0.5,
     riverPreviousTargetVolume = 0,
+    caveSound = nil,
+    caveTargetVolume = 0,
+    caveCurrentVolume = 0,
+    caveFadeSpeed = 0.5,
     chestCreakSound = nil,
     doorCreakSound = nil
 }
@@ -436,13 +444,34 @@ function love.load()
     if not audioSuccess then
         print("Warning: Could not load river.mp3: " .. tostring(audioError))
     else
-        print("[AUDIO] Loaded river.mp3 successfully. Looping: true, Max Volume: 1.0")
+        print("[AUDIO] Loaded river.mp3 successfully. Looping: true, Max Volume: 0.85")
         if audio.riverSound then
             ---@type any
             local rs = audio.riverSound
             print("[AUDIO] River duration: " .. string.format("%.2f", rs:getDuration()) .. "s")
             rs:play()  -- Start playing but at 0 volume
             print("[AUDIO] River playback started (will fade in when water visible)")
+        end
+    end
+    
+    -- Load cave ambient sound
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local cave = love.audio.newSource("assets/sounds/cave-sounds.mp3", "stream")
+        audio.caveSound = cave
+        cave:setLooping(true)
+        cave:setVolume(0)  -- Start at 0, will fade in when in cave
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load cave-sounds.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded cave-sounds.mp3 successfully. Looping: true, Max Volume: 0.6")
+        if audio.caveSound then
+            ---@type any
+            local cs = audio.caveSound
+            print("[AUDIO] Cave duration: " .. string.format("%.2f", cs:getDuration()) .. "s")
+            cs:play()  -- Start playing but at 0 volume
+            print("[AUDIO] Cave playback started (will fade in when in cave)")
         end
     end
     
@@ -601,6 +630,37 @@ function love.update(dt)
                 audio.riverTargetVolume * 100, 
                 audio.riverCurrentVolume * 100))
             audio.riverPreviousTargetVolume = audio.riverTargetVolume
+        end
+    end
+    
+    -- Update cave sound volume based on current map
+    if audio.caveSound and gameStarted and gameState then
+        local inCave = gameState.currentMap == "cave_level1"
+        
+        -- Set target volume based on whether player is in cave
+        audio.caveTargetVolume = inCave and 0.6 or 0  -- Max volume of 0.6 when in cave
+        
+        -- Smoothly lerp current volume towards target
+        if audio.caveCurrentVolume < audio.caveTargetVolume then
+            audio.caveCurrentVolume = math.min(audio.caveTargetVolume, audio.caveCurrentVolume + audio.caveFadeSpeed * dt)
+        elseif audio.caveCurrentVolume > audio.caveTargetVolume then
+            audio.caveCurrentVolume = math.max(audio.caveTargetVolume, audio.caveCurrentVolume - audio.caveFadeSpeed * dt)
+        end
+        
+        -- Apply the current volume
+        ---@type any
+        local cs = audio.caveSound
+        cs:setVolume(audio.caveCurrentVolume)
+        
+        -- Debug logging for cave state changes
+        if DEBUG_MODE then
+            local prevInCave = audio.caveTargetVolume > 0
+            if inCave ~= prevInCave then
+                print(string.format("[AUDIO] Cave state: %s (target: %.0f%%, current: %.0f%%)", 
+                    inCave and "IN CAVE" or "OUTSIDE", 
+                    audio.caveTargetVolume * 100, 
+                    audio.caveCurrentVolume * 100))
+            end
         end
     end
     
@@ -2933,7 +2993,7 @@ function drawUI()
     if showDebugPanel then
         local screenWidth = love.graphics.getWidth()
         local panelWidth = 320
-        local panelHeight = 300  -- Increased for audio info
+        local panelHeight = 320  -- Increased for audio info (footsteps, river, cave)
         local panelX = screenWidth - panelWidth - 115  -- Moved further left to avoid inventory
         local panelY = 15
         local headerHeight = 28
@@ -3037,6 +3097,18 @@ function drawUI()
             yPos = yPos + lineHeight
         else
             love.graphics.print("River: NOT LOADED", panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+        end
+        
+        if audio.caveSound then
+            ---@type any
+            local cs = audio.caveSound
+            local isPlaying = cs:isPlaying()
+            local volume = cs:getVolume()
+            love.graphics.print(string.format("Cave: %s (%.0f%% -> %.0f%%)", isPlaying and "PLAYING" or "STOPPED", volume * 100, audio.caveTargetVolume * 100), panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+        else
+            love.graphics.print("Cave: NOT LOADED", panelX + padding + 8, yPos)
             yPos = yPos + lineHeight
         end
         
