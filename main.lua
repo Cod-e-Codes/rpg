@@ -486,11 +486,13 @@ function love.update(dt)
                 -- Grant immunity frames
                 player.immunityTimer = player.immunityDuration
                 
-                -- Take damage from enemy
-                player.health = player.health - enemy.damage
-                if player.health <= 0 then
-                    player.health = 0
-                    player.isDead = true
+                -- Take damage from enemy (only if player has selected a class)
+                if gameState.playerClass then
+                    player.health = player.health - enemy.damage
+                    if player.health <= 0 then
+                        player.health = 0
+                        player.isDead = true
+                    end
                 end
             end
         end

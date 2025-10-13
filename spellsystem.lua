@@ -570,16 +570,29 @@ function SpellSystem:rebuildLearnedSpells()
     -- Clear current learned spells
     self.learnedSpells = {}
     
+    local Spell = require("spell")
+    
     -- Rebuild from game state
     for _, spellName in ipairs(self.gameState.learnedSpells) do
+        local spell = nil
+        
         if spellName == "Illumination" then
-            local Spell = require("spell")
-            local spell = Spell.createIllumination()
+            spell = Spell.createIllumination()
+        elseif spellName == "Fireball" then
+            spell = Spell.createFireball()
+        elseif spellName == "Ice Shard" then
+            spell = Spell.createIceShard()
+        elseif spellName == "Lightning Bolt" then
+            spell = Spell.createLightningBolt()
+        elseif spellName == "Stone Spike" then
+            spell = Spell.createStoneSpike()
+        end
+        
+        if spell then
             spell.level = self.gameState:getSpellLevel(spellName)
             spell.experience = self.gameState:getSpellExperience(spellName)
             table.insert(self.learnedSpells, spell)
         end
-        -- Add more spell types here as they're implemented
     end
     
     -- Rebuild equipped spells
