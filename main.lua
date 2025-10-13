@@ -1532,7 +1532,8 @@ function love.draw()
     local nearObj = getNearestInteractable()
     if nearObj then
         local ex = nearObj.x + nearObj.width/2 - 4
-        local ey = nearObj.y - 20
+        -- Ancient path needs lower E prompt due to vertical positioning
+        local ey = nearObj.y + (nearObj.type == "ancient_path" and 10 or -20)
         -- Subtle dark background
         love.graphics.setColor(0, 0, 0, 0.5)
         love.graphics.rectangle("fill", ex - 4, ey - 2, 16, 16, 3, 3)
