@@ -140,14 +140,12 @@ function Interactable:interact(gameState)
         if gameState.playerClass then
             return "You are already a " .. gameState.playerClass
         else
-            -- Return class selection result
-            gameState.playerClass = self.data.className
-            gameState.playerElement = self.data.element
+            -- Return class icon info to trigger UI
             return {
-                type = "class_selected",
+                type = "class_icon_interact",
                 className = self.data.className,
                 element = self.data.element,
-                message = string.format("You have chosen to become a %s!\n\n%s\n\nYou've learned your first attack spell!", self.data.className, self.data.description)
+                description = self.data.description
             }
         end
     elseif self.type == "portal" then

@@ -17,6 +17,99 @@ DEBUG_MODE = false
 -- UI Images
 local deathScreenImage = nil
 local titleScreenImage = nil
+local classImages = {}
+
+-- Class Information Database
+local classInfo = {
+    ["Fire Mage"] = {
+        element = "fire",
+        description = "Masters of flame and destruction, Fire Mages wield the raw power of fire to incinerate their enemies.",
+        strengths = {
+            "High burst damage",
+            "Area damage potential",
+            "Fast spell casting",
+            "Excellent against groups"
+        },
+        weaknesses = {
+            "Lower sustained damage",
+            "High mana consumption",
+            "Vulnerable in melee",
+            "Fire-resistant enemies"
+        },
+        abilities = {
+            "Fireball - Launches a burning projectile",
+            "Flame Ward - Protective fire shield (future)",
+            "Meteor Storm - Devastating area attack (future)"
+        },
+        lore = "Born from the eternal flames of the Crimson Peaks, Fire Mages channel the destructive force of fire itself. Their magic is chaotic and powerful, consuming everything in its path. They are feared across the realm for their ability to reduce entire armies to ash."
+    },
+    ["Ice Mage"] = {
+        element = "ice",
+        description = "Ice mages who freeze their foes and control the battlefield with chilling precision.",
+        strengths = {
+            "Crowd control effects",
+            "Defensive capabilities",
+            "Slowing enemies",
+            "Consistent damage"
+        },
+        weaknesses = {
+            "Lower single-target damage",
+            "Slower cast times",
+            "Ice-immune enemies",
+            "Requires positioning"
+        },
+        abilities = {
+            "Ice Shard - Piercing frozen projectile",
+            "Frost Armor - Protective ice barrier (future)",
+            "Blizzard - Freezing area storm (future)"
+        },
+        lore = "From the frozen wastes of the Glacial Expanse come the Ice Mages, wielders of eternal winter. Their magic flows like glacial rivers, methodical and unstoppable. They are patient strategists who can freeze time itself."
+    },
+    ["Storm Mage"] = {
+        element = "lightning",
+        description = "Wielders of lightning and thunder, Storm Mages strike with the fury of the tempest.",
+        strengths = {
+            "Fastest spells",
+            "Chain lightning effects",
+            "High mobility",
+            "Ignores armor"
+        },
+        weaknesses = {
+            "Mana intensive",
+            "Less area coverage",
+            "Grounded enemies resist",
+            "Requires accuracy"
+        },
+        abilities = {
+            "Lightning Bolt - Instant electric strike",
+            "Storm Shield - Crackling defense (future)",
+            "Thunder Cascade - Multi-target lightning (future)"
+        },
+        lore = "The Storm Mages draw their power from the Sky Temples, where eternal storms rage. Their magic is swift and precise, striking like judgment from the heavens. They are known for their unpredictable nature and devastating speed."
+    },
+    ["Earth Mage"] = {
+        element = "earth",
+        description = "Earth mages who command stone and earth, standing firm as mountains against any threat.",
+        strengths = {
+            "High defense",
+            "Sustained damage",
+            "Tanky playstyle",
+            "Resource efficient"
+        },
+        weaknesses = {
+            "Slow mobility",
+            "Lower burst damage",
+            "Weak to magic",
+            "Limited range"
+        },
+        abilities = {
+            "Stone Spike - Erupting earthen projectile",
+            "Rock Shield - Stone barrier defense (future)",
+            "Earthquake - Ground-shaking area attack (future)"
+        },
+        lore = "Earth Mages are bound to the Deep Roots, ancient places where the earth's power flows strongest. Their magic is steady and enduring, like the mountains themselves. They are the immovable pillars that protect the innocent and crush the wicked."
+    }
+}
 
 -- Game state
 local player = {
@@ -98,6 +191,12 @@ local showProfileMenu = false
 local startScreenState = "menu" -- "menu", "new_game", "loading"
 local startMenuSelection = 1 -- 1 = New Game, 2 = Load Game, 3 = Quit
 
+-- Class selection UI state
+local showClassSelection = false
+local selectedClassIcon = nil
+local classSelectionScrollOffset = 0
+local classSelectionConfirmation = false
+
 -- Fade transition state
 local fadeState = "none" -- "none", "fade_out", "fade_in"
 local fadeAlpha = 0
@@ -122,7 +221,7 @@ local directions = {
 }
 
 -- Forward declarations
-local loadAnimations, getDirection, drawPlayer, drawUI, drawMessage, drawPauseMenu
+local loadAnimations, getDirection, drawPlayer, drawUI, drawMessage, drawPauseMenu, drawClassSelection
 local checkInteraction, getNearestInteractable, getNearestNPC
 
 function love.load()
@@ -147,6 +246,23 @@ function love.load()
         titleScreenImage = image
     else
         print("Warning: Could not load title screen image")
+    end
+    
+    -- Load class images
+    local classImageFiles = {
+        ["Fire Mage"] = "fire-mage.png",
+        ["Ice Mage"] = "ice-mage.png",
+        ["Storm Mage"] = "storm-mage.png",
+        ["Earth Mage"] = "earth-mage.png"
+    }
+    
+    for className, filename in pairs(classImageFiles) do
+        success, image = pcall(love.graphics.newImage, "assets/ui/" .. filename)
+        if success then
+            classImages[className] = image
+        else
+            print("Warning: Could not load " .. filename)
+        end
     end
     
     -- Initialize game systems
@@ -1269,6 +1385,11 @@ function love.draw()
         drawPauseMenu()
     end
     
+    -- Draw class selection UI
+    if showClassSelection then
+        drawClassSelection()
+    end
+    
     -- Draw profile menu
     if showProfileMenu and gameState.playerClass then
         local screenWidth = love.graphics.getWidth()
@@ -1679,6 +1800,176 @@ local function drawItemIcon(itemName, x, y, size, isHovered)
         love.graphics.rectangle("line", x + 10, y + 22, 12, 3)
         love.graphics.rectangle("line", x + 14, y + 25, 4, 6)
         love.graphics.setLineWidth(1)
+    end
+    
+    love.graphics.setColor(1, 1, 1)
+end
+
+drawClassSelection = function()
+    if not selectedClassIcon then return end
+    
+    local screenWidth = love.graphics.getWidth()
+    local screenHeight = love.graphics.getHeight()
+    local font = love.graphics.getFont()
+    
+    -- Semi-transparent overlay
+    love.graphics.setColor(0, 0, 0, 0.85)
+    love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+    
+    -- Main panel
+    local panelWidth = 600
+    local panelHeight = screenHeight - 100
+    local panelX = (screenWidth - panelWidth) / 2
+    local panelY = 50
+    
+    -- Panel background
+    love.graphics.setColor(0.08, 0.08, 0.10, 0.95)
+    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 6, 6)
+    
+    -- Panel border
+    love.graphics.setColor(0.75, 0.65, 0.25)
+    love.graphics.setLineWidth(3)
+    love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 6, 6)
+    love.graphics.setLineWidth(1)
+    
+    -- Header image (Class-specific)
+    love.graphics.setColor(1, 1, 1)
+    local headerY = panelY + 20
+    local classImage = classImages[selectedClassIcon.className]
+    if classImage then
+        local imageWidth = classImage:getWidth()
+        local imageHeight = classImage:getHeight()
+        local scale = 0.8
+        love.graphics.draw(classImage, 
+            panelX + (panelWidth - imageWidth * scale) / 2, 
+            headerY, 
+            0, scale, scale)
+        headerY = headerY + (imageHeight * scale) + 10
+    else
+        -- Fallback text
+        love.graphics.setColor(1, 0.9, 0.6)
+        local headerText = selectedClassIcon.className
+        local textWidth = font:getWidth(headerText)
+        love.graphics.print(headerText, panelX + (panelWidth - textWidth) / 2, headerY, 0, 1.5, 1.5)
+        headerY = headerY + 40
+    end
+    
+    -- Divider
+    love.graphics.setColor(0.65, 0.55, 0.20)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(panelX + 20, headerY, panelX + panelWidth - 20, headerY)
+    love.graphics.setLineWidth(1)
+    
+    -- Scrollable content area
+    local contentY = headerY + 10
+    local contentHeight = panelHeight - (headerY - panelY) - 80
+    local padding = 30
+    local lineHeight = 18
+    
+    -- Get class info
+    local info = classInfo[selectedClassIcon.className]
+    if not info then return end
+    
+    -- Set scissor for scrolling
+    love.graphics.setScissor(panelX, contentY, panelWidth, contentHeight)
+    
+    local yPos = contentY - classSelectionScrollOffset + 10
+    local contentX = panelX + padding
+    local contentWidth = panelWidth - padding * 2
+    
+    -- Description
+    love.graphics.setColor(0.9, 0.85, 0.7)
+    local wrappedDesc, descLines = font:getWrap(info.description, contentWidth)
+    for _, line in ipairs(descLines) do
+        love.graphics.print(line, contentX, yPos)
+        yPos = yPos + lineHeight
+    end
+    yPos = yPos + 10
+    
+    -- Strengths section
+    love.graphics.setColor(0.4, 0.9, 0.4)
+    love.graphics.print("STRENGTHS", contentX, yPos, 0, 1.2, 1.2)
+    yPos = yPos + 25
+    love.graphics.setColor(0.8, 0.95, 0.8)
+    for _, strength in ipairs(info.strengths) do
+        love.graphics.print("+ " .. strength, contentX + 10, yPos)
+        yPos = yPos + lineHeight
+    end
+    yPos = yPos + 10
+    
+    -- Weaknesses section
+    love.graphics.setColor(0.9, 0.4, 0.4)
+    love.graphics.print("WEAKNESSES", contentX, yPos, 0, 1.2, 1.2)
+    yPos = yPos + 25
+    love.graphics.setColor(0.95, 0.8, 0.8)
+    for _, weakness in ipairs(info.weaknesses) do
+        love.graphics.print("- " .. weakness, contentX + 10, yPos)
+        yPos = yPos + lineHeight
+    end
+    yPos = yPos + 10
+    
+    -- Abilities section
+    love.graphics.setColor(0.7, 0.7, 1.0)
+    love.graphics.print("ABILITIES", contentX, yPos, 0, 1.2, 1.2)
+    yPos = yPos + 25
+    love.graphics.setColor(0.85, 0.85, 0.95)
+    for _, ability in ipairs(info.abilities) do
+        local wrappedAbility, abilityLines = font:getWrap(ability, contentWidth - 10)
+        for _, line in ipairs(abilityLines) do
+            love.graphics.print("• " .. line, contentX + 10, yPos)
+            yPos = yPos + lineHeight
+        end
+    end
+    yPos = yPos + 10
+    
+    -- Lore section
+    love.graphics.setColor(0.9, 0.75, 0.5)
+    love.graphics.print("LORE", contentX, yPos, 0, 1.2, 1.2)
+    yPos = yPos + 25
+    love.graphics.setColor(0.85, 0.75, 0.65)
+    local wrappedLore, loreLines = font:getWrap(info.lore, contentWidth)
+    for _, line in ipairs(loreLines) do
+        love.graphics.print(line, contentX, yPos)
+        yPos = yPos + lineHeight
+    end
+    
+    -- Clear scissor
+    love.graphics.setScissor()
+    
+    -- Scroll indicator if needed
+    local totalContentHeight = yPos - (contentY - classSelectionScrollOffset)
+    if totalContentHeight > contentHeight then
+        love.graphics.setColor(0.5, 0.5, 0.5, 0.5)
+        local scrollBarHeight = contentHeight * (contentHeight / totalContentHeight)
+        local scrollBarY = contentY + (classSelectionScrollOffset / totalContentHeight) * contentHeight
+        love.graphics.rectangle("fill", panelX + panelWidth - 10, scrollBarY, 6, scrollBarHeight, 3, 3)
+    end
+    
+    -- Bottom buttons area
+    local buttonY = panelY + panelHeight - 60
+    love.graphics.setColor(0.65, 0.55, 0.20)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(panelX + 20, buttonY - 10, panelX + panelWidth - 20, buttonY - 10)
+    love.graphics.setLineWidth(1)
+    
+    if classSelectionConfirmation then
+        -- Confirmation prompt
+        love.graphics.setColor(1, 0.9, 0.6)
+        local confirmText = "Are you sure? This choice is permanent!"
+        local confirmWidth = font:getWidth(confirmText)
+        love.graphics.print(confirmText, panelX + (panelWidth - confirmWidth) / 2, buttonY)
+        
+        love.graphics.setColor(0.4, 0.9, 0.4)
+        love.graphics.print("[Y] Yes, choose this class", panelX + 80, buttonY + 25)
+        love.graphics.setColor(0.9, 0.4, 0.4)
+        love.graphics.print("[N] No, go back", panelX + 320, buttonY + 25)
+    else
+        -- Initial buttons
+        love.graphics.setColor(1, 0.95, 0.7)
+        love.graphics.print("[E] Select this class", panelX + 80, buttonY + 10)
+        love.graphics.print("[ESC] Cancel", panelX + 380, buttonY + 10)
+        love.graphics.setColor(0.7, 0.7, 0.7)
+        love.graphics.print("Scroll: Mouse Wheel", panelX + (panelWidth - font:getWidth("Scroll: Mouse Wheel")) / 2, buttonY + 30)
     end
     
     love.graphics.setColor(1, 1, 1)
@@ -2188,6 +2479,15 @@ checkInteraction = function()
     if obj then
         local result = obj:interact(gameState)
         
+        -- Handle class icon interaction (show detailed UI)
+        if type(result) == "table" and result.type == "class_icon_interact" then
+            selectedClassIcon = result
+            showClassSelection = true
+            classSelectionScrollOffset = 0
+            classSelectionConfirmation = false
+            return
+        end
+        
         -- Handle class selection
         if type(result) == "table" and result.type == "class_selected" then
             -- Give the player their starter attack spell based on element
@@ -2342,6 +2642,18 @@ function love.keypressed(key)
     
     -- Pause handling
     if key == "escape" then
+        -- Close class selection if open
+        if showClassSelection then
+            if classSelectionConfirmation then
+                classSelectionConfirmation = false
+            else
+                showClassSelection = false
+                selectedClassIcon = nil
+                classSelectionScrollOffset = 0
+            end
+            return
+        end
+        
         -- Close profile menu if open
         if showProfileMenu then
             showProfileMenu = false
@@ -2445,6 +2757,54 @@ function love.keypressed(key)
             pauseMenuTargetHeight = 250
         elseif key == "q" then
             love.event.quit()
+        end
+        return
+    end
+    
+    -- Class selection UI controls
+    if showClassSelection then
+        if classSelectionConfirmation then
+            if key == "y" then
+                -- Confirm class selection
+                if selectedClassIcon then
+                    gameState.playerClass = selectedClassIcon.className
+                    gameState.playerElement = selectedClassIcon.element
+                    
+                    -- Give the player their starter attack spell based on element
+                    if spellSystem and selectedClassIcon.element then
+                        local spell = nil
+                        if selectedClassIcon.element == "fire" then
+                            spell = Spell.createFireball()
+                        elseif selectedClassIcon.element == "ice" then
+                            spell = Spell.createIceShard()
+                        elseif selectedClassIcon.element == "lightning" then
+                            spell = Spell.createLightningBolt()
+                        elseif selectedClassIcon.element == "earth" then
+                            spell = Spell.createStoneSpike()
+                        end
+                        
+                        if spell then
+                            spellSystem:learnSpell(spell)
+                        end
+                    end
+                    
+                    currentMessage = string.format("You have chosen to become a %s!\n\nYou've learned your first attack spell!", selectedClassIcon.className)
+                    messageTimer = 5
+                    currentMessageItem = nil
+                    
+                    showClassSelection = false
+                    selectedClassIcon = nil
+                    classSelectionConfirmation = false
+                end
+            elseif key == "n" then
+                -- Go back to class details
+                classSelectionConfirmation = false
+            end
+        else
+            if key == "e" then
+                -- Show confirmation
+                classSelectionConfirmation = true
+            end
         end
         return
     end
@@ -2627,6 +2987,13 @@ function love.mousepressed(x, y, button)
 end
 
 function love.wheelmoved(x, y)
+    -- Class selection scrolling
+    if showClassSelection then
+        classSelectionScrollOffset = classSelectionScrollOffset - y * 30
+        classSelectionScrollOffset = math.max(0, classSelectionScrollOffset)
+        return
+    end
+    
     if showFullInventory and inventoryWidth > 5 then
         -- Scroll inventory
         local slotSize = 48
