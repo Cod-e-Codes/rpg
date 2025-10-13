@@ -2238,22 +2238,22 @@ function love.keypressed(key)
                     playerNameInput = ""
                 elseif startMenuSelection == 2 and hasSaveFile then
                     -- Load Game
-                    local success, loadedState = saveManager:load()
-                    if success and loadedState then
+                    local loadedState, err = saveManager:load()
+                    if loadedState then
                         -- Apply loaded state (use applySaveData which properly merges)
                         saveManager:applySaveData(gameState, loadedState)
                         
-                        -- After applySaveData, read from gameState (which now has the merged data)
-                        player.x = gameState.playerX or gameState.playerSpawn.x
-                        player.y = gameState.playerY or gameState.playerSpawn.y
+                        -- Load the saved map FIRST
+                        world:loadMap(gameState.currentMap)
+                        
+                        -- Set player position from playerSpawn (same as pause menu load)
+                        player.x = gameState.playerSpawn.x
+                        player.y = gameState.playerSpawn.y
                         player.health = gameState.playerHealth or player.maxHealth
                         
                         -- Rebuild spell system with loaded data
                         spellSystem = SpellSystem:new(gameState)
                         spellSystem:rebuildLearnedSpells()
-                        
-                        -- Load the saved map
-                        world:loadMap(gameState.currentMap)
                         
                         -- Sync interactables
                         local interactables = world:getCurrentInteractables()
