@@ -40,9 +40,9 @@ love .
 - **E** - Interact
 - **1-5** - Cast spell (slot)
 - **B** - Spellbook
-- **I** - Quick slots
-- **I+I** (double tap) - Full inventory
+- **I** - Inventory
 - **6-0** - Use quick slot
+- **P** - Player profile
 - **ESC / P** - Pause
 - **F3** - Debug info
 - **F12** - Dev mode
@@ -67,16 +67,17 @@ Save file: `savegame.sav`
 ## Current Progress
 
 - [x] Overworld with village
-- [x] Basic combat with knockback
-- [x] Inventory system with quick slots and stacking
+- [x] Combat system with health/damage/projectiles
+- [x] Class selection (Fire/Ice/Storm/Earth Mage)
+- [x] Spell system with progression and attack spells
+- [x] Inventory with quick slots and item stacking
 - [x] Quest progression
 - [x] Cave dungeon with dynamic lighting
-- [x] Spell system (Illumination spell)
-- [x] Save/load with position preservation
-- [x] Portal system with animations
-- [x] Directional signage
-- [ ] More spells
-- [ ] More levels
+- [x] Save/load system (single slot)
+- [x] Portal animations with player effects
+- [x] Start screen and player profile
+- [x] Spellbook and UI improvements
+- [ ] More levels and content
 - [ ] Sound effects and music
 
 ## License
