@@ -16,6 +16,7 @@ DEBUG_MODE = false
 
 -- UI Images
 local deathScreenImage = nil
+local titleScreenImage = nil
 
 -- Game state
 local player = {
@@ -139,6 +140,13 @@ function love.load()
         deathScreenImage = image
     else
         print("Warning: Could not load death screen image")
+    end
+    
+    success, image = pcall(love.graphics.newImage, "assets/ui/rpg.png")
+    if success then
+        titleScreenImage = image
+    else
+        print("Warning: Could not load title screen image")
     end
     
     -- Initialize game systems
@@ -929,11 +937,23 @@ function love.draw()
         love.graphics.setColor(0.05, 0.05, 0.1)
         love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
         
-        -- Title
-        love.graphics.setColor(1, 0.9, 0.6)
-        local titleText = "RPG ADVENTURE"
-        local titleWidth = font:getWidth(titleText)
-        love.graphics.print(titleText, screenWidth/2 - titleWidth/2, 80)
+        -- Title (image or fallback text)
+        love.graphics.setColor(1, 1, 1)
+        if titleScreenImage then
+            local imageWidth = titleScreenImage:getWidth()
+            local imageHeight = titleScreenImage:getHeight()
+            local scale = 1.0 -- Adjust scale as needed
+            love.graphics.draw(titleScreenImage, 
+                screenWidth/2 - (imageWidth * scale)/2, 
+                60, 
+                0, scale, scale)
+        else
+            -- Fallback text if image fails to load
+            love.graphics.setColor(1, 0.9, 0.6)
+            local titleText = "RPG ADVENTURE"
+            local titleWidth = font:getWidth(titleText)
+            love.graphics.print(titleText, screenWidth/2 - titleWidth/2, 80)
+        end
         
         if startScreenState == "menu" then
             -- Main menu
