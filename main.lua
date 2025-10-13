@@ -2916,10 +2916,17 @@ function love.keypressed(key)
                 world:loadMap(gameState.currentMap)
                 player.x = gameState.playerSpawn.x
                 player.y = gameState.playerSpawn.y
+                player.health = gameState.playerHealth or player.maxHealth
                 
                 -- Rebuild spell system from loaded data
                 spellSystem.gameState = gameState
                 spellSystem:rebuildLearnedSpells()
+                
+                -- Sync interactables with loaded state (chests, etc.)
+                local interactables = world:getCurrentInteractables()
+                for _, obj in ipairs(interactables) do
+                    obj:syncWithGameState(gameState)
+                end
                 
                 isPaused = false
                 currentMessage = "Game loaded"
