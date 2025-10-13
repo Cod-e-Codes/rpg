@@ -61,15 +61,16 @@ Save files are stored in your LOVE save directory:
 
 ## Current Progress
 
-- ✅ Overworld with village
-- ✅ Basic combat with knockback
-- ✅ Inventory system
-- ✅ Quest progression
-- ✅ Cave dungeon with lighting
-- ✅ Spell system (Illumination spell)
-- ✅ Save/load functionality
-- 🚧 More spells coming
-- 🚧 More levels/dungeons
+- [x] Overworld with village
+- [x] Basic combat with knockback
+- [x] Inventory system
+- [x] Quest progression
+- [x] Cave dungeon with lighting
+- [x] Spell system (Illumination spell)
+- [x] Save/load functionality
+- [ ] More spells
+- [ ] More levels
+- [ ] Sound effects and music
 
 ## License
 
