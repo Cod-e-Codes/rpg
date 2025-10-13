@@ -384,11 +384,12 @@ function love.load()
         footstepSound = love.audio.newSource("assets/sounds/footsteps.mp3", "stream")
         footstepSound:setLooping(true)
         footstepSound:setVolume(0.5)  -- Increased from 0.3 to 0.5 for better audibility
+        footstepSound:setPitch(2.0)  -- Play twice as fast
     end)
     if not audioSuccess then
         print("Warning: Could not load footsteps.mp3: " .. tostring(audioError))
     else
-        print("[AUDIO] Loaded footsteps.mp3 successfully. Volume: 0.5, Looping: true")
+        print("[AUDIO] Loaded footsteps.mp3 successfully. Volume: 0.5, Pitch: 2.0x, Looping: true")
         if footstepSound then
             print("[AUDIO] Audio duration: " .. string.format("%.2f", footstepSound:getDuration()) .. "s")
         end
@@ -2809,10 +2810,11 @@ function drawUI()
         if footstepSound then
             local isPlaying = footstepSound:isPlaying()
             local volume = footstepSound:getVolume()
+            local pitch = footstepSound:getPitch()
             local position = footstepSound:tell()
             love.graphics.print(string.format("Audio: %s", isPlaying and "PLAYING" or "STOPPED"), panelX + padding + 8, yPos)
             yPos = yPos + lineHeight
-            love.graphics.print(string.format("Volume: %.0f%%  Pos: %.1fs", volume * 100, position), panelX + padding + 8, yPos)
+            love.graphics.print(string.format("Vol: %.0f%%  Pitch: %.1fx  Pos: %.1fs", volume * 100, pitch, position), panelX + padding + 8, yPos)
             yPos = yPos + lineHeight
         else
             love.graphics.print("Audio: NOT LOADED", panelX + padding + 8, yPos)
