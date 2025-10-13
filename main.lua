@@ -382,8 +382,8 @@ function love.update(dt)
                     -- Start camera pan
                     local screenWidth = love.graphics.getWidth()
                     local screenHeight = love.graphics.getHeight()
-                    local caveX = 6*32 + 32  -- Cave center
-                    local caveY = 29*32 + 32
+                    local caveX = 80  -- Cave center (new large entrance at x=0, width=160)
+                    local caveY = 26*32 + 96  -- Cave center (y=26*32, height=192)
                     
                     cameraPanOriginal.x = player.x - screenWidth / 2
                     cameraPanOriginal.y = player.y - screenHeight / 2
@@ -776,12 +776,26 @@ function love.draw()
     -- Add interactables
     local interactables = world:getCurrentInteractables()
     for _, obj in ipairs(interactables) do
-        -- Use bottom of object for sorting
-        local sortY = obj.y + obj.height
-        table.insert(entities, {
-            y = sortY,
-            draw = function() obj:draw() end
-        })
+        if obj.type == "cave" then
+            -- Cave has layered drawing: back boulder + opening (behind player), front boulder (in front of player)
+            -- Back layer: back boulder and cave opening (drawn earlier, player walks in front)
+            table.insert(entities, {
+                y = obj.y + 100,  -- Upper part of cave
+                draw = function() obj:draw("back_layer") end
+            })
+            -- Front layer: front boulder (drawn later, player walks behind)
+            table.insert(entities, {
+                y = obj.y + obj.height - 40,  -- Lower part of cave (front boulder position)
+                draw = function() obj:draw("front_layer") end
+            })
+        else
+            -- Use bottom of object for sorting
+            local sortY = obj.y + obj.height
+            table.insert(entities, {
+                y = sortY,
+                draw = function() obj:draw() end
+            })
+        end
     end
     
     -- Add NPCs

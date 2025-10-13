@@ -134,7 +134,7 @@ function Interactable:checkTransition(gameState)
     return nil
 end
 
-function Interactable:draw()
+function Interactable:draw(layer)
     -- Draw based on type with toon shading and animations
     if self.type == "chest" then
         -- Chest with smooth open animation
@@ -319,8 +319,120 @@ function Interactable:draw()
         love.graphics.rectangle("line", self.x + 12, self.y + 16, 8, 16)  -- Only bottom part of post
         love.graphics.setLineWidth(1)
         
-    elseif self.type == "cave" or self.type == "cave_exit" then
-        -- Cave entrance - toon-shaded with irregular rocky shape
+    elseif self.type == "cave" then
+        -- Large cave entrance with two staggered boulders
+        -- Player walks behind front boulder to access partially hidden entrance
+        
+        local function drawBoulder(centerX, centerY, radius)
+            -- Create irregular boulder shape with noise
+            local rockPoints = {}
+            local segments = 14
+            for i = 0, segments do
+                local angle = (i / segments) * math.pi * 2
+                -- Add noise to radius for irregular shape
+                local noiseOffset = math.sin(angle * 3) * 8 + math.cos(angle * 5) * 6
+                local r = radius + noiseOffset
+                local px = centerX + math.cos(angle) * r
+                local py = centerY + math.sin(angle) * r * 0.85 -- Slightly oval
+                table.insert(rockPoints, px)
+                table.insert(rockPoints, py)
+            end
+            
+            -- Main rock body (medium brown) - toon base
+            love.graphics.setColor(0.42, 0.32, 0.22)
+            love.graphics.polygon("fill", rockPoints)
+            
+            -- Rock texture patches (darker brown)
+            love.graphics.setColor(0.32, 0.24, 0.16)
+            for i = 0, 6 do
+                local angle = (i / 7) * math.pi * 2 + 0.3
+                local r = radius * 0.55
+                local px = centerX + math.cos(angle) * r
+                local py = centerY + math.sin(angle) * r * 0.85
+                love.graphics.circle("fill", px, py, radius * 0.22)
+            end
+            
+            -- Toon highlights (lighter brown)
+            love.graphics.setColor(0.52, 0.42, 0.32)
+            for i = 0, 4 do
+                local angle = (i / 5) * math.pi * 2 + 1.2
+                local r = radius * 0.65
+                local px = centerX + math.cos(angle) * r
+                local py = centerY + math.sin(angle) * r * 0.85
+                love.graphics.circle("fill", px, py, radius * 0.14)
+            end
+            
+            -- Toon outline (dark brown, follows irregular shape)
+            love.graphics.setColor(0.18, 0.12, 0.08)
+            love.graphics.setLineWidth(4)
+            love.graphics.polygon("line", rockPoints)
+            love.graphics.setLineWidth(1)
+        end
+        
+        -- Draw based on layer (for proper Y-sorting with player)
+        if not layer or layer == "back_layer" then
+            -- Back boulder (upper left, behind entrance) - player walks IN FRONT of this
+            local backBoulderX = self.x + 45
+            local backBoulderY = self.y + 50
+            local backBoulderRadius = 55
+            drawBoulder(backBoulderX, backBoulderY, backBoulderRadius)
+            
+            -- Cave opening (between/behind boulders) - player walks IN FRONT of this
+            local openingX = self.x + 60
+            local openingY = self.y + 90
+            local openingRadiusX = 38
+            local openingRadiusY = 48
+            
+            local openingPoints = {}
+            local openingSegments = 12
+            for i = 0, openingSegments do
+                local angle = (i / openingSegments) * math.pi * 2
+                -- Add noise to opening edge
+                local noise = math.sin(angle * 4) * 3 + math.cos(angle * 6) * 2
+                local rx = (openingRadiusX + noise)
+                local ry = (openingRadiusY + noise)
+                local px = openingX + math.cos(angle) * rx
+                local py = openingY + math.sin(angle) * ry
+                table.insert(openingPoints, px)
+                table.insert(openingPoints, py)
+            end
+            
+            -- Black opening
+            love.graphics.setColor(0.02, 0.02, 0.02)
+            love.graphics.polygon("fill", openingPoints)
+            
+            -- Inner shadow (even darker)
+            love.graphics.setColor(0, 0, 0)
+            local innerPoints = {}
+            for i = 0, openingSegments do
+                local angle = (i / openingSegments) * math.pi * 2
+                local noise = math.sin(angle * 4) * 2
+                local rx = (openingRadiusX * 0.7 + noise)
+                local ry = (openingRadiusY * 0.7 + noise)
+                local px = openingX + math.cos(angle) * rx
+                local py = openingY + 3 + math.sin(angle) * ry
+                table.insert(innerPoints, px)
+                table.insert(innerPoints, py)
+            end
+            love.graphics.polygon("fill", innerPoints)
+            
+            -- Opening outline (darker)
+            love.graphics.setColor(0.08, 0.05, 0.03)
+            love.graphics.setLineWidth(3)
+            love.graphics.polygon("line", openingPoints)
+            love.graphics.setLineWidth(1)
+        end
+        
+        if not layer or layer == "front_layer" then
+            -- Front boulder (lower right, player walks BEHIND this)
+            local frontBoulderX = self.x + 85
+            local frontBoulderY = self.y + 135
+            local frontBoulderRadius = 60
+            drawBoulder(frontBoulderX, frontBoulderY, frontBoulderRadius)
+        end
+        
+    elseif self.type == "cave_exit" then
+        -- Simple cave exit (interior)
         local centerX = self.x + self.width/2
         local centerY = self.y + self.height/2
         local baseRadius = self.width * 0.45

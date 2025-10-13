@@ -231,8 +231,9 @@ function World:createExampleOverworld()
     )
     
     -- Add cave entrance (appears after completing sword quest)
+    -- Large entrance on west wall with two staggered boulders
     table.insert(self.interactables["overworld"],
-        Interactable:new(6*32, 29*32, 64, 64, "cave", {
+        Interactable:new(0, 26*32, 160, 192, "cave", {
             targetMap = "cave_level1",
             spawnX = 3*32,  -- Spawn on west side (opposite of exit)
             spawnY = 10*32, -- Middle height
