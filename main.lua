@@ -232,6 +232,9 @@ local spellSystem
 local projectiles = {} -- Active projectiles
 local lighting
 local saveManager
+
+-- Audio
+local footstepSound = nil
 local devMode
 local currentMessage = nil
 local currentMessageItem = nil  -- Store item for message icon
@@ -375,6 +378,21 @@ function love.load()
     
     -- Initialize dev mode
     devMode = DevMode:new()
+    
+    -- Load audio
+    local audioSuccess, audioError = pcall(function()
+        footstepSound = love.audio.newSource("assets/sounds/footsteps.mp3", "stream")
+        footstepSound:setLooping(true)
+        footstepSound:setVolume(0.5)  -- Increased from 0.3 to 0.5 for better audibility
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load footsteps.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded footsteps.mp3 successfully. Volume: 0.5, Looping: true")
+        if footstepSound then
+            print("[AUDIO] Audio duration: " .. string.format("%.2f", footstepSound:getDuration()) .. "s")
+        end
+    end
     
     -- Create example maps
     world:createExampleOverworld()
@@ -904,6 +922,13 @@ function love.update(dt)
                     if player.health <= 0 then
                         player.health = 0
                         player.isDead = true
+                        -- Stop footsteps on death
+                        if footstepSound and footstepSound:isPlaying() then
+                            footstepSound:stop()
+                            if DEBUG_MODE then
+                                print("[AUDIO] Stopped footsteps (player died from enemy)")
+                            end
+                        end
                     end
                 end
             end
@@ -999,6 +1024,13 @@ function love.update(dt)
             if player.health <= 0 then
                 player.health = 0
                 player.isDead = true
+                -- Stop footsteps on death
+                if footstepSound and footstepSound:isPlaying() then
+                    footstepSound:stop()
+                    if DEBUG_MODE then
+                        print("[AUDIO] Stopped footsteps (player died from environmental hazard)")
+                    end
+                end
             end
             
             -- Grant brief immunity to prevent rapid damage ticks
@@ -1177,6 +1209,27 @@ function love.update(dt)
     if player.isMoving ~= player.wasMoving then
         currentFrame = 1
         frameTimer = 0
+        
+        -- Handle footstep audio
+        if footstepSound then
+            if player.isMoving and gameStarted then
+                -- Start playing footsteps from a random position (0-65 seconds)
+                local randomStart = love.math.random() * 65  -- Random start in the 1m5s track
+                footstepSound:seek(randomStart)
+                footstepSound:play()
+                if DEBUG_MODE then
+                    print("[AUDIO] Started footsteps at position: " .. string.format("%.2f", randomStart) .. "s (from player movement)")
+                end
+            else
+                -- Stop footsteps when not moving
+                if footstepSound:isPlaying() then
+                    footstepSound:stop()
+                    if DEBUG_MODE then
+                        print("[AUDIO] Stopped footsteps (player stopped moving)")
+                    end
+                end
+            end
+        end
     end
     player.wasMoving = player.isMoving
     
@@ -2673,7 +2726,7 @@ function drawUI()
     if showDebugPanel then
         local screenWidth = love.graphics.getWidth()
         local panelWidth = 320
-        local panelHeight = 240
+        local panelHeight = 280  -- Increased for audio info
         local panelX = screenWidth - panelWidth - 115  -- Moved further left to avoid inventory
         local panelY = 15
         local headerHeight = 28
@@ -2750,6 +2803,21 @@ function drawUI()
         love.graphics.setColor(0.9, 0.85, 0.6)
         love.graphics.print(string.format("FPS: %d", love.timer.getFPS()), panelX + padding + 8, yPos)
         yPos = yPos + lineHeight
+        
+        -- Audio Debug Info
+        love.graphics.setColor(0.7, 0.9, 1.0)
+        if footstepSound then
+            local isPlaying = footstepSound:isPlaying()
+            local volume = footstepSound:getVolume()
+            local position = footstepSound:tell()
+            love.graphics.print(string.format("Audio: %s", isPlaying and "PLAYING" or "STOPPED"), panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+            love.graphics.print(string.format("Volume: %.0f%%  Pos: %.1fs", volume * 100, position), panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+        else
+            love.graphics.print("Audio: NOT LOADED", panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+        end
         
         -- Mana (if spells learned)
         if spellSystem and #spellSystem.learnedSpells > 0 then
