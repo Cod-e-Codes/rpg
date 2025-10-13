@@ -52,6 +52,7 @@ love .
 Press F12 to toggle dev mode:
 - Jump to any level
 - Give yourself items/spells
+- Reset progress (chests/enemies)
 - Speed multiplier
 - View debug info
 
@@ -70,10 +71,10 @@ Save file: `savegame.sav`
 - [x] Combat system with health/damage/projectiles
 - [x] Class selection (Fire/Ice/Storm/Earth Mage)
 - [x] Spell system with progression and attack spells
-- [x] Inventory with quick slots and item stacking
+- [x] Inventory with quick slots, stacking, and usable items
 - [x] Quest progression
 - [x] Cave dungeon with dynamic lighting
-- [x] Save/load system (single slot)
+- [x] Save/load with persistent world state
 - [x] Portal animations with player effects
 - [x] Start screen and player profile
 - [x] Spellbook and UI improvements
