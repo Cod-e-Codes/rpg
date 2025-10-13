@@ -70,13 +70,10 @@ local messageTimer = 0
 local messageDuration = 5  -- Increased from 3 to give more time to read
 
 -- UI state
-local showInventory = false
 local showFullInventory = false
 local inventoryWidth = 0 -- Current animated width
 local inventoryTargetWidth = 0 -- Target width to lerp to
 local inventoryScrollOffset = 0
-local lastInventoryPress = 0
-local inventoryDoublePressWindow = 0.3
 local selectedInventoryItem = nil -- Currently selected item for equipping
 local showHelp = false
 local showDebugPanel = false
@@ -1459,9 +1456,8 @@ function drawPauseMenu()
             {"WASD / Arrow Keys", "Move"},
             {"E", "Interact"},
             {"1-5", "Cast Spell (Slot)"},
-            {"B", "Open Spellbook"},
-            {"I", "Quick Slots"},
-            {"I+I", "Full Inventory"},
+            {"B", "Spell Book"},
+            {"I", "Inventory"},
             {"6-0", "Use Quick Slot"},
             {"ESC / P", "Pause"},
             {"F3", "Debug Info"},
@@ -1859,8 +1855,7 @@ function drawUI()
         love.graphics.print("(Collision boxes visible)", panelX + padding + 8, panelY + panelHeight - padding - 12)
     end
     
-    -- Draw inventory quick slots (visible when inventory is open)
-    if showInventory then
+    -- Draw inventory quick slots (always visible)
         local screenWidth = love.graphics.getWidth()
         local screenHeight = love.graphics.getHeight()
         local slotSize = 48
@@ -2044,7 +2039,6 @@ function drawUI()
                 love.graphics.print(hoveredItem, tooltipX + 10, tooltipY + 5)
             end
         end
-    end
 end
 
 function drawMessage()
@@ -2323,7 +2317,7 @@ function love.keypressed(key)
             return
         end
         
-        -- Close full inventory if open (don't close quick slots)
+        -- Close full inventory if open
         if showFullInventory then
             showFullInventory = false
             inventoryTargetWidth = 0
@@ -2419,25 +2413,14 @@ function love.keypressed(key)
         showDebugPanel = not showDebugPanel
         DEBUG_MODE = showDebugPanel -- Also toggle hitboxes when debug panel is shown
     elseif key == "i" and not inCutscene then
-        local currentTime = love.timer.getTime()
-        
-        -- If full inventory is open, close it first
+        -- Toggle full inventory (like spell book)
+        showFullInventory = not showFullInventory
         if showFullInventory then
-            showFullInventory = false
+            inventoryTargetWidth = 300
+        else
             inventoryTargetWidth = 0
             inventoryScrollOffset = 0
-            selectedInventoryItem = nil -- Clear selection
-            lastInventoryPress = 0 -- Reset double-press timer
-        -- Check for double-press to open full inventory
-        elseif currentTime - lastInventoryPress < inventoryDoublePressWindow and showInventory then
-            -- Double press - open full inventory
-            showFullInventory = true
-            inventoryTargetWidth = 300
-            lastInventoryPress = currentTime
-        else
-            -- Single press - toggle quick slots
-            showInventory = not showInventory
-            lastInventoryPress = currentTime
+            selectedInventoryItem = nil -- Clear selection when closing
         end
     elseif key == "h" and not inCutscene then
         showHelp = not showHelp
