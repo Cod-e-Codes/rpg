@@ -12,7 +12,7 @@ function DevMode:new()
             {name = "house_interior", display = "House Interior", spawnX = 7*32, spawnY = 9*32},
             {name = "cave_level1", display = "Cave Level 1", spawnX = 3*32, spawnY = 12*32},
             {name = "class_selection", display = "Class Selection", spawnX = 3*32, spawnY = 15*32},
-            {name = "puzzle_level1", display = "Puzzle Level 1", spawnX = 15*32, spawnY = 25*32}
+            {name = "defense_trials", display = "Defense Trials", spawnX = 14*32, spawnY = 37*32}
         },
         
         selectedLevelIndex = 1,
@@ -82,7 +82,14 @@ function DevMode:giveAllSpells(gameState, spellSystem, Spell)
         {name = "Fireball", create = Spell.createFireball},
         {name = "Ice Shard", create = Spell.createIceShard},
         {name = "Lightning Bolt", create = Spell.createLightningBolt},
-        {name = "Stone Spike", create = Spell.createStoneSpike}
+        {name = "Stone Spike", create = Spell.createStoneSpike},
+        {name = "Fire Ward", create = Spell.createFireResistance},
+        {name = "Frost Barrier", create = Spell.createIceResistance},
+        {name = "Storm Shield", create = Spell.createLightningResistance},
+        {name = "Stone Skin", create = Spell.createEarthResistance},
+        {name = "Iron Fortitude", create = Spell.createArmorBuff},
+        {name = "Soul Siphon", create = Spell.createDrainBuff},
+        {name = "Death Harvest", create = Spell.createNecromancerBuff}
     }
     
     for _, spellInfo in ipairs(spellCreators) do

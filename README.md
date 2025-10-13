@@ -80,6 +80,9 @@ Save file: `savegame.sav`
 - [x] Spellbook and UI improvements
 - [x] Camera cutscenes and story progression
 - [x] Multiple levels with puzzle areas
+- [x] Defense trials with elemental hazards and resistance spells
+- [x] Healing strategy selection (Tank/Lifesteal/Soul Reaper)
+- [x] Skeleton spawn animations and combat arenas
 - [ ] More content and puzzles
 - [ ] Sound effects and music
 

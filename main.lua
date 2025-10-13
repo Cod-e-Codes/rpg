@@ -111,6 +111,78 @@ local classInfo = {
     }
 }
 
+local strategyInfo = {
+    ["Tank"] = {
+        strategy = "armor",
+        description = "Become an unstoppable fortress, reducing all incoming damage through superior defense and endurance.",
+        strengths = {
+            "Consistent damage reduction",
+            "Reliable survivability",
+            "Great for beginners",
+            "Works against all damage types"
+        },
+        weaknesses = {
+            "Passive only (no active healing)",
+            "Lower damage potential",
+            "Slow resource recovery",
+            "Requires good positioning"
+        },
+        mechanics = {
+            "10% base damage reduction",
+            "+5% reduction per spell level",
+            "Always active (passive spell)",
+            "Stacks with resistance spells"
+        },
+        lore = "The path of the Tank is ancient and noble. Warriors who choose this path become living bulwarks, their skin as tough as iron. Through meditation and endurance training, they learn to shrug off wounds that would fell lesser mortals. They are the first into battle and the last to fall."
+    },
+    ["Lifesteal"] = {
+        strategy = "drain",
+        description = "Siphon the life force from nearby enemies, draining their vitality to sustain yourself in battle.",
+        strengths = {
+            "Active healing in combat",
+            "Scales with enemy count",
+            "Effective in prolonged fights",
+            "Range increases with level"
+        },
+        weaknesses = {
+            "Requires nearby enemies",
+            "Ineffective against single targets",
+            "No healing outside combat",
+            "Lower total healing per second"
+        },
+        mechanics = {
+            "Drains 2 HP/sec from enemies",
+            "+1 HP/sec per spell level",
+            "Affects all enemies in range",
+            "120 base range (+15/level)"
+        },
+        lore = "The Lifesteal path walks the edge between life and death. Practitioners learn the forbidden art of soul extraction, drawing the essence of living beings to fuel their own existence. They are feared as vampiric sorcerers, but their power keeps them alive when all else fails."
+    },
+    ["Soul Reaper"] = {
+        strategy = "necromancer",
+        description = "Harvest the souls of the fallen, gaining a surge of vitality with each enemy you defeat.",
+        strengths = {
+            "Large healing bursts",
+            "Rewards aggressive play",
+            "Scales with spell level",
+            "No range limitations"
+        },
+        weaknesses = {
+            "Only heals on kills",
+            "No passive healing",
+            "Requires killing blows",
+            "Risky against bosses"
+        },
+        mechanics = {
+            "Gain 20 HP per enemy kill",
+            "+10 HP per spell level",
+            "Instant healing on kill",
+            "Works from any distance"
+        },
+        lore = "Soul Reapers are necromancers who have mastered the art of death itself. Each fallen enemy empowers them, their souls absorbed and converted to pure life force. They grow stronger with each kill, becoming increasingly unstoppable. They are both feared and respected for their dark mastery."
+    }
+}
+
 -- Game state
 local player = {
     x = 400,
@@ -197,6 +269,17 @@ local selectedClassIcon = nil
 local classSelectionScrollOffset = 0
 local classSelectionConfirmation = false
 
+-- Strategy selection UI state
+local showStrategySelection = false
+local selectedStrategyIcon = nil
+local strategySelectionScrollOffset = 0
+local strategySelectionConfirmation = false
+
+-- Skeleton spawn animation state
+local skeletonSpawnState = "none" -- none, spawning, combat
+local skeletonSpawnTimer = 0
+local spawnedSkeletons = {}
+
 -- Fade transition state
 local fadeState = "none" -- "none", "fade_out", "fade_in"
 local fadeAlpha = 0
@@ -232,7 +315,7 @@ local directions = {
 }
 
 -- Forward declarations
-local loadAnimations, getDirection, drawPlayer, drawUI, drawMessage, drawPauseMenu, drawClassSelection
+local loadAnimations, getDirection, drawPlayer, drawUI, drawMessage, drawPauseMenu, drawClassSelection, drawStrategySelection
 local checkInteraction, getNearestInteractable, getNearestNPC, useItem
 
 function love.load()
@@ -298,7 +381,7 @@ function love.load()
     world:createHouseInterior()
     world:createCaveLevel1()
     world:createClassSelection()
-    world:createPuzzleLevel1()
+    world:createDefenseTrials()
     world:loadMap("overworld")
     
     -- Sync all interactables with game state
@@ -506,6 +589,52 @@ function love.update(dt)
             end
             
             fadeTargetMap = nil
+        end
+    end
+    
+    -- Update skeleton spawn animation
+    if skeletonSpawnState == "spawning" then
+        skeletonSpawnTimer = skeletonSpawnTimer + dt
+        local spawnDuration = 1.0 -- Scale up over 1 second
+        local roarDuration = 0.5  -- Roar for 0.5 seconds
+        
+        if skeletonSpawnTimer < spawnDuration then
+            -- Scale up from 0 to 1
+            local progress = skeletonSpawnTimer / spawnDuration
+            local easeOut = 1 - math.pow(1 - progress, 3) -- Cubic ease-out
+            for _, skeleton in ipairs(spawnedSkeletons) do
+                skeleton.scale = easeOut
+            end
+        elseif skeletonSpawnTimer < spawnDuration + roarDuration then
+            -- Roar/pose animation (skeletons at full scale)
+            for _, skeleton in ipairs(spawnedSkeletons) do
+                skeleton.scale = 1
+            end
+        else
+            -- Animation complete, enable AI
+            skeletonSpawnState = "combat"
+            for _, skeleton in ipairs(spawnedSkeletons) do
+                skeleton.scale = 1
+                skeleton.spawning = false
+            end
+            currentMessage = "Defend yourself!"
+            messageTimer = 3
+        end
+    elseif skeletonSpawnState == "combat" then
+        -- Check if all skeletons defeated
+        local allDefeated = true
+        for _, skeleton in ipairs(spawnedSkeletons) do
+            if not gameState:isEnemyKilled(skeleton.id) then
+                allDefeated = false
+                break
+            end
+        end
+        
+        if allDefeated and not gameState.healingStrategy then
+            skeletonSpawnState = "none"
+            gameState.questState = "skeletons_defeated"
+            currentMessage = "Victory! Choose your path forward..."
+            messageTimer = 5
         end
     end
     
@@ -805,6 +934,71 @@ function love.update(dt)
         -- Remove inactive projectiles
         if not proj.active then
             table.remove(projectiles, i)
+        end
+    end
+    
+    -- Update environmental hazards
+    local hazards = world:getCurrentHazards()
+    for _, hazard in ipairs(hazards) do
+        -- Initialize hazard timer if not exists
+        hazard.timer = hazard.timer or 0
+        hazard.timer = hazard.timer + dt
+        
+        -- Check if player is colliding with hazard
+        local playerInHazard = false
+        if hazard.type == "fire_zone" or hazard.type == "ice_zone" or hazard.type == "earth_zone" then
+            -- Box collision
+            if player.x > hazard.x and player.x < hazard.x + hazard.width and
+               player.y > hazard.y and player.y < hazard.y + hazard.height then
+                playerInHazard = true
+            end
+        elseif hazard.type == "lightning_trap" then
+            -- Point collision (trap at specific location)
+            local dist = math.sqrt((player.x - hazard.x)^2 + (player.y - hazard.y)^2)
+            if dist < 64 and hazard.timer >= hazard.interval then
+                playerInHazard = true
+                hazard.timer = 0 -- Reset timer after triggering
+            end
+        end
+        
+        -- Apply damage if player is in hazard and not immune
+        if playerInHazard and player.immunityTimer <= 0 and gameState.playerClass then
+            -- Check if player has active resistance spell for this element
+            local hasResistance = false
+            local resistanceReduction = 0
+            
+            if spellSystem then
+                for _, spell in ipairs(spellSystem.learnedSpells) do
+                    if spell.isActive and spell.damageReduction then
+                        -- Check if resistance matches hazard type
+                        local hazardElement = hazard.type:match("(%w+)_")
+                        if (hazardElement == "fire" and spell.name == "Fire Ward") or
+                           (hazardElement == "ice" and spell.name == "Frost Barrier") or
+                           (hazardElement == "lightning" and spell.name == "Storm Shield") or
+                           (hazardElement == "earth" and spell.name == "Stone Skin") then
+                            hasResistance = true
+                            resistanceReduction = spell.damageReduction
+                            break
+                        end
+                    end
+                end
+            end
+            
+            -- Calculate final damage
+            local damage = hazard.damage
+            if hasResistance then
+                damage = damage * (1 - resistanceReduction)
+            end
+            
+            -- Apply damage
+            player.health = player.health - damage
+            if player.health <= 0 then
+                player.health = 0
+                player.isDead = true
+            end
+            
+            -- Grant brief immunity to prevent rapid damage ticks
+            player.immunityTimer = 0.5
         end
     end
     
@@ -1599,6 +1793,11 @@ function love.draw()
         drawClassSelection()
     end
     
+    -- Draw strategy selection UI
+    if showStrategySelection then
+        drawStrategySelection()
+    end
+    
     -- Draw profile menu
     if showProfileMenu and gameState.playerClass then
         local screenWidth = love.graphics.getWidth()
@@ -2176,6 +2375,162 @@ drawClassSelection = function()
         -- Initial buttons
         love.graphics.setColor(1, 0.95, 0.7)
         love.graphics.print("[E] Select this class", panelX + 80, buttonY + 10)
+        love.graphics.print("[ESC] Cancel", panelX + 380, buttonY + 10)
+        love.graphics.setColor(0.7, 0.7, 0.7)
+        love.graphics.print("Scroll: Mouse Wheel", panelX + (panelWidth - font:getWidth("Scroll: Mouse Wheel")) / 2, buttonY + 30)
+    end
+    
+    love.graphics.setColor(1, 1, 1)
+end
+
+drawStrategySelection = function()
+    if not selectedStrategyIcon then return end
+    
+    local screenWidth = love.graphics.getWidth()
+    local screenHeight = love.graphics.getHeight()
+    local font = love.graphics.getFont()
+    
+    -- Semi-transparent overlay
+    love.graphics.setColor(0, 0, 0, 0.85)
+    love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+    
+    -- Main panel
+    local panelWidth = 600
+    local panelHeight = screenHeight - 100
+    local panelX = (screenWidth - panelWidth) / 2
+    local panelY = 50
+    
+    -- Panel background
+    love.graphics.setColor(0.08, 0.08, 0.10, 0.95)
+    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 6, 6)
+    
+    -- Panel border
+    love.graphics.setColor(0.75, 0.65, 0.25)
+    love.graphics.setLineWidth(3)
+    love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 6, 6)
+    love.graphics.setLineWidth(1)
+    
+    -- Header
+    love.graphics.setColor(1, 0.9, 0.6)
+    local headerText = selectedStrategyIcon.strategyName
+    local textWidth = font:getWidth(headerText)
+    local headerY = panelY + 30
+    love.graphics.print(headerText, panelX + (panelWidth - textWidth) / 2, headerY, 0, 1.5, 1.5)
+    headerY = headerY + 40
+    
+    -- Divider
+    love.graphics.setColor(0.65, 0.55, 0.20)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(panelX + 20, headerY, panelX + panelWidth - 20, headerY)
+    love.graphics.setLineWidth(1)
+    
+    -- Scrollable content area
+    local contentY = headerY + 10
+    local contentHeight = panelHeight - (headerY - panelY) - 80
+    local padding = 30
+    local lineHeight = 18
+    
+    -- Get strategy info
+    local info = strategyInfo[selectedStrategyIcon.strategyName]
+    if not info then return end
+    
+    -- Set scissor for scrolling
+    love.graphics.setScissor(panelX, contentY, panelWidth, contentHeight)
+    
+    local yPos = contentY - strategySelectionScrollOffset + 10
+    local contentX = panelX + padding
+    local contentWidth = panelWidth - padding * 2
+    
+    -- Description
+    love.graphics.setColor(0.9, 0.85, 0.7)
+    local wrappedDesc, descLines = font:getWrap(info.description, contentWidth)
+    for _, line in ipairs(descLines) do
+        love.graphics.print(line, contentX, yPos)
+        yPos = yPos + lineHeight
+    end
+    yPos = yPos + 10
+    
+    -- Strengths section
+    love.graphics.setColor(0.4, 0.9, 0.4)
+    love.graphics.print("STRENGTHS", contentX, yPos, 0, 1.2, 1.2)
+    yPos = yPos + 25
+    love.graphics.setColor(0.8, 0.95, 0.8)
+    for _, strength in ipairs(info.strengths) do
+        love.graphics.print("+ " .. strength, contentX + 10, yPos)
+        yPos = yPos + lineHeight
+    end
+    yPos = yPos + 10
+    
+    -- Weaknesses section
+    love.graphics.setColor(0.9, 0.4, 0.4)
+    love.graphics.print("WEAKNESSES", contentX, yPos, 0, 1.2, 1.2)
+    yPos = yPos + 25
+    love.graphics.setColor(0.95, 0.8, 0.8)
+    for _, weakness in ipairs(info.weaknesses) do
+        love.graphics.print("- " .. weakness, contentX + 10, yPos)
+        yPos = yPos + lineHeight
+    end
+    yPos = yPos + 10
+    
+    -- Mechanics section
+    love.graphics.setColor(0.7, 0.7, 1.0)
+    love.graphics.print("MECHANICS", contentX, yPos, 0, 1.2, 1.2)
+    yPos = yPos + 25
+    love.graphics.setColor(0.85, 0.85, 0.95)
+    for _, mechanic in ipairs(info.mechanics) do
+        local wrappedMech, mechLines = font:getWrap(mechanic, contentWidth - 10)
+        for _, line in ipairs(mechLines) do
+            love.graphics.print("• " .. line, contentX + 10, yPos)
+            yPos = yPos + lineHeight
+        end
+    end
+    yPos = yPos + 10
+    
+    -- Lore section
+    love.graphics.setColor(0.9, 0.75, 0.5)
+    love.graphics.print("LORE", contentX, yPos, 0, 1.2, 1.2)
+    yPos = yPos + 25
+    love.graphics.setColor(0.85, 0.75, 0.65)
+    local wrappedLore, loreLines = font:getWrap(info.lore, contentWidth)
+    for _, line in ipairs(loreLines) do
+        love.graphics.print(line, contentX, yPos)
+        yPos = yPos + lineHeight
+    end
+    
+    -- Clear scissor
+    love.graphics.setScissor()
+    
+    -- Scroll indicator if needed
+    local totalContentHeight = yPos - (contentY - strategySelectionScrollOffset)
+    if totalContentHeight > contentHeight then
+        love.graphics.setColor(0.5, 0.5, 0.5, 0.5)
+        local scrollBarHeight = contentHeight * (contentHeight / totalContentHeight)
+        local scrollBarY = contentY + (strategySelectionScrollOffset / totalContentHeight) * contentHeight
+        love.graphics.rectangle("fill", panelX + panelWidth - 10, scrollBarY, 6, scrollBarHeight, 3, 3)
+    end
+    
+    -- Bottom buttons area
+    local buttonY = panelY + panelHeight - 60
+    love.graphics.setColor(0.65, 0.55, 0.20)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(panelX + 20, buttonY - 10, panelX + panelWidth - 20, buttonY - 10)
+    love.graphics.setLineWidth(1)
+    
+    if strategySelectionConfirmation then
+        -- Confirmation prompt
+        love.graphics.setColor(1, 0.9, 0.6)
+        local confirmText = "Are you sure? This choice is permanent!"
+        local confirmWidth = font:getWidth(confirmText)
+        love.graphics.print(confirmText, panelX + (panelWidth - confirmWidth) / 2, buttonY)
+        
+        love.graphics.setColor(0.4, 0.9, 0.4)
+        love.graphics.print("[Y] Yes, choose this path", panelX + 80, buttonY + 25)
+        love.graphics.setColor(0.9, 0.4, 0.4)
+        love.graphics.print("[N] No, go back", panelX + 320, buttonY + 25)
+    else
+        -- Initial buttons
+        love.graphics.setColor(1, 0.95, 0.7)
+        love.graphics.print("[E] Select this strategy", panelX + 80, buttonY + 10)
         love.graphics.print("[ESC] Cancel", panelX + 380, buttonY + 10)
         love.graphics.setColor(0.7, 0.7, 0.7)
         love.graphics.print("Scroll: Mouse Wheel", panelX + (panelWidth - font:getWidth("Scroll: Mouse Wheel")) / 2, buttonY + 30)
@@ -2767,10 +3122,96 @@ checkInteraction = function()
             if result.spell == "Illumination" and spellSystem then
                 local spell = Spell.createIllumination()
                 spellSystem:learnSpell(spell)
+            elseif result.spell == "resistance" and spellSystem and gameState.playerElement then
+                -- Learn element-specific resistance spell
+                local spell = nil
+                if gameState.playerElement == "fire" then
+                    spell = Spell.createFireResistance()
+                elseif gameState.playerElement == "ice" then
+                    spell = Spell.createIceResistance()
+                elseif gameState.playerElement == "lightning" then
+                    spell = Spell.createLightningResistance()
+                elseif gameState.playerElement == "earth" then
+                    spell = Spell.createEarthResistance()
+                end
+                
+                if spell then
+                    spellSystem:learnSpell(spell)
+                    gameState.resistanceSpellLearned = true
+                    currentMessage = string.format("You learned %s!\n\nThis spell protects you from elemental hazards.", spell.name)
+                    messageTimer = 5
+                    currentMessageItem = nil
+                    return
+                end
             end
             
             currentMessage = result.message
             messageTimer = 5 -- Longer duration for tutorial message
+            currentMessageItem = nil
+            return
+        end
+        
+        -- Handle strategy icon interaction (show detailed UI)
+        if type(result) == "table" and result.type == "strategy_icon_interact" then
+            selectedStrategyIcon = result
+            showStrategySelection = true
+            strategySelectionScrollOffset = 0
+            strategySelectionConfirmation = false
+            return
+        end
+        
+        -- Handle strategy selection
+        if type(result) == "table" and result.type == "strategy_selected" then
+            -- Give the player their healing strategy spell
+            if spellSystem and result.strategy then
+                local spell = nil
+                if result.strategy == "armor" then
+                    spell = Spell.createArmorBuff()
+                elseif result.strategy == "drain" then
+                    spell = Spell.createDrainBuff()
+                elseif result.strategy == "necromancer" then
+                    spell = Spell.createNecromancerBuff()
+                end
+                
+                if spell then
+                    spellSystem:learnSpell(spell)
+                    gameState.healingStrategy = result.strategy
+                    gameState.defenseTrialsCompleted = true
+                    gameState.questState = "strategy_selected"
+                end
+            end
+            
+            currentMessage = result.message
+            messageTimer = 5
+            currentMessageItem = nil
+            return
+        end
+        
+        -- Handle skeleton spawn trigger
+        if type(result) == "table" and result.type == "trigger_skeletons" then
+            -- Start skeleton spawn animation
+            skeletonSpawnState = "spawning"
+            skeletonSpawnTimer = 0
+            spawnedSkeletons = {}
+            
+            -- Spawn 2 skeletons at scale 0
+            local Enemy = require("enemy")
+            local spawn1 = Enemy:new(11*32, 30*32, "skeleton", {})
+            local spawn2 = Enemy:new(18*32, 30*32, "skeleton", {})
+            spawn1.scale = 0
+            spawn2.scale = 0
+            spawn1.id = "trial_skeleton_1"
+            spawn2.id = "trial_skeleton_2"
+            table.insert(spawnedSkeletons, spawn1)
+            table.insert(spawnedSkeletons, spawn2)
+            
+            -- Add to world enemies
+            local enemies = world:getCurrentEnemies()
+            table.insert(enemies, spawn1)
+            table.insert(enemies, spawn2)
+            
+            currentMessage = result.message
+            messageTimer = 3
             currentMessageItem = nil
             return
         end
@@ -2912,6 +3353,18 @@ function love.keypressed(key)
                 showClassSelection = false
                 selectedClassIcon = nil
                 classSelectionScrollOffset = 0
+            end
+            return
+        end
+        
+        -- Close strategy selection if open
+        if showStrategySelection then
+            if strategySelectionConfirmation then
+                strategySelectionConfirmation = false
+            else
+                showStrategySelection = false
+                selectedStrategyIcon = nil
+                strategySelectionScrollOffset = 0
             end
             return
         end
@@ -3073,6 +3526,56 @@ function love.keypressed(key)
             if key == "e" then
                 -- Show confirmation
                 classSelectionConfirmation = true
+            end
+        end
+        return
+    end
+    
+    -- Strategy selection UI controls
+    if showStrategySelection then
+        if strategySelectionConfirmation then
+            if key == "y" then
+                -- Confirm strategy selection
+                if selectedStrategyIcon then
+                    local info = strategyInfo[selectedStrategyIcon.strategyName]
+                    if info then
+                        gameState.healingStrategy = info.strategy
+                        gameState.defenseTrialsCompleted = true
+                        gameState.questState = "strategy_selected"
+                        
+                        -- Give the player their healing strategy spell
+                        if spellSystem then
+                            local spell = nil
+                            if info.strategy == "armor" then
+                                spell = Spell.createArmorBuff()
+                            elseif info.strategy == "drain" then
+                                spell = Spell.createDrainBuff()
+                            elseif info.strategy == "necromancer" then
+                                spell = Spell.createNecromancerBuff()
+                            end
+                            
+                            if spell then
+                                spellSystem:learnSpell(spell)
+                            end
+                        end
+                        
+                        currentMessage = string.format("You have chosen the path of %s!\n\nYour healing strategy is now active.", selectedStrategyIcon.strategyName)
+                        messageTimer = 5
+                        currentMessageItem = nil
+                        
+                        showStrategySelection = false
+                        selectedStrategyIcon = nil
+                        strategySelectionConfirmation = false
+                    end
+                end
+            elseif key == "n" then
+                -- Go back to strategy details
+                strategySelectionConfirmation = false
+            end
+        else
+            if key == "e" then
+                -- Show confirmation
+                strategySelectionConfirmation = true
             end
         end
         return
@@ -3255,6 +3758,13 @@ function love.wheelmoved(x, y)
     if showClassSelection then
         classSelectionScrollOffset = classSelectionScrollOffset - y * 30
         classSelectionScrollOffset = math.max(0, classSelectionScrollOffset)
+        return
+    end
+    
+    -- Strategy selection scrolling
+    if showStrategySelection then
+        strategySelectionScrollOffset = strategySelectionScrollOffset - y * 30
+        strategySelectionScrollOffset = math.max(0, strategySelectionScrollOffset)
         return
     end
     

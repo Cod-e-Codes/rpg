@@ -427,5 +427,242 @@ function Spell.createStoneSpike()
     })
 end
 
+-- Resistance Spells (Element-specific defense)
+
+function Spell.createFireResistance()
+    return Spell:new({
+        name = "Fire Ward",
+        type = "active",
+        description = "Reduces fire damage by 90% for a short time",
+        duration = 10,
+        radius = 0,
+        manaCost = 25,
+        cooldown = 5,
+        radiusPerLevel = 0,
+        durationPerLevel = 3,
+        lightColor = {1.0, 0.5, 0.2},
+        experiencePerSecond = 8,
+        damageReduction = 0.9,
+        
+        drawIcon = function(x, y, size)
+            local cx = x + size/2
+            local cy = y + size/2
+            -- Shield outline
+            love.graphics.setColor(1, 0.4, 0.1)
+            love.graphics.circle("line", cx, cy, size * 0.35, 6)
+            love.graphics.setLineWidth(3)
+            love.graphics.circle("line", cx, cy, size * 0.35, 6)
+            love.graphics.setLineWidth(1)
+            -- Inner glow
+            love.graphics.setColor(1, 0.6, 0.2, 0.5)
+            love.graphics.circle("fill", cx, cy, size * 0.25)
+        end
+    })
+end
+
+function Spell.createIceResistance()
+    return Spell:new({
+        name = "Frost Barrier",
+        type = "active",
+        description = "Reduces ice damage by 90% for a short time",
+        duration = 10,
+        radius = 0,
+        manaCost = 25,
+        cooldown = 5,
+        radiusPerLevel = 0,
+        durationPerLevel = 3,
+        lightColor = {0.5, 0.7, 1.0},
+        experiencePerSecond = 8,
+        damageReduction = 0.9,
+        
+        drawIcon = function(x, y, size)
+            local cx = x + size/2
+            local cy = y + size/2
+            -- Shield outline
+            love.graphics.setColor(0.3, 0.6, 1)
+            love.graphics.circle("line", cx, cy, size * 0.35, 6)
+            love.graphics.setLineWidth(3)
+            love.graphics.circle("line", cx, cy, size * 0.35, 6)
+            love.graphics.setLineWidth(1)
+            -- Inner glow
+            love.graphics.setColor(0.5, 0.8, 1, 0.5)
+            love.graphics.circle("fill", cx, cy, size * 0.25)
+        end
+    })
+end
+
+function Spell.createLightningResistance()
+    return Spell:new({
+        name = "Storm Shield",
+        type = "active",
+        description = "Reduces lightning damage by 90% for a short time",
+        duration = 10,
+        radius = 0,
+        manaCost = 25,
+        cooldown = 5,
+        radiusPerLevel = 0,
+        durationPerLevel = 3,
+        lightColor = {0.7, 0.6, 1.0},
+        experiencePerSecond = 8,
+        damageReduction = 0.9,
+        
+        drawIcon = function(x, y, size)
+            local cx = x + size/2
+            local cy = y + size/2
+            -- Shield outline
+            love.graphics.setColor(0.5, 0.3, 1)
+            love.graphics.circle("line", cx, cy, size * 0.35, 6)
+            love.graphics.setLineWidth(3)
+            love.graphics.circle("line", cx, cy, size * 0.35, 6)
+            love.graphics.setLineWidth(1)
+            -- Inner glow
+            love.graphics.setColor(0.7, 0.6, 1, 0.5)
+            love.graphics.circle("fill", cx, cy, size * 0.25)
+        end
+    })
+end
+
+function Spell.createEarthResistance()
+    return Spell:new({
+        name = "Stone Skin",
+        type = "active",
+        description = "Reduces earth damage by 90% for a short time",
+        duration = 10,
+        radius = 0,
+        manaCost = 25,
+        cooldown = 5,
+        radiusPerLevel = 0,
+        durationPerLevel = 3,
+        lightColor = {0.7, 0.5, 0.3},
+        experiencePerSecond = 8,
+        damageReduction = 0.9,
+        
+        drawIcon = function(x, y, size)
+            local cx = x + size/2
+            local cy = y + size/2
+            -- Shield outline
+            love.graphics.setColor(0.6, 0.4, 0.2)
+            love.graphics.circle("line", cx, cy, size * 0.35, 6)
+            love.graphics.setLineWidth(3)
+            love.graphics.circle("line", cx, cy, size * 0.35, 6)
+            love.graphics.setLineWidth(1)
+            -- Inner glow
+            love.graphics.setColor(0.8, 0.6, 0.4, 0.5)
+            love.graphics.circle("fill", cx, cy, size * 0.25)
+        end
+    })
+end
+
+-- Healing Strategy Spells (Passive buffs)
+
+function Spell.createArmorBuff()
+    return Spell:new({
+        name = "Iron Fortitude",
+        type = "passive",
+        description = "Passive damage reduction (10% + 5% per level)",
+        duration = 0,
+        radius = 0,
+        manaCost = 0,
+        cooldown = 0,
+        damageReduction = 0.10,
+        damageReductionPerLevel = 0.05,
+        lightColor = {0.7, 0.7, 0.7},
+        experiencePerSecond = 2,
+        
+        drawIcon = function(x, y, size)
+            local cx = x + size/2
+            local cy = y + size/2
+            -- Shield shape
+            love.graphics.setColor(0.5, 0.5, 0.55)
+            local points = {
+                cx, cy - size*0.35,
+                cx + size*0.3, cy - size*0.1,
+                cx + size*0.3, cy + size*0.2,
+                cx, cy + size*0.4,
+                cx - size*0.3, cy + size*0.2,
+                cx - size*0.3, cy - size*0.1
+            }
+            love.graphics.polygon("fill", points)
+            -- Highlight
+            love.graphics.setColor(0.8, 0.8, 0.85)
+            love.graphics.circle("fill", cx - size*0.1, cy - size*0.1, size * 0.12)
+        end
+    })
+end
+
+function Spell.createDrainBuff()
+    return Spell:new({
+        name = "Soul Siphon",
+        type = "passive",
+        description = "Drain 2 HP/sec from nearby enemies (+1 per level)",
+        duration = 0,
+        radius = 120,
+        manaCost = 0,
+        cooldown = 0,
+        drainPerSecond = 2,
+        drainPerLevel = 1,
+        radiusPerLevel = 15,
+        lightColor = {0.6, 0.2, 0.8},
+        experiencePerSecond = 2,
+        
+        drawIcon = function(x, y, size)
+            local cx = x + size/2
+            local cy = y + size/2
+            -- Swirling energy
+            love.graphics.setColor(0.6, 0.2, 0.8)
+            love.graphics.circle("fill", cx, cy, size * 0.35)
+            love.graphics.setColor(0.8, 0.4, 0.9)
+            love.graphics.circle("fill", cx, cy, size * 0.2)
+            -- Spiral
+            love.graphics.setColor(0.3, 0.1, 0.5)
+            love.graphics.setLineWidth(2)
+            local lastX, lastY
+            for i = 0, 10 do
+                local angle = (i / 10) * math.pi * 2
+                local r = (i / 10) * size * 0.3
+                local x1 = cx + math.cos(angle) * r
+                local y1 = cy + math.sin(angle) * r
+                if i > 0 then
+                    love.graphics.line(lastX, lastY, x1, y1)
+                end
+                lastX, lastY = x1, y1
+            end
+            love.graphics.setLineWidth(1)
+        end
+    })
+end
+
+function Spell.createNecromancerBuff()
+    return Spell:new({
+        name = "Death Harvest",
+        type = "passive",
+        description = "Gain 20 HP per enemy kill (+10 per level)",
+        duration = 0,
+        radius = 0,
+        manaCost = 0,
+        cooldown = 0,
+        healPerKill = 20,
+        healPerKillPerLevel = 10,
+        lightColor = {0.2, 0.8, 0.3},
+        experiencePerSecond = 2,
+        
+        drawIcon = function(x, y, size)
+            local cx = x + size/2
+            local cy = y + size/2
+            -- Skull silhouette
+            love.graphics.setColor(0.2, 0.8, 0.3)
+            love.graphics.circle("fill", cx, cy - size*0.1, size * 0.25)
+            love.graphics.rectangle("fill", cx - size*0.15, cy + size*0.05, size*0.3, size*0.15)
+            -- Eyes
+            love.graphics.setColor(0.1, 0.3, 0.15)
+            love.graphics.circle("fill", cx - size*0.08, cy - size*0.12, size * 0.05)
+            love.graphics.circle("fill", cx + size*0.08, cy - size*0.12, size * 0.05)
+            -- Glow
+            love.graphics.setColor(0.2, 0.8, 0.3, 0.3)
+            love.graphics.circle("fill", cx, cy, size * 0.4)
+        end
+    })
+end
+
 return Spell
 

@@ -257,9 +257,9 @@ function World:createExampleOverworld()
     -- Position: 35% wider, centered at x=1280
     table.insert(self.interactables["overworld"],
         Interactable:new(1211, -182, 139, 192, "ancient_path", {
-            targetMap = "puzzle_level1",
-            spawnX = 15*32,
-            spawnY = 25*32,
+            targetMap = "defense_trials",
+            spawnX = 14*32,
+            spawnY = 37*32,
             questMinimum = "has_class" -- Custom quest check for having chosen a class
         })
     )
@@ -608,28 +608,28 @@ function World:createClassSelection()
     self.npcs["class_selection"] = {}
 end
 
-function World:createPuzzleLevel1()
-    -- Puzzle Level 1: Ancient Trials
-    -- A simple puzzle chamber with switches, moving blocks, and pressure plates
+function World:createDefenseTrials()
+    -- Defense Trials: Elemental hazards, resistance spell, and healing strategy selection
+    -- Two-part level: puzzle section with hazards + combat arena
     local TileMap = require("tilemap")
-    local map = TileMap:new(30, 30, 32)
+    local map = TileMap:new(30, 40, 32)
     
     -- Create stone floor
     local ground = {}
-    for y = 0, 29 do
+    for y = 0, 39 do
         ground[y] = {}
         for x = 0, 29 do
             ground[y][x] = 3 -- Stone floor
         end
     end
     
-    -- Create walls and puzzle structure
+    -- Create walls and structure
     local collision = {}
-    for y = 0, 29 do
+    for y = 0, 39 do
         collision[y] = {}
         for x = 0, 29 do
             -- Outer walls
-            if x == 0 or x == 29 or y == 0 or y == 29 then
+            if x == 0 or x == 29 or y == 0 or y == 39 then
                 collision[y][x] = 2 -- Wall
             else
                 collision[y][x] = 0 -- Walkable
@@ -637,53 +637,159 @@ function World:createPuzzleLevel1()
         end
     end
     
-    -- Add some interior walls to create puzzle rooms
-    -- Central chamber with passages
-    for x = 8, 21 do
-        if x < 13 or x > 17 then
-            collision[10][x] = 2
-            collision[20][x] = 2
-        end
-    end
-    for y = 10, 20 do
-        if y < 14 or y > 16 then
-            collision[y][8] = 2
-            collision[y][21] = 2
+    -- Puzzle section (North, y=0-19)
+    -- Create winding path with side rooms
+    for y = 2, 17 do
+        for x = 2, 27 do
+            -- Main corridor
+            if x >= 12 and x <= 17 then
+                collision[y][x] = 0
+            -- Side room for scroll (left)
+            elseif y >= 5 and y <= 10 and x >= 4 and x <= 9 then
+                collision[y][x] = 0
+            -- Side room (right)
+            elseif y >= 12 and y <= 16 and x >= 20 and x <= 25 then
+                collision[y][x] = 0
+            else
+                collision[y][x] = 2
+            end
         end
     end
     
-    map:loadFromData({ground = ground, collision = collision})
-    self.maps["puzzle_level1"] = map
+    -- Door to scroll room (requires switch)
+    collision[7][10] = 2
+    
+    -- Transition hallway (y=18-21)
+    for y = 18, 21 do
+        for x = 12, 17 do
+            collision[y][x] = 0
+        end
+    end
+    
+    -- Combat Arena (South, y=22-37)
+    -- Large open chamber
+    for y = 23, 36 do
+        for x = 8, 21 do
+            collision[y][x] = 0
+        end
+    end
+    
+    -- Store hazards in map data
+    local hazards = {}
+    
+    -- Fire hazards (damage zones in puzzle section)
+    table.insert(hazards, {type="fire_zone", x=13*32, y=3*32, width=3*32, height=2*32, damage=5})
+    table.insert(hazards, {type="fire_zone", x=14*32, y=8*32, width=2*32, height=3*32, damage=5})
+    
+    -- Ice hazards (slowing fields)
+    table.insert(hazards, {type="ice_zone", x=13*32, y=12*32, width=4*32, height=2*32, damage=3})
+    table.insert(hazards, {type="ice_zone", x=14*32, y=16*32, width=2*32, height=2*32, damage=3})
+    
+    -- Lightning traps (periodic damage)
+    table.insert(hazards, {type="lightning_trap", x=15*32, y=6*32, interval=2, damage=10})
+    table.insert(hazards, {type="lightning_trap", x=14*32, y=14*32, interval=2, damage=10})
+    
+    -- Earth hazards (rock fall zones)
+    table.insert(hazards, {type="earth_zone", x=13*32, y=10*32, width=4*32, height=2*32, damage=4})
+    table.insert(hazards, {type="earth_zone", x=14*32, y=15*32, width=2*32, height=2*32, damage=4})
+    
+    map:loadFromData({ground = ground, collision = collision, hazards = hazards})
+    self.maps["defense_trials"] = map
     
     -- Add interactables
-    self.interactables["puzzle_level1"] = {}
+    self.interactables["defense_trials"] = {}
     
-    -- Exit door at south (leads back to overworld)
-    table.insert(self.interactables["puzzle_level1"], 
-        Interactable:new(14*32, 28*32, 32, 48, "door", {
+    -- Entrance from ancient path (south entrance)
+    table.insert(self.interactables["defense_trials"], 
+        Interactable:new(14*32, 37*32, 32, 48, "door", {
             destination = "overworld",
-            spawnX = 40*32,  -- Back near the ancient path
+            spawnX = 40*32,
             spawnY = 8*32
         })
     )
     
-    -- Sign with puzzle hint
-    table.insert(self.interactables["puzzle_level1"],
-        Interactable:new(15*32, 26*32, 32, 32, "sign", {
-            message = "The trials await... Prove your worth, young mage."
+    -- Entrance sign
+    table.insert(self.interactables["defense_trials"],
+        Interactable:new(15*32, 35*32, 32, 32, "sign", {
+            message = "Turn back now, or face the trials ahead..."
         })
     )
     
-    -- Treasure chest as reward
-    table.insert(self.interactables["puzzle_level1"],
-        Interactable:new(15*32, 5*32, 32, 32, "chest", {
-            id = "puzzle_chest_1",
-            item = "Health Potion"
+    -- Resistance spell scroll (in locked side room)
+    table.insert(self.interactables["defense_trials"],
+        Interactable:new(6*32, 7*32, 32, 32, "scroll", {
+            spell = "resistance", -- Will be element-specific
+            questRequired = "none" -- Always available
         })
     )
     
-    self.enemies["puzzle_level1"] = {}
-    self.npcs["puzzle_level1"] = {}
+    -- Switch/pressure plate to unlock scroll room
+    table.insert(self.interactables["defense_trials"],
+        Interactable:new(22*32, 14*32, 32, 32, "sign", {
+            message = "[Pressure Plate] - The door to the scroll room opens...",
+            triggersScrollDoor = true
+        })
+    )
+    
+    -- Transition sign
+    table.insert(self.interactables["defense_trials"],
+        Interactable:new(14*32, 20*32, 32, 32, "sign", {
+            message = "Face your trial ahead..."
+        })
+    )
+    
+    -- Combat trigger chest (center of arena)
+    table.insert(self.interactables["defense_trials"],
+        Interactable:new(14*32, 29*32, 32, 32, "chest", {
+            id = "trial_chest",
+            item = "Health Potion",
+            triggersSkeletons = true
+        })
+    )
+    
+    -- Strategy Selection Icons (appear after combat)
+    -- Tank (Armor)
+    table.insert(self.interactables["defense_trials"],
+        Interactable:new(10*32, 29*32, 64, 64, "strategy_icon", {
+            strategy = "armor",
+            strategyName = "Tank",
+            description = "Fortify your defenses",
+            questRequired = "skeletons_defeated"
+        })
+    )
+    
+    -- Lifesteal (Drain)
+    table.insert(self.interactables["defense_trials"],
+        Interactable:new(14*32, 29*32, 64, 64, "strategy_icon", {
+            strategy = "drain",
+            strategyName = "Lifesteal",
+            description = "Drain life from your foes",
+            questRequired = "skeletons_defeated"
+        })
+    )
+    
+    -- Necromancer
+    table.insert(self.interactables["defense_trials"],
+        Interactable:new(18*32, 29*32, 64, 64, "strategy_icon", {
+            strategy = "necromancer",
+            strategyName = "Soul Reaper",
+            description = "Harvest souls for power",
+            questRequired = "skeletons_defeated"
+        })
+    )
+    
+    -- Exit portal (appears after strategy selection)
+    table.insert(self.interactables["defense_trials"],
+        Interactable:new(14*32, 34*32, 64, 64, "portal", {
+            destination = "overworld",
+            spawnX = 40*32,
+            spawnY = 8*32,
+            questRequired = "strategy_selected"
+        })
+    )
+    
+    self.enemies["defense_trials"] = {}
+    self.npcs["defense_trials"] = {}
 end
 
 function World:loadMap(mapName)
@@ -759,6 +865,14 @@ function World:getCurrentInteractables()
             end
             return filtered
         end
+    end
+    return {}
+end
+
+function World:getCurrentHazards()
+    -- Get hazards for current map (stored in map data)
+    if self.currentMap and self.currentMap.layers.hazards then
+        return self.currentMap.layers.hazards
     end
     return {}
 end

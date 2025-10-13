@@ -19,6 +19,11 @@ function GameState:new()
         houseDoorLocked = true, -- House starts locked
         mysteriousCaveHidden = false, -- Tracks if mysterious cave should be hidden
         
+        -- Defense trials progress
+        healingStrategy = nil, -- Chosen healing strategy (armor, drain, necromancer)
+        resistanceSpellLearned = false, -- Has player learned their resistance spell
+        defenseTrialsCompleted = false, -- Has player completed defense trials
+        
         -- Spell system
         learnedSpells = {}, -- Array of spell names (string identifiers)
         equippedSpells = {nil, nil, nil, nil, nil}, -- 5 slots (spell names)

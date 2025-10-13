@@ -28,6 +28,7 @@ function TileMap:loadFromData(data)
     self.layers.roofs = data.roofs or {}
     self.layers.water = data.water or {}
     self.layers.decorations = data.decorations or {}
+    self.layers.hazards = data.hazards or {}
 end
 
 -- Check if a position collides with terrain

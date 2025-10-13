@@ -58,6 +58,11 @@ function Interactable:update(dt, gameState)
         self.swirlTime = self.swirlTime + dt
     end
     
+    -- Update strategy icon animation
+    if self.type == "strategy_icon" then
+        self.swirlTime = self.swirlTime + dt
+    end
+    
     -- Handle door transition timer
     if self.doorTransition then
         self.doorTransition.timer = self.doorTransition.timer - dt
@@ -107,14 +112,21 @@ function Interactable:interact(gameState)
     elseif self.type == "chest" then
         if not gameState:isChestOpened(self.data.id) then
             gameState:openChest(self.data.id)
-            if self.data.item then
-                gameState:addItem(self.data.item)
-                self.isOpen = true
-                self.targetProgress = 1 -- Animate to open
-                return string.format("Found: %s!", self.data.item)
-            end
             self.isOpen = true
             self.targetProgress = 1 -- Animate to open
+            
+            -- Check if this chest triggers skeleton spawn
+            if self.data.triggersSkeletons then
+                return {
+                    type = "trigger_skeletons",
+                    message = self.data.item and string.format("Found: %s!", self.data.item) or "The chest opens..."
+                }
+            end
+            
+            if self.data.item then
+                gameState:addItem(self.data.item)
+                return string.format("Found: %s!", self.data.item)
+            end
             return "Nothing inside..."
         else
             return "Already looted this one."
@@ -148,6 +160,19 @@ function Interactable:interact(gameState)
                 type = "class_icon_interact",
                 className = self.data.className,
                 element = self.data.element,
+                description = self.data.description
+            }
+        end
+    elseif self.type == "strategy_icon" then
+        -- Healing strategy selection
+        if gameState.healingStrategy then
+            return "You have already chosen your path: " .. gameState.healingStrategy
+        else
+            -- Return strategy icon info to trigger UI
+            return {
+                type = "strategy_icon_interact",
+                strategyName = self.data.strategyName,
+                strategy = self.data.strategy,
                 description = self.data.description
             }
         end
@@ -841,6 +866,108 @@ function Interactable:draw(layer)
         love.graphics.setColor(1, 1, 1, 0.9)
         local font = love.graphics.getFont()
         local labelText = self.data.className
+        local textWidth = font:getWidth(labelText)
+        
+        -- Semi-transparent background for label
+        love.graphics.setColor(0, 0, 0, 0.7)
+        love.graphics.rectangle("fill", centerX - textWidth/2 - 4, centerY + baseRadius * 1.6 - 2, textWidth + 8, font:getHeight() + 4, 3, 3)
+        
+        -- Label text
+        love.graphics.setColor(color3[1], color3[2], color3[3], 1)
+        love.graphics.print(labelText, centerX - textWidth/2, centerY + baseRadius * 1.6)
+        
+    elseif self.type == "strategy_icon" then
+        -- Animated glowing strategy icon (similar to class icons but different symbols)
+        local centerX = self.x + self.width/2
+        local centerY = self.y + self.height/2
+        local baseRadius = math.min(self.width, self.height) * 0.4
+        
+        -- Strategy-specific colors
+        local color1, color2, color3
+        if self.data.strategy == "armor" then
+            color1 = {0.5, 0.5, 0.55}
+            color2 = {0.7, 0.7, 0.75}
+            color3 = {0.9, 0.9, 0.95}
+        elseif self.data.strategy == "drain" then
+            color1 = {0.6, 0.2, 0.8}
+            color2 = {0.7, 0.4, 0.9}
+            color3 = {0.85, 0.6, 1.0}
+        elseif self.data.strategy == "necromancer" then
+            color1 = {0.2, 0.8, 0.3}
+            color2 = {0.4, 0.9, 0.5}
+            color3 = {0.6, 1.0, 0.7}
+        end
+        
+        -- Pulsing glow effect
+        local pulse = 0.8 + math.sin(self.swirlTime * 3) * 0.2
+        
+        -- Outer glow (largest)
+        love.graphics.setColor(color1[1], color1[2], color1[3], 0.3 * pulse)
+        love.graphics.circle("fill", centerX, centerY, baseRadius * 1.3)
+        
+        -- Middle glow
+        love.graphics.setColor(color2[1], color2[2], color2[3], 0.6 * pulse)
+        love.graphics.circle("fill", centerX, centerY, baseRadius)
+        
+        -- Inner core (brightest)
+        love.graphics.setColor(color3[1], color3[2], color3[3], 0.9 * pulse)
+        love.graphics.circle("fill", centerX, centerY, baseRadius * 0.6)
+        
+        -- Rotating particles around the icon
+        for i = 0, 5 do
+            local angle = (i / 6) * math.pi * 2 + self.swirlTime * 2
+            local r = baseRadius * 1.5
+            local px = centerX + math.cos(angle) * r
+            local py = centerY + math.sin(angle) * r
+            local particleSize = 3 + math.sin(self.swirlTime * 4 + i) * 2
+            
+            love.graphics.setColor(color3[1], color3[2], color3[3], 0.8)
+            love.graphics.circle("fill", px, py, particleSize)
+        end
+        
+        -- Strategy symbol in center
+        love.graphics.setColor(1, 1, 1, 0.9)
+        if self.data.strategy == "armor" then
+            -- Shield symbol
+            local points = {
+                centerX, centerY - baseRadius*0.35,
+                centerX + baseRadius*0.3, centerY - baseRadius*0.1,
+                centerX + baseRadius*0.3, centerY + baseRadius*0.2,
+                centerX, centerY + baseRadius*0.4,
+                centerX - baseRadius*0.3, centerY + baseRadius*0.2,
+                centerX - baseRadius*0.3, centerY - baseRadius*0.1
+            }
+            love.graphics.polygon("fill", points)
+        elseif self.data.strategy == "drain" then
+            -- Spiral/vortex symbol
+            love.graphics.setLineWidth(3)
+            local lastX, lastY
+            for i = 0, 15 do
+                local t = i / 15
+                local angle = t * math.pi * 3
+                local r = t * baseRadius * 0.4
+                local x1 = centerX + math.cos(angle) * r
+                local y1 = centerY + math.sin(angle) * r
+                if i > 0 then
+                    love.graphics.line(lastX, lastY, x1, y1)
+                end
+                lastX, lastY = x1, y1
+            end
+            love.graphics.setLineWidth(1)
+        elseif self.data.strategy == "necromancer" then
+            -- Skull symbol
+            love.graphics.circle("fill", centerX, centerY - baseRadius*0.1, baseRadius * 0.25)
+            love.graphics.rectangle("fill", centerX - baseRadius*0.15, centerY + baseRadius*0.05, baseRadius*0.3, baseRadius*0.15)
+            -- Eyes
+            love.graphics.setColor(0.1, 0.3, 0.15)
+            love.graphics.circle("fill", centerX - baseRadius*0.08, centerY - baseRadius*0.12, baseRadius * 0.05)
+            love.graphics.circle("fill", centerX + baseRadius*0.08, centerY - baseRadius*0.12, baseRadius * 0.05)
+        end
+        
+        -- Strategy name label below icon
+        love.graphics.setColor(1, 1, 1, 0.9)
+        local font = love.graphics.getFont()
+        local labelText = self.data.strategyName
         local textWidth = font:getWidth(labelText)
         
         -- Semi-transparent background for label
