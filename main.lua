@@ -2243,9 +2243,10 @@ function love.keypressed(key)
                         -- Apply loaded state (use applySaveData which properly merges)
                         saveManager:applySaveData(gameState, loadedState)
                         
-                        player.x = loadedState.playerX or gameState.playerSpawn.x
-                        player.y = loadedState.playerY or gameState.playerSpawn.y
-                        player.health = loadedState.playerHealth or player.maxHealth
+                        -- After applySaveData, read from gameState (which now has the merged data)
+                        player.x = gameState.playerX or gameState.playerSpawn.x
+                        player.y = gameState.playerY or gameState.playerSpawn.y
+                        player.health = gameState.playerHealth or player.maxHealth
                         
                         -- Rebuild spell system with loaded data
                         spellSystem = SpellSystem:new(gameState)
