@@ -1706,10 +1706,10 @@ function drawUI()
         if deathScreenImage then
             local imageWidth = deathScreenImage:getWidth()
             local imageHeight = deathScreenImage:getHeight()
-            local scale = 1.5 -- Adjust scale as needed
+            local scale = 0.5 -- Adjust scale as needed
             love.graphics.draw(deathScreenImage, 
                 screenWidth/2 - (imageWidth * scale)/2, 
-                screenHeight/2 - 100, 
+                screenHeight/2 - 80, 
                 0, scale, scale)
         else
             -- Fallback text if image fails to load
