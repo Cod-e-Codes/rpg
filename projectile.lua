@@ -33,8 +33,8 @@ function Projectile:new(x, y, playerDirection, spell, playerElement)
         y = y,
         velocityX = velocityX,
         velocityY = velocityY,
-        radius = 8,
-        lifetime = 2, -- Seconds before despawn
+        radius = 12, -- Bigger for visibility
+        lifetime = 2.5, -- Seconds before despawn
         age = 0,
         damage = spell.damage or 20,
         spellName = spell.name,
@@ -98,15 +98,19 @@ function Projectile:draw()
         color2 = {0.9, 0.75, 0.5}
     end
     
-    -- Draw projectile with glow effect
-    love.graphics.setColor(color1[1], color1[2], color1[3], 0.3)
+    -- Draw projectile with glow effect (make it bigger and more visible)
+    love.graphics.setColor(color1[1], color1[2], color1[3], 0.4)
+    love.graphics.circle("fill", self.x, self.y, self.radius * 3)
+    
+    love.graphics.setColor(color1[1], color1[2], color1[3], 0.8)
     love.graphics.circle("fill", self.x, self.y, self.radius * 2)
     
-    love.graphics.setColor(color1[1], color1[2], color1[3], 0.7)
-    love.graphics.circle("fill", self.x, self.y, self.radius * 1.3)
-    
     love.graphics.setColor(color2[1], color2[2], color2[3], 1)
-    love.graphics.circle("fill", self.x, self.y, self.radius)
+    love.graphics.circle("fill", self.x, self.y, self.radius * 1.2)
+    
+    -- Bright core
+    love.graphics.setColor(1, 1, 1, 0.9)
+    love.graphics.circle("fill", self.x, self.y, self.radius * 0.5)
     
     love.graphics.setColor(1, 1, 1)
 end

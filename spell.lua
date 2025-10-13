@@ -90,8 +90,12 @@ function Spell:activate(playerMana)
         return false, reason
     end
     
-    self.isActive = true
-    self.activeTimer = self:getCurrentDuration()
+    -- Attack spells (with damage) are instant cast, don't stay active
+    if not self.damage then
+        self.isActive = true
+        self.activeTimer = self:getCurrentDuration()
+    end
+    
     self.cooldownTimer = self.cooldown
     
     return true, "Spell activated"
