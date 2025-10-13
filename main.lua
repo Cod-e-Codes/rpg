@@ -231,7 +231,7 @@ local directions = {
 
 -- Forward declarations
 local loadAnimations, getDirection, drawPlayer, drawUI, drawMessage, drawPauseMenu, drawClassSelection
-local checkInteraction, getNearestInteractable, getNearestNPC
+local checkInteraction, getNearestInteractable, getNearestNPC, useItem
 
 function love.load()
     -- Set up window
@@ -2595,6 +2595,44 @@ getNearestNPC = function()
     return nil
 end
 
+useItem = function(itemName)
+    if not itemName then return false end
+    
+    -- Check if player has the item
+    if not gameState:hasItem(itemName) then
+        currentMessage = "You don't have that item!"
+        messageTimer = 2
+        return false
+    end
+    
+    -- Handle different item types
+    if itemName == "Health Potion" then
+        -- Heal the player
+        if player.health >= player.maxHealth then
+            currentMessage = "Health is already full!"
+            messageTimer = 2
+            return false
+        end
+        
+        local healAmount = 50
+        local oldHealth = player.health
+        player.health = math.min(player.maxHealth, player.health + healAmount)
+        local actualHeal = player.health - oldHealth
+        
+        -- Remove item from inventory
+        gameState:removeItem(itemName, 1)
+        
+        currentMessage = string.format("Healed %d HP!", actualHeal)
+        messageTimer = 2
+        return true
+    else
+        -- Other items don't have use functionality yet
+        currentMessage = string.format("%s cannot be used", itemName)
+        messageTimer = 2
+        return false
+    end
+end
+
 checkInteraction = function()
     -- Check NPC interaction first
     local npc = getNearestNPC()
@@ -3014,32 +3052,27 @@ function love.keypressed(key)
     elseif key == "6" and not inCutscene then
         -- Use quick slot 1
         if gameState.quickSlots[1] then
-            currentMessage = string.format("Used %s", gameState.quickSlots[1])
-            messageTimer = 2
+            useItem(gameState.quickSlots[1])
         end
     elseif key == "7" and not inCutscene then
         -- Use quick slot 2
         if gameState.quickSlots[2] then
-            currentMessage = string.format("Used %s", gameState.quickSlots[2])
-            messageTimer = 2
+            useItem(gameState.quickSlots[2])
         end
     elseif key == "8" and not inCutscene then
         -- Use quick slot 3
         if gameState.quickSlots[3] then
-            currentMessage = string.format("Used %s", gameState.quickSlots[3])
-            messageTimer = 2
+            useItem(gameState.quickSlots[3])
         end
     elseif key == "9" and not inCutscene then
         -- Use quick slot 4
         if gameState.quickSlots[4] then
-            currentMessage = string.format("Used %s", gameState.quickSlots[4])
-            messageTimer = 2
+            useItem(gameState.quickSlots[4])
         end
     elseif key == "0" and not inCutscene then
         -- Use quick slot 5
         if gameState.quickSlots[5] then
-            currentMessage = string.format("Used %s", gameState.quickSlots[5])
-            messageTimer = 2
+            useItem(gameState.quickSlots[5])
         end
     elseif key == "p" and not inCutscene then
         -- Profile menu (only available after selecting class)
