@@ -78,7 +78,9 @@ Save file: `savegame.sav`
 - [x] Portal animations with player effects
 - [x] Start screen and player profile
 - [x] Spellbook and UI improvements
-- [ ] More levels and content
+- [x] Camera cutscenes and story progression
+- [x] Multiple levels with puzzle areas
+- [ ] More content and puzzles
 - [ ] Sound effects and music
 
 ## License

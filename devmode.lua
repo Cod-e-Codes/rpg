@@ -11,7 +11,8 @@ function DevMode:new()
             {name = "overworld", display = "Overworld", spawnX = 40*32, spawnY = 30*32},
             {name = "house_interior", display = "House Interior", spawnX = 7*32, spawnY = 9*32},
             {name = "cave_level1", display = "Cave Level 1", spawnX = 3*32, spawnY = 12*32},
-            {name = "class_selection", display = "Class Selection", spawnX = 3*32, spawnY = 15*32}
+            {name = "class_selection", display = "Class Selection", spawnX = 3*32, spawnY = 15*32},
+            {name = "puzzle_level1", display = "Puzzle Level 1", spawnX = 15*32, spawnY = 25*32}
         },
         
         selectedLevelIndex = 1,

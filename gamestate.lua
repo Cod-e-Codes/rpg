@@ -17,6 +17,7 @@ function GameState:new()
         playerX = 400, -- Saved X position
         playerY = 300, -- Saved Y position
         houseDoorLocked = true, -- House starts locked
+        mysteriousCaveHidden = false, -- Tracks if mysterious cave should be hidden
         
         -- Spell system
         learnedSpells = {}, -- Array of spell names (string identifiers)

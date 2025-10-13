@@ -213,6 +213,7 @@ local portalWalkDuration = 0.5 -- Duration for walking out
 local playerScale = 1
 local tempPortal = nil -- Temporary portal object for arrival animation
 local portalDespawnTimer = 0
+local portalSourceMap = nil -- Track where portal came from
 
 -- Camera pan cutscene state
 local cameraPanState = "none" -- "none", "pan_to_target", "pause", "pan_back"
@@ -222,6 +223,7 @@ local cameraPanPauseTimer = 0
 local cameraPanPauseDuration = 2 -- Seconds to pause at target
 local cameraPanOriginal = {x = 0, y = 0}
 local cameraPanCutsceneShown = false -- Track if we've shown the cave cutscene
+local northPathCutsceneShown = false -- Track if we've shown the northern path cutscene
 
 -- Direction mappings
 local directions = {
@@ -296,6 +298,7 @@ function love.load()
     world:createHouseInterior()
     world:createCaveLevel1()
     world:createClassSelection()
+    world:createPuzzleLevel1()
     world:loadMap("overworld")
     
     -- Sync all interactables with game state
@@ -472,6 +475,36 @@ function love.update(dt)
         if fadeAlpha <= 0 then
             fadeAlpha = 0
             fadeState = "none"
+            
+            -- Check if returning to overworld from class selection via cave (not portal)
+            if fadeTargetMap == "overworld" and 
+               gameState.currentMap == "overworld" and
+               gameState.playerClass and
+               not northPathCutsceneShown and
+               not gameState.mysteriousCaveHidden then -- Only if cave not already hidden
+                northPathCutsceneShown = true
+                gameState.mysteriousCaveHidden = true -- Hide the mysterious cave
+                
+                -- Start camera pan cutscene
+                inCutscene = true
+                local screenWidth = love.graphics.getWidth()
+                local screenHeight = love.graphics.getHeight()
+                
+                -- Pan to the northern path area (center of archway at 1280, 5)
+                local northPathX = 1280
+                local northPathY = 5 * 32
+                
+                cameraPanOriginal.x = player.x - screenWidth / 2
+                cameraPanOriginal.y = player.y - screenHeight / 2
+                cameraPanTarget.x = northPathX - screenWidth / 2
+                cameraPanTarget.y = northPathY - screenHeight / 2
+                cameraPanState = "pan_to_target"
+                
+                currentMessage = "An ancient path to the north has revealed itself!"
+                currentMessageItem = nil
+                messageTimer = 5
+            end
+            
             fadeTargetMap = nil
         end
     end
@@ -539,6 +572,37 @@ function love.update(dt)
         if progress >= 1 then
             portalAnimState = "none"
             fadeTargetMap = nil
+            
+            -- Trigger north path cutscene if returning from class selection to overworld
+            if portalSourceMap == "class_selection" and 
+               gameState.currentMap == "overworld" and 
+               not northPathCutsceneShown and
+               gameState.playerClass and -- Only if they actually chose a class
+               not gameState.mysteriousCaveHidden then -- Only if cave not already hidden
+                northPathCutsceneShown = true
+                gameState.mysteriousCaveHidden = true -- Hide the mysterious cave
+                
+                -- Start camera pan cutscene
+                inCutscene = true
+                local screenWidth = love.graphics.getWidth()
+                local screenHeight = love.graphics.getHeight()
+                
+                -- Pan to the northern path area (center of archway at 1280, 5)
+                local northPathX = 1280
+                local northPathY = 5 * 32
+                
+                cameraPanOriginal.x = player.x - screenWidth / 2
+                cameraPanOriginal.y = player.y - screenHeight / 2
+                cameraPanTarget.x = northPathX - screenWidth / 2
+                cameraPanTarget.y = northPathY - screenHeight / 2
+                cameraPanState = "pan_to_target"
+                
+                currentMessage = "An ancient path to the north has revealed itself!"
+                currentMessageItem = nil
+                messageTimer = 5
+            end
+            
+            portalSourceMap = nil -- Clear source tracking
         end
     end
     
@@ -770,7 +834,8 @@ function love.update(dt)
             local triggerCaveCutscene = false
             if gameState.currentMap == "overworld" and 
                gameState.questState == "sword_collected" and 
-               not cameraPanCutsceneShown then
+               not cameraPanCutsceneShown and
+               not gameState.mysteriousCaveHidden then -- Don't trigger if cave already hidden
                 cameraPanCutsceneShown = true
                 triggerCaveCutscene = true
                 
@@ -2713,6 +2778,7 @@ checkInteraction = function()
                 portalAnimState = "shrinking"
                 portalAnimTimer = 0
                 playerScale = 1
+                portalSourceMap = gameState.currentMap -- Track where we're coming from
                 fadeTargetMap = result.targetMap
                 fadeSpawnX = result.spawnX
                 fadeSpawnY = result.spawnY

@@ -80,6 +80,12 @@ function World:createExampleOverworld()
         collision[y][79] = 2
     end
     
+    -- Create opening in north wall for archway area (tiles 38-41 where archway is)
+    -- Player can walk up to interact with E, fade transition handles level change
+    for x = 38, 41 do
+        collision[0][x] = 0 -- Clear wall at archway location
+    end
+    
     -- Add some scattered rocks/obstacles
     for i = 1, 30 do
         local tx = math.random(5, 75)
@@ -234,10 +240,23 @@ function World:createExampleOverworld()
     -- Large entrance on west wall with two staggered boulders
     table.insert(self.interactables["overworld"],
         Interactable:new(0, 26*32, 160, 192, "cave", {
+            id = "mysterious_cave", -- Unique ID for special handling
             targetMap = "cave_level1",
             spawnX = 3*32,  -- Spawn on west side inside cave
             spawnY = 9*32,  -- Align with cave entrance at y=9
             questMinimum = "sword_collected" -- Appears after getting sword and stays visible
+        })
+    )
+    
+    -- Add northern path entrance (appears after class selection)
+    -- Ancient stone archway with magical barrier - aligned with vertical path
+    -- Position: left=1229, right=1332, bottom at y=10 (at top edge of map)
+    table.insert(self.interactables["overworld"],
+        Interactable:new(1229, -182, 103, 192, "ancient_path", {
+            targetMap = "puzzle_level1",
+            spawnX = 15*32,
+            spawnY = 25*32,
+            questMinimum = "has_class" -- Custom quest check for having chosen a class
         })
     )
     
@@ -585,6 +604,84 @@ function World:createClassSelection()
     self.npcs["class_selection"] = {}
 end
 
+function World:createPuzzleLevel1()
+    -- Puzzle Level 1: Ancient Trials
+    -- A simple puzzle chamber with switches, moving blocks, and pressure plates
+    local TileMap = require("tilemap")
+    local map = TileMap:new(30, 30, 32)
+    
+    -- Create stone floor
+    local ground = {}
+    for y = 0, 29 do
+        ground[y] = {}
+        for x = 0, 29 do
+            ground[y][x] = 3 -- Stone floor
+        end
+    end
+    
+    -- Create walls and puzzle structure
+    local collision = {}
+    for y = 0, 29 do
+        collision[y] = {}
+        for x = 0, 29 do
+            -- Outer walls
+            if x == 0 or x == 29 or y == 0 or y == 29 then
+                collision[y][x] = 2 -- Wall
+            else
+                collision[y][x] = 0 -- Walkable
+            end
+        end
+    end
+    
+    -- Add some interior walls to create puzzle rooms
+    -- Central chamber with passages
+    for x = 8, 21 do
+        if x < 13 or x > 17 then
+            collision[10][x] = 2
+            collision[20][x] = 2
+        end
+    end
+    for y = 10, 20 do
+        if y < 14 or y > 16 then
+            collision[y][8] = 2
+            collision[y][21] = 2
+        end
+    end
+    
+    map:loadFromData({ground = ground, collision = collision})
+    self.maps["puzzle_level1"] = map
+    
+    -- Add interactables
+    self.interactables["puzzle_level1"] = {}
+    
+    -- Exit door at south (leads back to overworld)
+    table.insert(self.interactables["puzzle_level1"], 
+        Interactable:new(14*32, 28*32, 32, 48, "door", {
+            destination = "overworld",
+            spawnX = 40*32,  -- Back near the ancient path
+            spawnY = 8*32
+        })
+    )
+    
+    -- Sign with puzzle hint
+    table.insert(self.interactables["puzzle_level1"],
+        Interactable:new(15*32, 26*32, 32, 32, "sign", {
+            message = "The trials await... Prove your worth, young mage."
+        })
+    )
+    
+    -- Treasure chest as reward
+    table.insert(self.interactables["puzzle_level1"],
+        Interactable:new(15*32, 5*32, 32, 32, "chest", {
+            id = "puzzle_chest_1",
+            item = "Health Potion"
+        })
+    )
+    
+    self.enemies["puzzle_level1"] = {}
+    self.npcs["puzzle_level1"] = {}
+end
+
 function World:loadMap(mapName)
     self.currentMap = self.maps[mapName]
     return self.currentMap
@@ -605,21 +702,31 @@ function World:getCurrentInteractables()
                 
                 -- Check if this interactable requires a minimum quest state (unlocked and stays visible)
                 if obj.data.questMinimum and self.gameState then
-                    -- Define quest progression order
-                    local questOrder = {"initial", "sword_collected", "cave_completed", "final"}
-                    local currentIndex = 1
-                    local minimumIndex = 1
-                    
-                    for i, q in ipairs(questOrder) do
-                        if q == self.gameState.questState then
-                            currentIndex = i
+                    -- Special case: has_class checks if player has chosen a class
+                    if obj.data.questMinimum == "has_class" then
+                        shouldShow = (self.gameState.playerClass ~= nil)
+                    else
+                        -- Define quest progression order
+                        local questOrder = {"initial", "sword_collected", "cave_completed", "final"}
+                        local currentIndex = 1
+                        local minimumIndex = 1
+                        
+                        for i, q in ipairs(questOrder) do
+                            if q == self.gameState.questState then
+                                currentIndex = i
+                            end
+                            if q == obj.data.questMinimum then
+                                minimumIndex = i
+                            end
                         end
-                        if q == obj.data.questMinimum then
-                            minimumIndex = i
-                        end
+                        
+                        shouldShow = (currentIndex >= minimumIndex)
                     end
-                    
-                    shouldShow = (currentIndex >= minimumIndex)
+                end
+                
+                -- Special case: Hide mysterious cave after class selection
+                if obj.data.id == "mysterious_cave" and self.gameState and self.gameState.mysteriousCaveHidden then
+                    shouldShow = false
                 end
                 
                 if shouldShow then

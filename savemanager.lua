@@ -109,7 +109,8 @@ function SaveManager:save(gameState, playerX, playerY, playerHealth)
         
         -- Level progression
         levelHistory = gameState.levelHistory,
-        houseDoorLocked = gameState.houseDoorLocked
+        houseDoorLocked = gameState.houseDoorLocked,
+        mysteriousCaveHidden = gameState.mysteriousCaveHidden
     }
     
     -- Convert openedChests table to array for saving
@@ -230,6 +231,7 @@ function SaveManager:applySaveData(gameState, saveData)
     
     gameState.levelHistory = saveData.levelHistory or {}
     gameState.houseDoorLocked = saveData.houseDoorLocked ~= false -- Default true
+    gameState.mysteriousCaveHidden = saveData.mysteriousCaveHidden or false -- Default false
     
     return true
 end

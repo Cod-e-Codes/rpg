@@ -26,8 +26,8 @@ function Interactable:new(x, y, width, height, type, data)
 end
 
 function Interactable:isPlayerNear(playerX, playerY, distance)
-    -- Doors, caves, portals, scrolls, and class icons have larger interaction radius
-    if self.type == "door" or self.type == "cave" or self.type == "cave_exit" or self.type == "portal" or self.type == "scroll" or self.type == "class_icon" then
+    -- Doors, caves, portals, scrolls, class icons, and ancient paths have larger interaction radius
+    if self.type == "door" or self.type == "cave" or self.type == "cave_exit" or self.type == "portal" or self.type == "scroll" or self.type == "class_icon" or self.type == "ancient_path" then
         distance = distance or 64
     else
         distance = distance or 48
@@ -154,6 +154,16 @@ function Interactable:interact(gameState)
             return {
                 type = "fade_transition",
                 targetMap = self.data.destination,
+                spawnX = self.data.spawnX,
+                spawnY = self.data.spawnY
+            }
+        end
+    elseif self.type == "ancient_path" then
+        -- Ancient path entrance with fade transition
+        if self.data.targetMap then
+            return {
+                type = "fade_transition",
+                targetMap = self.data.targetMap,
                 spawnX = self.data.spawnX,
                 spawnY = self.data.spawnY
             }
@@ -459,7 +469,7 @@ function Interactable:draw(layer)
             local backBoulderRadius = 55
             drawBoulder(backBoulderX, backBoulderY, backBoulderRadius, noiseSeed)
         end
-        
+            
         if not layer or layer == "opening" then
             -- Cave opening (middle layer) - player walks IN FRONT of this
             local openingX = self.x + 60
@@ -837,6 +847,111 @@ function Interactable:draw(layer)
         -- Label text
         love.graphics.setColor(color3[1], color3[2], color3[3], 1)
         love.graphics.print(labelText, centerX - textWidth/2, centerY + baseRadius * 1.6)
+        
+    elseif self.type == "ancient_path" then
+        -- Ancient stone archway breaking through northern wall
+        -- Creates a magical gateway with stone pillars and glowing runes
+        
+        local centerX = self.x + self.width/2
+        local archWidth = self.width * 0.8
+        local archHeight = self.height * 0.9
+        local archX = centerX - archWidth/2
+        local archY = self.y + self.height - archHeight
+        
+        -- Stone pillars (left and right)
+        local pillarWidth = archWidth * 0.2
+        local pillarHeight = archHeight * 0.8
+        
+        for side = 0, 1 do
+            local pillarX = side == 0 and archX or (archX + archWidth - pillarWidth)
+            
+            -- Pillar body (earth tones)
+            love.graphics.setColor(0.4, 0.35, 0.25)
+            love.graphics.rectangle("fill", pillarX, archY + archHeight - pillarHeight, pillarWidth, pillarHeight)
+            
+            -- Stone blocks/segments
+            love.graphics.setColor(0.3, 0.25, 0.18)
+            for i = 0, 4 do
+                love.graphics.rectangle("fill", pillarX, archY + archHeight - pillarHeight + i * (pillarHeight/5), pillarWidth, 3)
+            end
+            
+            -- Highlights
+            love.graphics.setColor(0.5, 0.45, 0.35)
+            love.graphics.rectangle("fill", pillarX + 2, archY + archHeight - pillarHeight + 4, pillarWidth * 0.3, pillarHeight - 8)
+            
+            -- Outline
+            love.graphics.setColor(0.15, 0.12, 0.08)
+            love.graphics.setLineWidth(3)
+            love.graphics.rectangle("line", pillarX, archY + archHeight - pillarHeight, pillarWidth, pillarHeight)
+            love.graphics.setLineWidth(1)
+        end
+        
+        -- Arch top (curved stone)
+        local archTopHeight = archHeight * 0.3
+        local archTopY = archY + archHeight - pillarHeight - archTopHeight
+        
+        -- Create arch curve with stone blocks
+        love.graphics.setColor(0.4, 0.35, 0.25)
+        love.graphics.arc("fill", centerX, archY + archHeight - pillarHeight, archWidth/2, math.pi, 0)
+        
+        -- Arch inner shadow
+        love.graphics.setColor(0.2, 0.18, 0.12)
+        love.graphics.arc("fill", centerX, archY + archHeight - pillarHeight, archWidth/2 - pillarWidth, math.pi, 0)
+        
+        -- Arch outline
+        love.graphics.setColor(0.15, 0.12, 0.08)
+        love.graphics.setLineWidth(3)
+        love.graphics.arc("line", centerX, archY + archHeight - pillarHeight, archWidth/2, math.pi, 0)
+        love.graphics.setLineWidth(1)
+        
+        -- Glowing magical runes on pillars
+        local time = love.timer.getTime()
+        local glowPulse = 0.6 + math.sin(time * 2) * 0.4
+        
+        love.graphics.setColor(0.5, 0.7, 0.9, glowPulse)
+        for side = 0, 1 do
+            local pillarX = side == 0 and archX or (archX + archWidth - pillarWidth)
+            local centerPillarX = pillarX + pillarWidth/2
+            
+            -- Simple rune symbols (vertical lines with crosses)
+            for i = 0, 2 do
+                local runeY = archY + archHeight - pillarHeight + 10 + i * (pillarHeight/4)
+                love.graphics.rectangle("fill", centerPillarX - 1, runeY, 2, 12)
+                love.graphics.rectangle("fill", centerPillarX - 4, runeY + 6, 8, 2)
+            end
+        end
+        
+        -- Magical energy veil in archway (shimmering barrier)
+        love.graphics.setColor(0.4, 0.6, 0.8, 0.3 * glowPulse)
+        local veilX = archX + pillarWidth
+        local veilWidth = archWidth - pillarWidth * 2
+        local veilHeight = pillarHeight
+        
+        -- Draw wavy magical barrier
+        for i = 0, 8 do
+            local t = i / 8
+            local waveOffset = math.sin(time * 3 + t * math.pi * 2) * 3
+            local x1 = veilX + waveOffset
+            local y1 = archY + archHeight - veilHeight + t * veilHeight
+            local x2 = veilX + veilWidth - waveOffset
+            local y2 = y1
+            
+        love.graphics.setLineWidth(2)
+            love.graphics.line(x1, y1, x2, y2)
+        love.graphics.setLineWidth(1)
+        end
+        
+        -- Glowing particles floating around archway
+        for i = 0, 5 do
+            local angle = (i / 6) * math.pi * 2 + time
+            local r = archWidth * 0.6
+            local px = centerX + math.cos(angle) * r
+            local py = archY + archHeight - pillarHeight/2 + math.sin(angle * 1.3) * (pillarHeight * 0.3)
+            local particleSize = 2 + math.sin(time * 3 + i) * 1
+            
+            love.graphics.setColor(0.6, 0.8, 1.0, 0.8 * glowPulse)
+            love.graphics.circle("fill", px, py, particleSize)
+        end
     end
     
     love.graphics.setColor(1, 1, 1)
