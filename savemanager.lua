@@ -71,12 +71,18 @@ function SaveManager:saveExists()
     return info ~= nil
 end
 
-function SaveManager:save(gameState, playerX, playerY)
+function SaveManager:save(gameState, playerX, playerY, playerHealth)
     
     -- Build save data
     local saveData = {
         version = "1.0",
         timestamp = os.time(),
+        
+        -- Player info
+        playerName = gameState.playerName,
+        playerClass = gameState.playerClass,
+        playerElement = gameState.playerElement,
+        playerHealth = playerHealth or 100,
         
         -- Player position (use actual position if provided, otherwise use spawn point)
         playerX = playerX or gameState.playerSpawn.x,

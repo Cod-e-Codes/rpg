@@ -12,6 +12,9 @@ function GameState:new()
         playerClass = nil, -- Chosen wizard class (Fire Mage, Ice Mage, etc.)
         playerElement = nil, -- Element type (fire, ice, lightning, earth)
         playerName = "Hero", -- Player's name (set at start screen)
+        playerHealth = 100, -- Current health
+        playerX = 400, -- Saved X position
+        playerY = 300, -- Saved Y position
         houseDoorLocked = true, -- House starts locked
         
         -- Spell system

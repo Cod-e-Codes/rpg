@@ -94,6 +94,8 @@ local cutsceneOnComplete = nil
 local gameStarted = false
 local playerNameInput = ""
 local showProfileMenu = false
+local startScreenState = "menu" -- "menu", "new_game", "loading"
+local startMenuSelection = 1 -- 1 = New Game, 2 = Load Game, 3 = Quit
 
 -- Fade transition state
 local fadeState = "none" -- "none", "fade_out", "fade_in"
@@ -911,6 +913,7 @@ function love.draw()
     if not gameStarted then
         local screenWidth = love.graphics.getWidth()
         local screenHeight = love.graphics.getHeight()
+        local font = love.graphics.getFont()
         
         -- Background
         love.graphics.setColor(0.05, 0.05, 0.1)
@@ -919,32 +922,75 @@ function love.draw()
         -- Title
         love.graphics.setColor(1, 0.9, 0.6)
         local titleText = "RPG ADVENTURE"
-        local font = love.graphics.getFont()
         local titleWidth = font:getWidth(titleText)
-        love.graphics.print(titleText, screenWidth/2 - titleWidth/2, screenHeight/2 - 80)
+        love.graphics.print(titleText, screenWidth/2 - titleWidth/2, 80)
         
-        -- Name entry
-        love.graphics.setColor(1, 1, 1)
-        local promptText = "Enter your name:"
-        local promptWidth = font:getWidth(promptText)
-        love.graphics.print(promptText, screenWidth/2 - promptWidth/2, screenHeight/2 - 20)
-        
-        -- Input box
-        love.graphics.setColor(0.2, 0.2, 0.2)
-        love.graphics.rectangle("fill", screenWidth/2 - 100, screenHeight/2 + 10, 200, 30, 3, 3)
-        love.graphics.setColor(0.6, 0.6, 0.6)
-        love.graphics.setLineWidth(2)
-        love.graphics.rectangle("line", screenWidth/2 - 100, screenHeight/2 + 10, 200, 30, 3, 3)
-        
-        -- Player name input
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.print(playerNameInput, screenWidth/2 - 95, screenHeight/2 + 17)
-        
-        -- Start instruction
-        love.graphics.setColor(0.7, 0.7, 0.7)
-        local startText = "Press ENTER to start"
-        local startWidth = font:getWidth(startText)
-        love.graphics.print(startText, screenWidth/2 - startWidth/2, screenHeight/2 + 60)
+        if startScreenState == "menu" then
+            -- Main menu
+            local menuY = screenHeight/2 - 60
+            local lineHeight = 40
+            local hasSaveFile = saveManager:saveExists()
+            
+            -- New Game option
+            if startMenuSelection == 1 then
+                love.graphics.setColor(1, 0.9, 0.6)
+                love.graphics.print("> New Game <", screenWidth/2 - font:getWidth("> New Game <")/2, menuY)
+            else
+                love.graphics.setColor(0.8, 0.8, 0.8)
+                love.graphics.print("New Game", screenWidth/2 - font:getWidth("New Game")/2, menuY)
+            end
+            
+            -- Load Game option (only if save exists)
+            menuY = menuY + lineHeight
+            if hasSaveFile then
+                if startMenuSelection == 2 then
+                    love.graphics.setColor(1, 0.9, 0.6)
+                    love.graphics.print("> Load Game <", screenWidth/2 - font:getWidth("> Load Game <")/2, menuY)
+                else
+                    love.graphics.setColor(0.8, 0.8, 0.8)
+                    love.graphics.print("Load Game", screenWidth/2 - font:getWidth("Load Game")/2, menuY)
+                end
+                menuY = menuY + lineHeight
+            end
+            
+            -- Quit option
+            local quitSelection = hasSaveFile and 3 or 2
+            if startMenuSelection == quitSelection then
+                love.graphics.setColor(1, 0.9, 0.6)
+                love.graphics.print("> Quit <", screenWidth/2 - font:getWidth("> Quit <")/2, menuY)
+            else
+                love.graphics.setColor(0.8, 0.8, 0.8)
+                love.graphics.print("Quit", screenWidth/2 - font:getWidth("Quit")/2, menuY)
+            end
+            
+            -- Controls hint
+            love.graphics.setColor(0.6, 0.6, 0.6)
+            love.graphics.print("W/S or Up/Down - Navigate", screenWidth/2 - font:getWidth("W/S or Up/Down - Navigate")/2, screenHeight - 80)
+            love.graphics.print("ENTER - Select  |  ESC - Quit", screenWidth/2 - font:getWidth("ENTER - Select  |  ESC - Quit")/2, screenHeight - 50)
+            
+        elseif startScreenState == "new_game" then
+            -- Name entry screen
+            love.graphics.setColor(1, 1, 1)
+            local promptText = "Enter your name:"
+            local promptWidth = font:getWidth(promptText)
+            love.graphics.print(promptText, screenWidth/2 - promptWidth/2, screenHeight/2 - 40)
+            
+            -- Input box
+            love.graphics.setColor(0.2, 0.2, 0.2)
+            love.graphics.rectangle("fill", screenWidth/2 - 100, screenHeight/2, 200, 30, 3, 3)
+            love.graphics.setColor(0.6, 0.6, 0.6)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("line", screenWidth/2 - 100, screenHeight/2, 200, 30, 3, 3)
+            
+            -- Player name input
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.print(playerNameInput, screenWidth/2 - 95, screenHeight/2 + 7)
+            
+            -- Instructions
+            love.graphics.setColor(0.7, 0.7, 0.7)
+            love.graphics.print("Press ENTER to start", screenWidth/2 - font:getWidth("Press ENTER to start")/2, screenHeight/2 + 50)
+            love.graphics.print("ESC - Back to menu", screenWidth/2 - font:getWidth("ESC - Back to menu")/2, screenHeight - 50)
+        end
         
         love.graphics.setColor(1, 1, 1)
         return
@@ -2175,16 +2221,67 @@ end
 function love.keypressed(key)
     -- Start screen handling
     if not gameStarted then
-        if key == "return" or key == "kpenter" then
-            if #playerNameInput > 0 then
-                gameState.playerName = playerNameInput
-                gameStarted = true
-            else
-                gameState.playerName = "Hero"
-                gameStarted = true
+        if startScreenState == "menu" then
+            local hasSaveFile = saveManager:saveExists()
+            local maxSelection = hasSaveFile and 3 or 2
+            
+            if key == "w" or key == "up" then
+                startMenuSelection = startMenuSelection - 1
+                if startMenuSelection < 1 then startMenuSelection = maxSelection end
+            elseif key == "s" or key == "down" then
+                startMenuSelection = startMenuSelection + 1
+                if startMenuSelection > maxSelection then startMenuSelection = 1 end
+            elseif key == "return" or key == "kpenter" then
+                if startMenuSelection == 1 then
+                    -- New Game
+                    startScreenState = "new_game"
+                    playerNameInput = ""
+                elseif startMenuSelection == 2 and hasSaveFile then
+                    -- Load Game
+                    local success, loadedState = saveManager:load()
+                    if success and loadedState then
+                        -- Apply loaded state
+                        gameState = loadedState
+                        player.x = gameState.playerX or gameState.playerSpawn.x
+                        player.y = gameState.playerY or gameState.playerSpawn.y
+                        player.health = gameState.playerHealth or player.maxHealth
+                        
+                        -- Rebuild spell system with loaded data
+                        spellSystem = SpellSystem:new(gameState)
+                        spellSystem:rebuildLearnedSpells()
+                        
+                        -- Load the saved map
+                        world:loadMap(gameState.currentMap)
+                        
+                        -- Sync interactables
+                        local interactables = world:getCurrentInteractables()
+                        for _, obj in ipairs(interactables) do
+                            obj:syncWithGameState(gameState)
+                        end
+                        
+                        gameStarted = true
+                    end
+                elseif (startMenuSelection == 2 and not hasSaveFile) or (startMenuSelection == 3 and hasSaveFile) then
+                    -- Quit
+                    love.event.quit()
+                end
+            elseif key == "escape" then
+                love.event.quit()
             end
-        elseif key == "backspace" then
-            playerNameInput = string.sub(playerNameInput, 1, -2)
+        elseif startScreenState == "new_game" then
+            if key == "return" or key == "kpenter" then
+                if #playerNameInput > 0 then
+                    gameState.playerName = playerNameInput
+                else
+                    gameState.playerName = "Hero"
+                end
+                gameStarted = true
+            elseif key == "backspace" then
+                playerNameInput = string.sub(playerNameInput, 1, -2)
+            elseif key == "escape" then
+                startScreenState = "menu"
+                playerNameInput = ""
+            end
         end
         return
     end
@@ -2269,7 +2366,7 @@ function love.keypressed(key)
                 pauseMenuTargetHeight = 200
             else
                 -- No existing save, just save
-                local success, msg = saveManager:save(gameState, player.x, player.y)
+                local success, msg = saveManager:save(gameState, player.x, player.y, player.health)
                 currentMessage = msg or "Game saved"
                 messageTimer = 3
             end
@@ -2300,7 +2397,7 @@ function love.keypressed(key)
             pauseMenuTargetHeight = 380
         elseif key == "y" and pauseMenuState == "save_confirm" then
             -- Confirm overwrite
-            local success, msg = saveManager:save(gameState, player.x, player.y)
+            local success, msg = saveManager:save(gameState, player.x, player.y, player.health)
             currentMessage = msg or "Game saved"
             messageTimer = 3
             pauseMenuState = "main"
@@ -2518,7 +2615,7 @@ function love.wheelmoved(x, y)
 end
 
 function love.textinput(text)
-    if not gameStarted and #playerNameInput < 15 then
+    if not gameStarted and startScreenState == "new_game" and #playerNameInput < 15 then
         playerNameInput = playerNameInput .. text
     end
 end
