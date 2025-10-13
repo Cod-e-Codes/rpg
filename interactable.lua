@@ -26,8 +26,8 @@ function Interactable:new(x, y, width, height, type, data)
 end
 
 function Interactable:isPlayerNear(playerX, playerY, distance)
-    -- Doors, caves, portals, and scrolls have larger interaction radius
-    if self.type == "door" or self.type == "cave" or self.type == "cave_exit" or self.type == "portal" or self.type == "scroll" then
+    -- Doors, caves, portals, scrolls, and class icons have larger interaction radius
+    if self.type == "door" or self.type == "cave" or self.type == "cave_exit" or self.type == "portal" or self.type == "scroll" or self.type == "class_icon" then
         distance = distance or 64
     else
         distance = distance or 48
@@ -47,6 +47,11 @@ function Interactable:update(dt, gameState)
     
     -- Update portal swirl animation
     if self.type == "portal" then
+        self.swirlTime = self.swirlTime + dt
+    end
+    
+    -- Update class icon animation
+    if self.type == "class_icon" then
         self.swirlTime = self.swirlTime + dt
     end
     
@@ -130,6 +135,21 @@ function Interactable:interact(gameState)
         end
     elseif self.type == "sign" then
         return self.data.message or "..."
+    elseif self.type == "class_icon" then
+        -- Class selection
+        if gameState.playerClass then
+            return "You are already a " .. gameState.playerClass
+        else
+            -- Return class selection result
+            gameState.playerClass = self.data.className
+            gameState.playerElement = self.data.element
+            return {
+                type = "class_selected",
+                className = self.data.className,
+                element = self.data.element,
+                message = string.format("You have chosen to become a %s!\n\n%s\n\nYou've learned your first attack spell!", self.data.className, self.data.description)
+            }
+        end
     elseif self.type == "portal" then
         -- Portal transition (with fade like caves for magical effect)
         if self.data.destination then
@@ -782,6 +802,132 @@ function Interactable:draw(layer)
         love.graphics.setLineWidth(3)
         love.graphics.circle("line", centerX, centerY, baseRadius)
         love.graphics.setLineWidth(1)
+        
+    elseif self.type == "class_icon" then
+        -- Animated glowing elemental class icon
+        local centerX = self.x + self.width/2
+        local centerY = self.y + self.height/2
+        local baseRadius = math.min(self.width, self.height) * 0.4
+        
+        -- Element-specific colors
+        local color1, color2, color3
+        if self.data.element == "fire" then
+            color1 = {1.0, 0.3, 0.0}
+            color2 = {1.0, 0.6, 0.1}
+            color3 = {1.0, 0.9, 0.3}
+        elseif self.data.element == "ice" then
+            color1 = {0.2, 0.6, 1.0}
+            color2 = {0.5, 0.8, 1.0}
+            color3 = {0.8, 0.95, 1.0}
+        elseif self.data.element == "lightning" then
+            color1 = {0.5, 0.3, 1.0}
+            color2 = {0.7, 0.6, 1.0}
+            color3 = {0.9, 0.9, 1.0}
+        elseif self.data.element == "earth" then
+            color1 = {0.5, 0.35, 0.2}
+            color2 = {0.7, 0.55, 0.35}
+            color3 = {0.9, 0.75, 0.5}
+        end
+        
+        -- Pulsing glow effect
+        local pulse = 0.8 + math.sin(self.swirlTime * 3) * 0.2
+        
+        -- Outer glow (largest)
+        love.graphics.setColor(color1[1], color1[2], color1[3], 0.3 * pulse)
+        love.graphics.circle("fill", centerX, centerY, baseRadius * 1.3)
+        
+        -- Middle glow
+        love.graphics.setColor(color2[1], color2[2], color2[3], 0.6 * pulse)
+        love.graphics.circle("fill", centerX, centerY, baseRadius)
+        
+        -- Inner core (brightest)
+        love.graphics.setColor(color3[1], color3[2], color3[3], 0.9 * pulse)
+        love.graphics.circle("fill", centerX, centerY, baseRadius * 0.6)
+        
+        -- Rotating particles around the icon
+        for i = 0, 5 do
+            local angle = (i / 6) * math.pi * 2 + self.swirlTime * 2
+            local r = baseRadius * 1.5
+            local px = centerX + math.cos(angle) * r
+            local py = centerY + math.sin(angle) * r
+            local particleSize = 3 + math.sin(self.swirlTime * 4 + i) * 2
+            
+            love.graphics.setColor(color3[1], color3[2], color3[3], 0.8)
+            love.graphics.circle("fill", px, py, particleSize)
+        end
+        
+        -- Element symbol in center (simple shape)
+        love.graphics.setColor(1, 1, 1, 0.9)
+        if self.data.element == "fire" then
+            -- Flame shape (more realistic)
+            love.graphics.setLineWidth(1)
+            -- Main flame body
+            love.graphics.polygon("fill",
+                centerX, centerY - 18,
+                centerX - 8, centerY - 5,
+                centerX - 6, centerY + 8,
+                centerX, centerY + 12,
+                centerX + 6, centerY + 8,
+                centerX + 8, centerY - 5
+            )
+            -- Inner flame highlight
+            love.graphics.setColor(1, 1, 0.8, 0.8)
+            love.graphics.polygon("fill",
+                centerX, centerY - 12,
+                centerX - 4, centerY,
+                centerX, centerY + 6,
+                centerX + 4, centerY
+            )
+        elseif self.data.element == "ice" then
+            -- Snowflake/crystal
+            love.graphics.setLineWidth(3)
+            love.graphics.line(centerX, centerY - 12, centerX, centerY + 12)
+            love.graphics.line(centerX - 12, centerY, centerX + 12, centerY)
+            love.graphics.line(centerX - 8, centerY - 8, centerX + 8, centerY + 8)
+            love.graphics.line(centerX - 8, centerY + 8, centerX + 8, centerY - 8)
+            love.graphics.setLineWidth(1)
+        elseif self.data.element == "lightning" then
+            -- Lightning bolt
+            love.graphics.polygon("fill",
+                centerX + 2, centerY - 15,
+                centerX - 8, centerY,
+                centerX + 2, centerY,
+                centerX - 2, centerY + 15,
+                centerX + 8, centerY - 2,
+                centerX - 2, centerY - 2
+            )
+        elseif self.data.element == "earth" then
+            -- Rock/crystal formation
+            love.graphics.polygon("fill",
+                centerX, centerY - 12,
+                centerX + 10, centerY - 4,
+                centerX + 8, centerY + 10,
+                centerX - 8, centerY + 10,
+                centerX - 10, centerY - 4
+            )
+            -- Inner facet
+            love.graphics.setColor(0.7, 0.6, 0.4, 0.6)
+            love.graphics.polygon("fill",
+                centerX, centerY - 8,
+                centerX + 6, centerY,
+                centerX, centerY + 6,
+                centerX - 6, centerY
+            )
+        end
+        
+        -- Class name label below icon
+        love.graphics.setColor(1, 1, 1, 0.9)
+        local font = love.graphics.getFont()
+        local labelText = self.data.className
+        local textWidth = font:getWidth(labelText)
+        
+        -- Semi-transparent background for label
+        love.graphics.setColor(0, 0, 0, 0.7)
+        love.graphics.rectangle("fill", centerX - textWidth/2 - 4, centerY + baseRadius * 1.6 - 2, textWidth + 8, font:getHeight() + 4, 3, 3)
+        
+        -- Label text
+        love.graphics.setColor(color3[1], color3[2], color3[3], 1)
+        love.graphics.print(labelText, centerX - textWidth/2, centerY + baseRadius * 1.6)
     end
     
     love.graphics.setColor(1, 1, 1)

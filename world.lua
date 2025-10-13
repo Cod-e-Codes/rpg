@@ -440,10 +440,10 @@ function World:createCaveLevel1()
         })
     )
     
-    -- Cave exit (leads to next level)
+    -- Cave exit (leads to class selection)
     table.insert(self.interactables["cave_level1"], 
         Interactable:new(23*32, 9*32, 64, 64, "cave_exit", {
-            destination = "level_2",
+            destination = "class_selection",
             spawnX = 3*32,
             spawnY = 15*32
         })
@@ -474,8 +474,8 @@ function World:createCaveLevel1()
     self.npcs["cave_level1"] = {}
 end
 
-function World:createLevel2()
-    -- Level 2: Grassy area with cave connection and portal to overworld
+function World:createClassSelection()
+    -- Class Selection: Choose your wizard class
     local TileMap = require("tilemap")
     local map = TileMap:new(30, 20, 32)
     
@@ -502,13 +502,13 @@ function World:createLevel2()
     end
     
     map:loadFromData({ground = ground, collision = collision})
-    self.maps["level_2"] = map
+    self.maps["class_selection"] = map
     
     -- Add interactables
-    self.interactables["level_2"] = {}
+    self.interactables["class_selection"] = {}
     
     -- Cave exit on west side (return to cave)
-    table.insert(self.interactables["level_2"], 
+    table.insert(self.interactables["class_selection"], 
         Interactable:new(1*32, 8*32, 96, 96, "cave_exit", {
             destination = "cave_level1",
             spawnX = 23*32 + 32,  -- Near the east exit where they came from
@@ -517,7 +517,7 @@ function World:createLevel2()
     )
     
     -- Sign pointing to cave (left arrow)
-    table.insert(self.interactables["level_2"],
+    table.insert(self.interactables["class_selection"],
         Interactable:new(6*32, 9*32, 32, 32, "sign", {
             message = "<- Mysterious cave",
             arrow = "left"
@@ -525,7 +525,7 @@ function World:createLevel2()
     )
     
     -- Portal on eastern border (return to overworld)
-    table.insert(self.interactables["level_2"],
+    table.insert(self.interactables["class_selection"],
         Interactable:new(27*32, 9*32, 64, 64, "portal", {
             destination = "overworld",
             spawnX = 30*32,  -- Spawn player safely in overworld
@@ -534,15 +534,52 @@ function World:createLevel2()
     )
     
     -- Sign pointing to portal (right arrow)
-    table.insert(self.interactables["level_2"],
+    table.insert(self.interactables["class_selection"],
         Interactable:new(24*32, 9*32, 32, 32, "sign", {
             message = "Back to Overworld ->",
             arrow = "right"
         })
     )
     
-    self.enemies["level_2"] = {}
-    self.npcs["level_2"] = {}
+    -- Class Selection Icons (elemental spells)
+    -- Fire Mage
+    table.insert(self.interactables["class_selection"],
+        Interactable:new(8*32, 6*32, 64, 64, "class_icon", {
+            element = "fire",
+            className = "Fire Mage",
+            description = "Master of flames and destruction"
+        })
+    )
+    
+    -- Ice Mage
+    table.insert(self.interactables["class_selection"],
+        Interactable:new(14*32, 6*32, 64, 64, "class_icon", {
+            element = "ice",
+            className = "Ice Mage",
+            description = "Controller of frost and cold"
+        })
+    )
+    
+    -- Lightning Mage
+    table.insert(self.interactables["class_selection"],
+        Interactable:new(8*32, 12*32, 64, 64, "class_icon", {
+            element = "lightning",
+            className = "Storm Mage",
+            description = "Wielder of thunder and lightning"
+        })
+    )
+    
+    -- Earth Mage
+    table.insert(self.interactables["class_selection"],
+        Interactable:new(14*32, 12*32, 64, 64, "class_icon", {
+            element = "earth",
+            className = "Earth Mage",
+            description = "Master of stone and earth"
+        })
+    )
+    
+    self.enemies["class_selection"] = {}
+    self.npcs["class_selection"] = {}
 end
 
 function World:loadMap(mapName)

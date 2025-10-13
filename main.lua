@@ -9,6 +9,7 @@ local SpellSystem = require("spellsystem")
 local Lighting = require("lighting")
 local SaveManager = require("savemanager")
 local DevMode = require("devmode")
+local Projectile = require("projectile")
 
 -- Debug mode
 DEBUG_MODE = false
@@ -20,6 +21,10 @@ local player = {
     speed = 150,
     direction = "south",
     isMoving = false,
+    -- Combat stats
+    health = 100,
+    maxHealth = 100,
+    isDead = false,
     wasMoving = false,
     scale = 2,
     -- Collision box offsets (relative to player center)
@@ -55,6 +60,7 @@ local camera = {
 local gameState
 local world
 local spellSystem
+local projectiles = {} -- Active projectiles
 local lighting
 local saveManager
 local devMode
@@ -83,6 +89,11 @@ local pauseMenuTargetHeight = 250 -- Target height to lerp to
 local inCutscene = false
 local cutsceneWalkTarget = nil
 local cutsceneOnComplete = nil
+
+-- Start screen state
+local gameStarted = false
+local playerNameInput = ""
+local showProfileMenu = false
 
 -- Fade transition state
 local fadeState = "none" -- "none", "fade_out", "fade_in"
@@ -117,6 +128,9 @@ function love.load()
     love.window.setMode(800, 600, {resizable=false})
     love.graphics.setDefaultFilter("nearest", "nearest")
     
+    -- Enable text input for name entry
+    love.keyboard.setTextInput(true)
+    
     -- Initialize game systems
     gameState = GameState:new()
     world = World:new()
@@ -138,7 +152,7 @@ function love.load()
     world:createExampleOverworld()
     world:createHouseInterior()
     world:createCaveLevel1()
-    world:createLevel2()
+    world:createClassSelection()
     world:loadMap("overworld")
     
     -- Sync all interactables with game state
@@ -194,6 +208,11 @@ function loadAnimations()
 end
 
 function love.update(dt)
+    -- Don't update game if not started
+    if not gameStarted then
+        return
+    end
+    
     -- Always update UI animations even when paused
     if isPaused then
         -- Lerp pause menu height
@@ -451,7 +470,7 @@ function love.update(dt)
         local canBeHit = (player.immunityTimer <= 0)
         local enemyResult = enemy:update(dt, player.x, player.y, gameTime, canBeHit)
         
-        -- Handle knockback
+        -- Handle knockback and damage
         if enemyResult and enemyResult.type == "knockback" and canBeHit then
             local knockDir = enemyResult.direction
             local distance = math.sqrt(knockDir.x * knockDir.x + knockDir.y * knockDir.y)
@@ -464,7 +483,40 @@ function love.update(dt)
                 
                 -- Grant immunity frames
                 player.immunityTimer = player.immunityDuration
+                
+                -- Take damage from enemy
+                player.health = player.health - enemy.damage
+                if player.health <= 0 then
+                    player.health = 0
+                    player.isDead = true
+                end
             end
+        end
+    end
+    
+    -- Update projectiles and check collisions
+    for i = #projectiles, 1, -1 do
+        local proj = projectiles[i]
+        proj:update(dt)
+        
+        -- Check collision with enemies
+        local hitEnemy = proj:checkCollision(enemies)
+        if hitEnemy then
+            local died = hitEnemy:takeDamage(proj.damage)
+            if died then
+                -- Remove dead enemy from world
+                for j, enemy in ipairs(enemies) do
+                    if enemy == hitEnemy then
+                        table.remove(enemies, j)
+                        break
+                    end
+                end
+            end
+        end
+        
+        -- Remove inactive projectiles
+        if not proj.active then
+            table.remove(projectiles, i)
         end
     end
     
@@ -608,8 +660,8 @@ function love.update(dt)
             player.isMoving = true
         end
     else
-        -- Normal player input (only when not in cutscene)
-        if not inCutscene then
+        -- Normal player input (only when not in cutscene and alive)
+        if not inCutscene and not player.isDead then
             if love.keyboard.isDown("w") or love.keyboard.isDown("up") then
                 dy = dy - 1
             end
@@ -855,6 +907,49 @@ function getDirection(dx, dy)
 end
 
 function love.draw()
+    -- Draw start screen if game hasn't started
+    if not gameStarted then
+        local screenWidth = love.graphics.getWidth()
+        local screenHeight = love.graphics.getHeight()
+        
+        -- Background
+        love.graphics.setColor(0.05, 0.05, 0.1)
+        love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+        
+        -- Title
+        love.graphics.setColor(1, 0.9, 0.6)
+        local titleText = "RPG ADVENTURE"
+        local font = love.graphics.getFont()
+        local titleWidth = font:getWidth(titleText)
+        love.graphics.print(titleText, screenWidth/2 - titleWidth/2, screenHeight/2 - 80)
+        
+        -- Name entry
+        love.graphics.setColor(1, 1, 1)
+        local promptText = "Enter your name:"
+        local promptWidth = font:getWidth(promptText)
+        love.graphics.print(promptText, screenWidth/2 - promptWidth/2, screenHeight/2 - 20)
+        
+        -- Input box
+        love.graphics.setColor(0.2, 0.2, 0.2)
+        love.graphics.rectangle("fill", screenWidth/2 - 100, screenHeight/2 + 10, 200, 30, 3, 3)
+        love.graphics.setColor(0.6, 0.6, 0.6)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", screenWidth/2 - 100, screenHeight/2 + 10, 200, 30, 3, 3)
+        
+        -- Player name input
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(playerNameInput, screenWidth/2 - 95, screenHeight/2 + 17)
+        
+        -- Start instruction
+        love.graphics.setColor(0.7, 0.7, 0.7)
+        local startText = "Press ENTER to start"
+        local startWidth = font:getWidth(startText)
+        love.graphics.print(startText, screenWidth/2 - startWidth/2, screenHeight/2 + 60)
+        
+        love.graphics.setColor(1, 1, 1)
+        return
+    end
+    
     love.graphics.push()
     love.graphics.translate(-camera.x, -camera.y)
     
@@ -1067,6 +1162,11 @@ function love.draw()
         love.graphics.setColor(1, 1, 1)
     end
     
+    -- Draw projectiles
+    for _, proj in ipairs(projectiles) do
+        proj:draw()
+    end
+    
     love.graphics.pop()
     
     -- Draw lighting overlay in screen space (after pop) so it covers the world but not UI
@@ -1091,6 +1191,115 @@ function love.draw()
     -- Draw pause menu
     if isPaused then
         drawPauseMenu()
+    end
+    
+    -- Draw profile menu
+    if showProfileMenu and gameState.playerClass then
+        local screenWidth = love.graphics.getWidth()
+        local screenHeight = love.graphics.getHeight()
+        local panelWidth = 400
+        local panelHeight = 350
+        local panelX = (screenWidth - panelWidth) / 2
+        local panelY = (screenHeight - panelHeight) / 2
+        
+        -- Semi-transparent background overlay
+        love.graphics.setColor(0, 0, 0, 0.6)
+        love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+        
+        -- Main panel background
+        love.graphics.setColor(0.08, 0.08, 0.10, 0.95)
+        love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 6, 6)
+        
+        -- Border
+        love.graphics.setColor(0.75, 0.65, 0.25)
+        love.graphics.setLineWidth(3)
+        love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 6, 6)
+        love.graphics.setLineWidth(1)
+        
+        -- Title
+        love.graphics.setColor(1, 0.9, 0.6)
+        local title = "PLAYER PROFILE"
+        local font = love.graphics.getFont()
+        local titleWidth = font:getWidth(title)
+        love.graphics.print(title, panelX + (panelWidth - titleWidth) / 2, panelY + 15)
+        
+        -- Divider line
+        love.graphics.setColor(0.65, 0.55, 0.20)
+        love.graphics.setLineWidth(2)
+        love.graphics.line(panelX + 20, panelY + 45, panelX + panelWidth - 20, panelY + 45)
+        love.graphics.setLineWidth(1)
+        
+        -- Player info
+        love.graphics.setColor(1, 1, 1)
+        local yPos = panelY + 60
+        local lineHeight = 25
+        
+        -- Name
+        love.graphics.setColor(0.9, 0.8, 0.5)
+        love.graphics.print("Name:", panelX + 30, yPos)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(gameState.playerName, panelX + 150, yPos)
+        
+        -- Class
+        yPos = yPos + lineHeight
+        love.graphics.setColor(0.9, 0.8, 0.5)
+        love.graphics.print("Class:", panelX + 30, yPos)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(gameState.playerClass, panelX + 150, yPos)
+        
+        -- Element
+        yPos = yPos + lineHeight
+        love.graphics.setColor(0.9, 0.8, 0.5)
+        love.graphics.print("Element:", panelX + 30, yPos)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(string.upper(string.sub(gameState.playerElement, 1, 1)) .. string.sub(gameState.playerElement, 2), panelX + 150, yPos)
+        
+        -- Health
+        yPos = yPos + lineHeight
+        love.graphics.setColor(0.9, 0.8, 0.5)
+        love.graphics.print("Health:", panelX + 30, yPos)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(string.format("%d / %d", player.health, player.maxHealth), panelX + 150, yPos)
+        
+        -- Mana
+        yPos = yPos + lineHeight
+        love.graphics.setColor(0.9, 0.8, 0.5)
+        love.graphics.print("Mana:", panelX + 30, yPos)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(string.format("%d / %d", spellSystem.currentMana, spellSystem.maxMana), panelX + 150, yPos)
+        
+        -- Play time
+        yPos = yPos + lineHeight
+        love.graphics.setColor(0.9, 0.8, 0.5)
+        love.graphics.print("Play Time:", panelX + 30, yPos)
+        love.graphics.setColor(1, 1, 1)
+        local hours = math.floor(gameState.playTime / 3600)
+        local minutes = math.floor((gameState.playTime % 3600) / 60)
+        local seconds = math.floor(gameState.playTime % 60)
+        love.graphics.print(string.format("%02d:%02d:%02d", hours, minutes, seconds), panelX + 150, yPos)
+        
+        -- Spells learned
+        yPos = yPos + lineHeight
+        love.graphics.setColor(0.9, 0.8, 0.5)
+        love.graphics.print("Spells Learned:", panelX + 30, yPos)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(#gameState.learnedSpells, panelX + 150, yPos)
+        
+        -- Location
+        yPos = yPos + lineHeight
+        love.graphics.setColor(0.9, 0.8, 0.5)
+        love.graphics.print("Location:", panelX + 30, yPos)
+        love.graphics.setColor(1, 1, 1)
+        local locationName = gameState.currentMap == "class_selection" and "Class Selection" or string.upper(string.sub(gameState.currentMap, 1, 1)) .. string.sub(gameState.currentMap, 2):gsub("_", " ")
+        love.graphics.print(locationName, panelX + 150, yPos)
+        
+        -- Close hint
+        love.graphics.setColor(0.7, 0.7, 0.7)
+        local closeText = "[P] or [ESC] to close"
+        local closeWidth = font:getWidth(closeText)
+        love.graphics.print(closeText, panelX + (panelWidth - closeWidth) / 2, panelY + panelHeight - 30)
+        
+        love.graphics.setColor(1, 1, 1)
     end
     
     -- Draw fade overlay (for cave transitions)
@@ -1401,6 +1610,62 @@ local function drawItemIcon(itemName, x, y, size, isHovered)
 end
 
 function drawUI()
+    -- Draw player health bar (only if class selected and not dead)
+    if gameState.playerClass then
+        local barWidth = 200
+        local barHeight = 20
+        local barX = (love.graphics.getWidth() - barWidth) / 2
+        local barY = 20
+        
+        -- Background
+        love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
+        love.graphics.rectangle("fill", barX, barY, barWidth, barHeight, 3, 3)
+        
+        -- Health (red to green gradient based on health)
+        local healthPercent = player.health / player.maxHealth
+        local r = 1 - (healthPercent * 0.5) -- Red 100% at 0 health, 50% at full
+        local g = healthPercent -- Green 0% at 0 health, 100% at full
+        love.graphics.setColor(r, g, 0.2)
+        love.graphics.rectangle("fill", barX, barY, barWidth * healthPercent, barHeight, 3, 3)
+        
+        -- Border
+        love.graphics.setColor(0, 0, 0)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", barX, barY, barWidth, barHeight, 3, 3)
+        
+        -- Health text
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print(string.format("%d / %d", player.health, player.maxHealth), barX + barWidth/2 - 25, barY + 3)
+        
+        love.graphics.setColor(1, 1, 1)
+    end
+    
+    -- Draw death screen
+    if player.isDead then
+        local screenWidth = love.graphics.getWidth()
+        local screenHeight = love.graphics.getHeight()
+        
+        -- Dark overlay
+        love.graphics.setColor(0, 0, 0, 0.8)
+        love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+        
+        -- Death message
+        love.graphics.setColor(0.8, 0.1, 0.1)
+        local deathText = "YOU DIED"
+        local font = love.graphics.getFont()
+        local textWidth = font:getWidth(deathText)
+        love.graphics.print(deathText, screenWidth/2 - textWidth/2, screenHeight/2 - 40)
+        
+        -- Respawn instruction
+        love.graphics.setColor(1, 1, 1)
+        local respawnText = "Press R to Respawn"
+        local respawnWidth = font:getWidth(respawnText)
+        love.graphics.print(respawnText, screenWidth/2 - respawnWidth/2, screenHeight/2 + 20)
+        
+        love.graphics.setColor(1, 1, 1)
+        return -- Don't draw other UI when dead
+    end
+    
     -- Draw help panel
     if showHelp then
         local screenWidth = love.graphics.getWidth()
@@ -1842,6 +2107,32 @@ checkInteraction = function()
     if obj then
         local result = obj:interact(gameState)
         
+        -- Handle class selection
+        if type(result) == "table" and result.type == "class_selected" then
+            -- Give the player their starter attack spell based on element
+            if spellSystem and result.element then
+                local spell = nil
+                if result.element == "fire" then
+                    spell = Spell.createFireball()
+                elseif result.element == "ice" then
+                    spell = Spell.createIceShard()
+                elseif result.element == "lightning" then
+                    spell = Spell.createLightningBolt()
+                elseif result.element == "earth" then
+                    spell = Spell.createStoneSpike()
+                end
+                
+                if spell then
+                    spellSystem:learnSpell(spell)
+                end
+            end
+            
+            currentMessage = result.message
+            messageTimer = 5 -- Longer duration for class selection message
+            currentMessageItem = nil
+            return
+        end
+        
         -- Handle spell learned (special result type)
         if type(result) == "table" and result.type == "spell_learned" then
             -- Create and learn the spell
@@ -1882,6 +2173,31 @@ checkInteraction = function()
 end
 
 function love.keypressed(key)
+    -- Start screen handling
+    if not gameStarted then
+        if key == "return" or key == "kpenter" then
+            if #playerNameInput > 0 then
+                gameState.playerName = playerNameInput
+                gameStarted = true
+            else
+                gameState.playerName = "Hero"
+                gameStarted = true
+            end
+        elseif key == "backspace" then
+            playerNameInput = string.sub(playerNameInput, 1, -2)
+        end
+        return
+    end
+    
+    -- Handle death respawn
+    if player.isDead and key == "r" then
+        player.health = player.maxHealth
+        player.isDead = false
+        player.x = gameState.playerSpawn.x
+        player.y = gameState.playerSpawn.y
+        return
+    end
+    
     -- Dev mode toggle (works always) - F12 toggles both dev mode and panel
     if key == "f12" then
         if devMode then
@@ -1892,6 +2208,12 @@ function love.keypressed(key)
     
     -- Pause handling
     if key == "escape" then
+        -- Close profile menu if open
+        if showProfileMenu then
+            showProfileMenu = false
+            return
+        end
+        
         -- Close spell menu if open
         if spellSystem and spellSystem.showSpellMenu then
             spellSystem:toggleSpellMenu()
@@ -2033,15 +2355,31 @@ function love.keypressed(key)
             end
         end
     elseif key == "1" and not inCutscene and spellSystem then
-        spellSystem:activateSlot(1)
+        local success, spell = spellSystem:activateSlot(1)
+        if success and spell and spell.damage then
+            -- Create projectile for attack spell
+            table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+        end
     elseif key == "2" and not inCutscene and spellSystem then
-        spellSystem:activateSlot(2)
+        local success, spell = spellSystem:activateSlot(2)
+        if success and spell and spell.damage then
+            table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+        end
     elseif key == "3" and not inCutscene and spellSystem then
-        spellSystem:activateSlot(3)
+        local success, spell = spellSystem:activateSlot(3)
+        if success and spell and spell.damage then
+            table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+        end
     elseif key == "4" and not inCutscene and spellSystem then
-        spellSystem:activateSlot(4)
+        local success, spell = spellSystem:activateSlot(4)
+        if success and spell and spell.damage then
+            table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+        end
     elseif key == "5" and not inCutscene and spellSystem then
-        spellSystem:activateSlot(5)
+        local success, spell = spellSystem:activateSlot(5)
+        if success and spell and spell.damage then
+            table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+        end
     elseif key == "6" and not inCutscene then
         -- Use quick slot 1
         if gameState.quickSlots[1] then
@@ -2073,8 +2411,13 @@ function love.keypressed(key)
             messageTimer = 2
         end
     elseif key == "p" and not inCutscene then
-        -- Alternative pause key
-        isPaused = not isPaused
+        -- Profile menu (only available after selecting class)
+        if gameState.playerClass then
+            showProfileMenu = not showProfileMenu
+        else
+            currentMessage = "Complete class selection first..."
+            messageTimer = 2
+        end
     end
 end
 
@@ -2171,6 +2514,12 @@ function love.wheelmoved(x, y)
         
         inventoryScrollOffset = inventoryScrollOffset - y * 20
         inventoryScrollOffset = math.max(0, math.min(inventoryScrollOffset, maxScroll))
+    end
+end
+
+function love.textinput(text)
+    if not gameStarted and #playerNameInput < 15 then
+        playerNameInput = playerNameInput .. text
     end
 end
 

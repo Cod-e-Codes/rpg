@@ -9,6 +9,9 @@ function GameState:new()
         currentMap = "overworld",
         playerSpawn = {x = 400, y = 300},
         questState = "initial", -- Quest progression tracking
+        playerClass = nil, -- Chosen wizard class (Fire Mage, Ice Mage, etc.)
+        playerElement = nil, -- Element type (fire, ice, lightning, earth)
+        playerName = "Hero", -- Player's name (set at start screen)
         houseDoorLocked = true, -- House starts locked
         
         -- Spell system

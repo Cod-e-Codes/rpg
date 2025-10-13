@@ -33,7 +33,12 @@ function Enemy:new(x, y, enemyType, data)
         -- Terrain collision callback
         checkTerrainCollision = nil,
         -- Knockback
-        knockbackDistance = 80
+        knockbackDistance = 80,
+        -- Combat stats
+        health = data.health or 50, -- Base health
+        maxHealth = data.health or 50,
+        isDead = false,
+        damage = data.damage or 10 -- Damage dealt to player on contact
     }
     setmetatable(enemy, {__index = self})
     
@@ -41,6 +46,18 @@ function Enemy:new(x, y, enemyType, data)
     enemy:loadAnimations()
     
     return enemy
+end
+
+function Enemy:takeDamage(amount)
+    if self.isDead then return false end
+    
+    self.health = self.health - amount
+    if self.health <= 0 then
+        self.health = 0
+        self.isDead = true
+        return true -- Enemy died
+    end
+    return false
 end
 
 function Enemy:loadAnimations()
@@ -256,6 +273,30 @@ function Enemy:draw()
         -- Fallback: draw a simple colored rectangle
         love.graphics.setColor(0.5, 0.5, 0.5)
         love.graphics.rectangle("fill", self.x - 16, self.y - 16, 32, 32)
+        love.graphics.setColor(1, 1, 1)
+    end
+    
+    -- Draw health bar if damaged
+    if self.health < self.maxHealth and not self.isDead then
+        local barWidth = 32
+        local barHeight = 4
+        local barX = self.x - barWidth/2
+        local barY = self.y - 25
+        
+        -- Background
+        love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
+        love.graphics.rectangle("fill", barX, barY, barWidth, barHeight)
+        
+        -- Health (red)
+        local healthPercent = self.health / self.maxHealth
+        love.graphics.setColor(0.8, 0.2, 0.2)
+        love.graphics.rectangle("fill", barX, barY, barWidth * healthPercent, barHeight)
+        
+        -- Border
+        love.graphics.setColor(0, 0, 0)
+        love.graphics.setLineWidth(1)
+        love.graphics.rectangle("line", barX, barY, barWidth, barHeight)
+        
         love.graphics.setColor(1, 1, 1)
     end
     

@@ -11,7 +11,7 @@ function DevMode:new()
             {name = "overworld", display = "Overworld", spawnX = 40*32, spawnY = 30*32},
             {name = "house_interior", display = "House Interior", spawnX = 7*32, spawnY = 9*32},
             {name = "cave_level1", display = "Cave Level 1", spawnX = 3*32, spawnY = 12*32},
-            {name = "level_2", display = "Level 2", spawnX = 3*32, spawnY = 15*32}
+            {name = "class_selection", display = "Class Selection", spawnX = 3*32, spawnY = 15*32}
         },
         
         selectedLevelIndex = 1,
@@ -67,8 +67,23 @@ function DevMode:giveAllSpells(gameState, spellSystem, Spell)
     if not gameState:hasSpell("Illumination") then
         local spell = Spell.createIllumination()
         spellSystem:learnSpell(spell)
-        gameState:learnSpell("Illumination")
         print("Gave spell: Illumination")
+    end
+    
+    -- Give all attack spells
+    local spellCreators = {
+        {name = "Fireball", create = Spell.createFireball},
+        {name = "Ice Shard", create = Spell.createIceShard},
+        {name = "Lightning Bolt", create = Spell.createLightningBolt},
+        {name = "Stone Spike", create = Spell.createStoneSpike}
+    }
+    
+    for _, spellInfo in ipairs(spellCreators) do
+        if not gameState:hasSpell(spellInfo.name) then
+            local spell = spellInfo.create()
+            spellSystem:learnSpell(spell)
+            print("Gave spell: " .. spellInfo.name)
+        end
     end
     
     return true, "All spells granted"

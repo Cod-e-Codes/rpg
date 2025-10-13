@@ -652,8 +652,8 @@ function SpellSystem:activateSlot(slotIndex)
     if success then
         self.currentMana = self.currentMana - spell.manaCost
         
-        -- Create particle emitter for this spell
-        if spell.particleConfig then
+        -- Create particle emitter for this spell (non-attack spells)
+        if spell.particleConfig and not spell.damage then
             local emitter = ParticleSystem.createEmitter(0, 0, "illumination", spell.particleConfig)
             self.particleEmitters[slotIndex] = emitter
         end
@@ -665,7 +665,7 @@ function SpellSystem:activateSlot(slotIndex)
         self.spellMessageTimer = 2
     end
     
-    return success, message
+    return success, spell  -- Return spell object instead of message
 end
 
 function SpellSystem:toggleSpellMenu()

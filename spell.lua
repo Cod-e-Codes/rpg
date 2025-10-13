@@ -308,5 +308,115 @@ function Spell.createIllumination()
     })
 end
 
+-- Attack Spells for each class
+
+-- Fire Mage: Fireball
+function Spell.createFireball()
+    return Spell:new({
+        name = "Fireball",
+        type = "active",
+        description = "Launch a blazing projectile",
+        duration = 0,
+        radius = 80,
+        manaCost = 20,
+        cooldown = 1.5,
+        radiusPerLevel = 10,
+        damage = 25,
+        damagePerLevel = 5,
+        lightColor = {1.0, 0.4, 0.1},
+        experiencePerSecond = 10,
+        
+        drawIcon = function(x, y, size)
+            love.graphics.setColor(1, 0.3, 0)
+            love.graphics.circle("fill", x + size/2, y + size/2, size * 0.4)
+            love.graphics.setColor(1, 0.6, 0.1)
+            love.graphics.circle("fill", x + size/2, y + size/2, size * 0.25)
+            love.graphics.setColor(1, 0.9, 0.3)
+            love.graphics.circle("fill", x + size/2, y + size/2, size * 0.12)
+        end
+    })
+end
+
+-- Ice Mage: Ice Shard
+function Spell.createIceShard()
+    return Spell:new({
+        name = "Ice Shard",
+        type = "active",
+        description = "Fire a freezing projectile",
+        duration = 0,
+        radius = 70,
+        manaCost = 18,
+        cooldown = 1.3,
+        radiusPerLevel = 8,
+        damage = 20,
+        damagePerLevel = 4,
+        lightColor = {0.4, 0.7, 1.0},
+        experiencePerSecond = 10,
+        
+        drawIcon = function(x, y, size)
+            love.graphics.setColor(0.3, 0.6, 1)
+            love.graphics.circle("fill", x + size/2, y + size/2, size * 0.4)
+            love.graphics.setColor(0.6, 0.8, 1)
+            love.graphics.circle("fill", x + size/2, y + size/2, size * 0.25)
+            love.graphics.setColor(0.9, 0.95, 1)
+            love.graphics.circle("fill", x + size/2, y + size/2, size * 0.12)
+        end
+    })
+end
+
+-- Lightning Mage: Lightning Bolt
+function Spell.createLightningBolt()
+    return Spell:new({
+        name = "Lightning Bolt",
+        type = "active",
+        description = "Strike with electric fury",
+        duration = 0,
+        radius = 90,
+        manaCost = 22,
+        cooldown = 1.8,
+        radiusPerLevel = 12,
+        damage = 30,
+        damagePerLevel = 6,
+        lightColor = {0.7, 0.6, 1.0},
+        experiencePerSecond = 10,
+        
+        drawIcon = function(x, y, size)
+            love.graphics.setColor(0.5, 0.3, 1)
+            love.graphics.circle("fill", x + size/2, y + size/2, size * 0.4)
+            love.graphics.setColor(0.7, 0.6, 1)
+            love.graphics.circle("fill", x + size/2, y + size/2, size * 0.25)
+            love.graphics.setColor(0.9, 0.9, 1)
+            love.graphics.circle("fill", x + size/2, y + size/2, size * 0.12)
+        end
+    })
+end
+
+-- Earth Mage: Stone Spike
+function Spell.createStoneSpike()
+    return Spell:new({
+        name = "Stone Spike",
+        type = "active",
+        description = "Summon earth from below",
+        duration = 0,
+        radius = 75,
+        manaCost = 19,
+        cooldown = 1.6,
+        radiusPerLevel = 9,
+        damage = 22,
+        damagePerLevel = 5,
+        lightColor = {0.7, 0.5, 0.3},
+        experiencePerSecond = 10,
+        
+        drawIcon = function(x, y, size)
+            love.graphics.setColor(0.5, 0.35, 0.2)
+            love.graphics.circle("fill", x + size/2, y + size/2, size * 0.4)
+            love.graphics.setColor(0.7, 0.55, 0.35)
+            love.graphics.circle("fill", x + size/2, y + size/2, size * 0.25)
+            love.graphics.setColor(0.9, 0.75, 0.5)
+            love.graphics.circle("fill", x + size/2, y + size/2, size * 0.12)
+        end
+    })
+end
+
 return Spell
 
