@@ -2240,11 +2240,12 @@ function love.keypressed(key)
                     -- Load Game
                     local success, loadedState = saveManager:load()
                     if success and loadedState then
-                        -- Apply loaded state
-                        gameState = loadedState
-                        player.x = gameState.playerX or gameState.playerSpawn.x
-                        player.y = gameState.playerY or gameState.playerSpawn.y
-                        player.health = gameState.playerHealth or player.maxHealth
+                        -- Apply loaded state (use applySaveData which properly merges)
+                        saveManager:applySaveData(gameState, loadedState)
+                        
+                        player.x = loadedState.playerX or gameState.playerSpawn.x
+                        player.y = loadedState.playerY or gameState.playerSpawn.y
+                        player.health = loadedState.playerHealth or player.maxHealth
                         
                         -- Rebuild spell system with loaded data
                         spellSystem = SpellSystem:new(gameState)
