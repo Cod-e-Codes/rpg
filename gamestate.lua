@@ -4,7 +4,8 @@ local GameState = {}
 function GameState:new()
     local state = {
         openedChests = {},
-        inventory = {},
+        inventory = {}, -- Table: {["item_name"] = count}
+        quickSlots = {nil, nil, nil, nil, nil}, -- Quick slots for keys 6,7,8,9,0
         currentMap = "overworld",
         playerSpawn = {x = 400, y = 300},
         questState = "initial", -- Quest progression tracking
@@ -37,7 +38,12 @@ function GameState:isChestOpened(chestId)
 end
 
 function GameState:addItem(item)
-    table.insert(self.inventory, item)
+    -- Stack items - increment count if already exists
+    if self.inventory[item] then
+        self.inventory[item] = self.inventory[item] + 1
+    else
+        self.inventory[item] = 1
+    end
     
     -- Check if item affects quest
     if item == "Gold Key" then
@@ -54,24 +60,26 @@ function GameState:addItem(item)
     end
 end
 
-function GameState:hasItem(item)
-    for _, invItem in ipairs(self.inventory) do
-        if invItem == item then
-            return true
+function GameState:removeItem(item, count)
+    count = count or 1
+    if self.inventory[item] then
+        self.inventory[item] = self.inventory[item] - count
+        if self.inventory[item] <= 0 then
+            self.inventory[item] = nil
         end
+        return true
     end
     return false
 end
 
-function GameState:removeItem(item)
-    for i, invItem in ipairs(self.inventory) do
-        if invItem == item then
-            table.remove(self.inventory, i)
-            return true
-        end
-    end
-    return false
+function GameState:hasItem(item)
+    return self.inventory[item] and self.inventory[item] > 0
 end
+
+function GameState:getItemCount(item)
+    return self.inventory[item] or 0
+end
+
 
 function GameState:changeMap(mapName, spawnX, spawnY)
     self.currentMap = mapName

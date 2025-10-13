@@ -85,7 +85,8 @@ function SaveManager:save(gameState, slotNumber)
         
         -- Inventory
         inventory = gameState.inventory,
-        openedChests = {},
+        quickSlots = gameState.quickSlots,
+        openedChests = {}, -- Will populate below
         
         -- Spell system
         learnedSpells = gameState.learnedSpells,
@@ -100,7 +101,8 @@ function SaveManager:save(gameState, slotNumber)
         houseDoorLocked = gameState.houseDoorLocked
     }
     
-    -- Convert openedChests table to array
+    -- Convert openedChests table to array for saving
+    saveData.openedChests = {}
     for chestId, opened in pairs(gameState.openedChests) do
         if opened then
             table.insert(saveData.openedChests, chestId)
@@ -207,6 +209,7 @@ function SaveManager:applySaveData(gameState, saveData)
     gameState.playTime = saveData.playTime or 0
     
     gameState.inventory = saveData.inventory or {}
+    gameState.quickSlots = saveData.quickSlots or {nil, nil, nil, nil, nil}
     gameState.openedChests = saveData.openedChests or {}
     
     gameState.learnedSpells = saveData.learnedSpells or {}

@@ -65,6 +65,13 @@ local messageDuration = 5  -- Increased from 3 to give more time to read
 
 -- UI state
 local showInventory = false
+local showFullInventory = false
+local inventoryWidth = 0 -- Current animated width
+local inventoryTargetWidth = 0 -- Target width to lerp to
+local inventoryScrollOffset = 0
+local lastInventoryPress = 0
+local inventoryDoublePressWindow = 0.3
+local selectedInventoryItem = nil -- Currently selected item for equipping
 local showHelp = false
 local showDebugPanel = false
 local isPaused = false
@@ -187,13 +194,17 @@ function loadAnimations()
 end
 
 function love.update(dt)
-    -- Always update pause menu animations
+    -- Always update UI animations even when paused
     if isPaused then
         -- Lerp pause menu height
         local lerpSpeed = 12
         pauseMenuHeight = pauseMenuHeight + (pauseMenuTargetHeight - pauseMenuHeight) * lerpSpeed * dt
         return
     end
+    
+    -- Lerp inventory width animation
+    local lerpSpeed = 12
+    inventoryWidth = inventoryWidth + (inventoryTargetWidth - inventoryWidth) * lerpSpeed * dt
     
     -- Apply dev mode speed multiplier
     if devMode and devMode.enabled and devMode.speedMultiplier > 1 then
@@ -1156,7 +1167,9 @@ function drawPauseMenu()
             {"E", "Interact"},
             {"1-5", "Cast Spell (Slot)"},
             {"B", "Open Spellbook"},
-            {"I", "Inventory"},
+            {"I", "Quick Slots"},
+            {"I+I", "Full Inventory"},
+            {"6-0", "Use Quick Slot"},
             {"ESC / P", "Pause"},
             {"F3", "Debug Info"},
             {"F12", "Dev Mode"}
@@ -1501,83 +1514,41 @@ function drawUI()
         love.graphics.print("(Collision boxes visible)", panelX + padding + 8, panelY + panelHeight - padding - 12)
     end
     
-    -- Draw inventory panel (vertical layout)
+    -- Draw inventory quick slots (visible when inventory is open)
     if showInventory then
         local screenWidth = love.graphics.getWidth()
-        local itemCount = #gameState.inventory
-        local iconSize = 40
-        local padding = 12
-        local headerHeight = 28
-        local minHeight = 100 -- Minimum height for empty inventory
+        local screenHeight = love.graphics.getHeight()
+        local slotSize = 48
+        local slotSpacing = 8
+        local totalSlots = 5
         
-        local inventoryWidth = iconSize + padding * 2 + 8
-        local inventoryHeight = headerHeight + math.max(itemCount * iconSize, minHeight - headerHeight) + padding * 2
-        local inventoryX = screenWidth - inventoryWidth - 15
-        local inventoryY = 15
+        -- Position on right side of screen
+        local startX = screenWidth - slotSize - 15
+        local startY = screenHeight / 2 - ((totalSlots * slotSize + (totalSlots - 1) * slotSpacing) / 2)
         
-        -- Main background panel
-        love.graphics.setColor(0.08, 0.08, 0.10, 0.85)
-        love.graphics.rectangle("fill", inventoryX, inventoryY, inventoryWidth, inventoryHeight, 4, 4)
-        
-        -- Outer border (gold)
-        love.graphics.setColor(0.75, 0.65, 0.25)
-        love.graphics.setLineWidth(3)
-        love.graphics.rectangle("line", inventoryX, inventoryY, inventoryWidth, inventoryHeight, 4, 4)
-        love.graphics.setLineWidth(1)
-        
-        -- Header background
-        love.graphics.setColor(0.12, 0.10, 0.08, 0.9)
-        love.graphics.rectangle("fill", inventoryX + 2, inventoryY + 2, inventoryWidth - 4, headerHeight - 2, 3, 3)
-        
-        -- Header text (centered)
-        love.graphics.setColor(1, 0.95, 0.7)
-        local headerText = "Inventory"
-        local textWidth = love.graphics.getFont():getWidth(headerText)
-        love.graphics.print(headerText, inventoryX + (inventoryWidth - textWidth) / 2, inventoryY + 7)
-        
-        -- Divider line below header
-        love.graphics.setColor(0.65, 0.55, 0.20)
-        love.graphics.setLineWidth(2)
-        love.graphics.line(
-            inventoryX + 8, inventoryY + headerHeight,
-            inventoryX + inventoryWidth - 8, inventoryY + headerHeight
-        )
-        love.graphics.setLineWidth(1)
-        
-        -- Get mouse position
         local mouseX, mouseY = love.mouse.getPosition()
-        local hoveredItem = nil
         
-        -- If inventory is empty, show a message
-        if itemCount == 0 then
-            love.graphics.setColor(0.6, 0.55, 0.45)
-            local emptyText = "Empty"
-            local textWidth = love.graphics.getFont():getWidth(emptyText)
-            love.graphics.print(emptyText, inventoryX + (inventoryWidth - textWidth) / 2, inventoryY + headerHeight + 30)
-        end
-        
-        -- Draw each item icon vertically
-        for i, item in ipairs(gameState.inventory) do
-            local iconX = inventoryX + padding + 4
-            local iconY = inventoryY + headerHeight + padding + (i - 1) * iconSize + 4
+        -- Draw each quick slot
+        for i = 1, totalSlots do
+            local slotX = startX
+            local slotY = startY + (i - 1) * (slotSize + slotSpacing)
+            local item = gameState.quickSlots[i]
+            local key = tostring(i + 5) -- Keys 6-0
+            if i == 5 then key = "0" end
             
-            -- Check if mouse is hovering over this icon
-            local isHovered = mouseX >= iconX - 2 and mouseX <= iconX + 34 and
-                             mouseY >= iconY - 2 and mouseY <= iconY + 34
+            -- Check hover
+            local isHovered = mouseX >= slotX and mouseX <= slotX + slotSize and
+                             mouseY >= slotY and mouseY <= slotY + slotSize
             
-            if isHovered then
-                hoveredItem = item
-            end
-            
-            -- Draw icon slot background
-            if isHovered then
-                love.graphics.setColor(0.25, 0.22, 0.18, 0.95)
+            -- Background
+            if item then
+                love.graphics.setColor(0.15, 0.13, 0.11, 0.9)
             else
-                love.graphics.setColor(0.15, 0.13, 0.11, 0.8)
+                love.graphics.setColor(0.08, 0.08, 0.10, 0.7)
             end
-            love.graphics.rectangle("fill", iconX - 2, iconY - 2, 36, 36, 3, 3)
+            love.graphics.rectangle("fill", slotX, slotY, slotSize, slotSize, 4, 4)
             
-            -- Icon slot border
+            -- Border
             if isHovered then
                 love.graphics.setColor(0.9, 0.8, 0.4)
                 love.graphics.setLineWidth(2)
@@ -1585,42 +1556,139 @@ function drawUI()
                 love.graphics.setColor(0.35, 0.30, 0.20)
                 love.graphics.setLineWidth(1)
             end
-            love.graphics.rectangle("line", iconX - 2, iconY - 2, 36, 36, 3, 3)
+            love.graphics.rectangle("line", slotX, slotY, slotSize, slotSize, 4, 4)
             love.graphics.setLineWidth(1)
             
-            -- Draw the item icon
-            drawItemIcon(item, iconX, iconY, 32, isHovered)
+            -- Draw item if equipped
+            if item then
+                drawItemIcon(item, slotX + 8, slotY + 8, 32, isHovered)
+            end
         end
         
-        -- Draw tooltip for hovered item
-        if hoveredItem then
-            local tooltipX = mouseX + 15
-            local tooltipY = mouseY
-            local tooltipText = hoveredItem
-            local tooltipWidth = love.graphics.getFont():getWidth(tooltipText) + 20
-            local tooltipHeight = 26
+        -- Draw full inventory panel (slides from right)
+        if inventoryWidth > 5 then
+            local panelWidth = math.floor(inventoryWidth)
+            local panelHeight = slotSize * 5 + slotSpacing * 4 + 40 -- 5 rows + header
+            local panelX = startX - panelWidth - 10
+            local panelY = startY - 20
             
-            -- Keep tooltip on screen
-            if tooltipX + tooltipWidth > screenWidth then
-                tooltipX = mouseX - tooltipWidth - 5
-            end
-            if tooltipY + tooltipHeight > love.graphics.getHeight() then
-                tooltipY = love.graphics.getHeight() - tooltipHeight
-            end
+            -- Background
+            love.graphics.setColor(0.08, 0.08, 0.10, 0.95)
+            love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 4, 4)
             
-            -- Tooltip background
-            love.graphics.setColor(0.12, 0.10, 0.08, 0.95)
-            love.graphics.rectangle("fill", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4, 4)
-            
-            -- Tooltip border (bright gold)
-            love.graphics.setColor(0.9, 0.8, 0.4)
-            love.graphics.setLineWidth(2)
-            love.graphics.rectangle("line", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4, 4)
+            -- Border
+            love.graphics.setColor(0.75, 0.65, 0.25)
+            love.graphics.setLineWidth(3)
+            love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 4, 4)
             love.graphics.setLineWidth(1)
             
-            -- Tooltip text
+            -- Header
             love.graphics.setColor(1, 0.95, 0.7)
-            love.graphics.print(tooltipText, tooltipX + 10, tooltipY + 6)
+            local headerText = "Inventory"
+            local textWidth = love.graphics.getFont():getWidth(headerText)
+            love.graphics.print(headerText, panelX + (panelWidth - textWidth) / 2, panelY + 8)
+            
+            -- Divider
+            love.graphics.setColor(0.65, 0.55, 0.20)
+            love.graphics.setLineWidth(2)
+            love.graphics.line(panelX + 8, panelY + 32, panelX + panelWidth - 8, panelY + 32)
+            love.graphics.setLineWidth(1)
+            
+            -- Scrollable inventory grid
+            local contentY = panelY + 40
+            local contentHeight = panelHeight - 48
+            local columns = math.max(1, math.floor((panelWidth - 16) / (slotSize + 4)))
+            
+            -- Only set scissor if dimensions are valid
+            if panelWidth > 8 and contentHeight > 0 then
+                love.graphics.setScissor(panelX + 4, contentY, panelWidth - 8, contentHeight)
+            end
+            
+            local hoveredItem = nil
+            local hoveredItemName = nil
+            local i = 0
+            
+            for itemName, count in pairs(gameState.inventory) do
+                local col = i % columns
+                local row = math.floor(i / columns)
+                local itemX = panelX + 8 + col * (slotSize + 4)
+                local itemY = contentY + row * (slotSize + 4) - inventoryScrollOffset
+                
+                -- Only draw if visible
+                if itemY + slotSize >= contentY and itemY <= contentY + contentHeight then
+                    local isHovered = mouseX >= itemX and mouseX <= itemX + slotSize and
+                                     mouseY >= itemY and mouseY <= itemY + slotSize and
+                                     mouseY >= contentY and mouseY <= contentY + contentHeight
+                    
+                    if isHovered then
+                        hoveredItem = itemName
+                        hoveredItemName = itemName
+                    end
+                    
+                    local isSelected = (selectedInventoryItem == itemName)
+                    
+                    -- Background
+                    if isSelected then
+                        love.graphics.setColor(0.35, 0.28, 0.18, 0.95) -- Selected color
+                    elseif isHovered then
+                        love.graphics.setColor(0.25, 0.22, 0.18, 0.95)
+                    else
+                        love.graphics.setColor(0.15, 0.13, 0.11, 0.8)
+                    end
+                    love.graphics.rectangle("fill", itemX, itemY, slotSize, slotSize, 3, 3)
+                    
+                    -- Border
+                    if isSelected then
+                        love.graphics.setColor(1, 0.9, 0.5) -- Bright selected border
+                        love.graphics.setLineWidth(3)
+                    elseif isHovered then
+                        love.graphics.setColor(0.9, 0.8, 0.4)
+                        love.graphics.setLineWidth(2)
+                    else
+                        love.graphics.setColor(0.35, 0.30, 0.20)
+                        love.graphics.setLineWidth(1)
+                    end
+                    love.graphics.rectangle("line", itemX, itemY, slotSize, slotSize, 3, 3)
+                    love.graphics.setLineWidth(1)
+                    
+                    -- Draw item
+                    drawItemIcon(itemName, itemX + 8, itemY + 8, 32, isHovered)
+                    
+                    -- Draw count if > 1
+                    if count > 1 then
+                        love.graphics.setColor(1, 1, 1)
+                        local countText = "x" .. count
+                        local textWidth = love.graphics.getFont():getWidth(countText)
+                        love.graphics.print(countText, itemX + slotSize - textWidth - 4, itemY + slotSize - 16)
+                    end
+                end
+                
+                i = i + 1
+            end
+            
+            love.graphics.setScissor()
+            
+            -- Tooltip
+            if hoveredItem then
+                local tooltipX = mouseX + 15
+                local tooltipY = mouseY
+                local tooltipText = hoveredItem
+                local tooltipWidth = love.graphics.getFont():getWidth(tooltipText) + 20
+                local tooltipHeight = 26
+                
+                if tooltipX + tooltipWidth > screenWidth then
+                    tooltipX = mouseX - tooltipWidth - 5
+                end
+                
+                love.graphics.setColor(0.12, 0.10, 0.08, 0.95)
+                love.graphics.rectangle("fill", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4, 4)
+                love.graphics.setColor(0.75, 0.65, 0.25)
+                love.graphics.setLineWidth(2)
+                love.graphics.rectangle("line", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4, 4)
+                love.graphics.setLineWidth(1)
+                love.graphics.setColor(1, 0.95, 0.7)
+                love.graphics.print(hoveredItem, tooltipX + 10, tooltipY + 5)
+            end
         end
     end
 end
@@ -1791,6 +1859,15 @@ function love.keypressed(key)
             return
         end
         
+        -- Close full inventory if open (don't close quick slots)
+        if showFullInventory then
+            showFullInventory = false
+            inventoryTargetWidth = 0
+            inventoryScrollOffset = 0
+            selectedInventoryItem = nil -- Clear selection
+            return
+        end
+        
         -- Handle pause menu navigation
         if isPaused and pauseMenuState == "controls" then
             -- Return to main pause menu
@@ -1851,7 +1928,26 @@ function love.keypressed(key)
         showDebugPanel = not showDebugPanel
         DEBUG_MODE = showDebugPanel -- Also toggle hitboxes when debug panel is shown
     elseif key == "i" and not inCutscene then
-        showInventory = not showInventory
+        local currentTime = love.timer.getTime()
+        
+        -- If full inventory is open, close it first
+        if showFullInventory then
+            showFullInventory = false
+            inventoryTargetWidth = 0
+            inventoryScrollOffset = 0
+            selectedInventoryItem = nil -- Clear selection
+            lastInventoryPress = 0 -- Reset double-press timer
+        -- Check for double-press to open full inventory
+        elseif currentTime - lastInventoryPress < inventoryDoublePressWindow and showInventory then
+            -- Double press - open full inventory
+            showFullInventory = true
+            inventoryTargetWidth = 300
+            lastInventoryPress = currentTime
+        else
+            -- Single press - toggle quick slots
+            showInventory = not showInventory
+            lastInventoryPress = currentTime
+        end
     elseif key == "h" and not inCutscene then
         showHelp = not showHelp
     elseif key == "b" and not inCutscene then
@@ -1874,6 +1970,36 @@ function love.keypressed(key)
         spellSystem:activateSlot(4)
     elseif key == "5" and not inCutscene and spellSystem then
         spellSystem:activateSlot(5)
+    elseif key == "6" and not inCutscene then
+        -- Use quick slot 1
+        if gameState.quickSlots[1] then
+            currentMessage = string.format("Used %s", gameState.quickSlots[1])
+            messageTimer = 2
+        end
+    elseif key == "7" and not inCutscene then
+        -- Use quick slot 2
+        if gameState.quickSlots[2] then
+            currentMessage = string.format("Used %s", gameState.quickSlots[2])
+            messageTimer = 2
+        end
+    elseif key == "8" and not inCutscene then
+        -- Use quick slot 3
+        if gameState.quickSlots[3] then
+            currentMessage = string.format("Used %s", gameState.quickSlots[3])
+            messageTimer = 2
+        end
+    elseif key == "9" and not inCutscene then
+        -- Use quick slot 4
+        if gameState.quickSlots[4] then
+            currentMessage = string.format("Used %s", gameState.quickSlots[4])
+            messageTimer = 2
+        end
+    elseif key == "0" and not inCutscene then
+        -- Use quick slot 5
+        if gameState.quickSlots[5] then
+            currentMessage = string.format("Used %s", gameState.quickSlots[5])
+            messageTimer = 2
+        end
     elseif key == "p" and not inCutscene then
         -- Alternative pause key
         isPaused = not isPaused
@@ -1891,6 +2017,88 @@ function love.mousepressed(x, y, button)
         if spellSystem and spellSystem.showSpellMenu then
             spellSystem:handleClick(x, y)
         end
+        
+        -- Handle inventory clicks (equipping to quick slots)
+        if showFullInventory and inventoryWidth > 5 then
+            local screenWidth = love.graphics.getWidth()
+            local screenHeight = love.graphics.getHeight()
+            local slotSize = 48
+            local slotSpacing = 8
+            local startX = screenWidth - slotSize - 15
+            local startY = screenHeight / 2 - ((5 * slotSize + 4 * slotSpacing) / 2)
+            local panelWidth = math.floor(inventoryWidth)
+            local panelHeight = slotSize * 5 + slotSpacing * 4 + 40
+            local panelX = startX - panelWidth - 10
+            local panelY = startY - 20
+            local contentY = panelY + 40
+            local contentHeight = panelHeight - 48
+            local columns = math.floor((panelWidth - 16) / (slotSize + 4))
+            
+            -- Check if clicking on a quick slot
+            for s = 1, 5 do
+                local slotX = startX
+                local slotY = startY + (s - 1) * (slotSize + slotSpacing)
+                if x >= slotX and x <= slotX + slotSize and
+                   y >= slotY and y <= slotY + slotSize then
+                    if selectedInventoryItem then
+                        -- Equip selected item to this slot
+                        gameState.quickSlots[s] = selectedInventoryItem
+                        currentMessage = string.format("Equipped %s to slot %d", selectedInventoryItem, s + 5)
+                        messageTimer = 2
+                        selectedInventoryItem = nil -- Deselect after equipping
+                    elseif gameState.quickSlots[s] then
+                        -- Unequip item from this slot
+                        local unequippedItem = gameState.quickSlots[s]
+                        gameState.quickSlots[s] = nil
+                        currentMessage = string.format("Unequipped %s from slot %d", unequippedItem, s + 5)
+                        messageTimer = 2
+                    end
+                    return
+                end
+            end
+            
+            -- Check if clicking on an inventory item (to select it)
+            local i = 0
+            for itemName, count in pairs(gameState.inventory) do
+                local col = i % columns
+                local row = math.floor(i / columns)
+                local itemX = panelX + 8 + col * (slotSize + 4)
+                local itemY = contentY + row * (slotSize + 4) - inventoryScrollOffset
+                
+                if itemY + slotSize >= contentY and itemY <= contentY + contentHeight then
+                    if x >= itemX and x <= itemX + slotSize and
+                       y >= itemY and y <= itemY + slotSize and
+                       y >= contentY and y <= contentY + contentHeight then
+                        -- Toggle selection
+                        if selectedInventoryItem == itemName then
+                            selectedInventoryItem = nil -- Deselect
+                            currentMessage = "Deselected"
+                            messageTimer = 1
+                        else
+                            selectedInventoryItem = itemName -- Select
+                            currentMessage = string.format("Selected %s - Click a slot to equip", itemName)
+                            messageTimer = 2
+                        end
+                        return
+                    end
+                end
+                i = i + 1
+            end
+        end
+    end
+end
+
+function love.wheelmoved(x, y)
+    if showFullInventory and inventoryWidth > 5 then
+        -- Scroll inventory
+        local slotSize = 48
+        local itemCount = 0
+        for _ in pairs(gameState.inventory) do itemCount = itemCount + 1 end
+        local inventoryRows = math.ceil(itemCount / math.floor((inventoryWidth - 16) / (slotSize + 4)))
+        local maxScroll = math.max(0, inventoryRows * (slotSize + 4) - (slotSize * 5 + 32))
+        
+        inventoryScrollOffset = inventoryScrollOffset - y * 20
+        inventoryScrollOffset = math.max(0, math.min(inventoryScrollOffset, maxScroll))
     end
 end
 
