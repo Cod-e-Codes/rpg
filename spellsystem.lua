@@ -403,24 +403,37 @@ function SpellSystem:drawSpellTooltip(spell, mouseX, mouseY)
     local padding = 10
     local lineHeight = 18
     local font = love.graphics.getFont()
+    local maxTooltipWidth = 250
+    local wrapWidth = maxTooltipWidth - padding * 2
+    
+    -- Wrap description text
+    local wrappedDescription, wrappedLines = font:getWrap(spell.description, wrapWidth)
     
     -- Build tooltip lines
-    local lines = {
-        spell.name,
-        "",
-        spell.description,
-        "",
-        string.format("Mana: %d", spell.manaCost),
-        string.format("Cooldown: %.1fs", spell.cooldown),
-        string.format("Level %d/%d", spell.level, spell.maxLevel)
-    }
+    local lines = {spell.name, ""}
+    for _, line in ipairs(wrappedLines) do
+        table.insert(lines, line)
+    end
+    table.insert(lines, "")
+    table.insert(lines, string.format("Mana: %d", spell.manaCost))
+    table.insert(lines, string.format("Cooldown: %.1fs", spell.cooldown))
+    
+    -- Add spell-specific stats
+    if spell.damage then
+        local totalDamage = spell.damage + (spell.level - 1) * (spell.damagePerLevel or 0)
+        table.insert(lines, string.format("Damage: %d", totalDamage))
+    end
+    if spell.duration and not spell.damage then
+        table.insert(lines, string.format("Duration: %.0fs", spell:getCurrentDuration()))
+    end
+    if spell.radius and not spell.damage then
+        table.insert(lines, string.format("Radius: %.0fpx", spell:getCurrentRadius()))
+    end
+    
+    table.insert(lines, string.format("Level %d/%d", spell.level, spell.maxLevel))
     
     -- Calculate size
-    local maxWidth = 0
-    for _, line in ipairs(lines) do
-        maxWidth = math.max(maxWidth, font:getWidth(line))
-    end
-    local tooltipWidth = math.min(maxWidth + padding * 2, 250)
+    local tooltipWidth = maxTooltipWidth
     local tooltipHeight = (#lines * lineHeight) + padding * 2
     
     -- Position (right side of spell menu)
