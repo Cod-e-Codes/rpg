@@ -56,8 +56,11 @@ Press F12 to toggle dev mode:
 ## Save Files
 
 Save files are stored in your LOVE save directory:
-- Windows: `%APPDATA%\LOVE\RPG\`
-- Files: `save_slot_1.sav`, etc.
+- **Windows**: `%APPDATA%\LOVE\rpg-game\`
+- **macOS**: `~/Library/Application Support/LOVE/rpg-game/`
+- **Linux**: `~/.local/share/love/rpg-game/`
+
+Files are named: `save_slot_1.sav`, `save_slot_2.sav`, etc.
 
 ## Current Progress
 
