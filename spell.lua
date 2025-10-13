@@ -32,6 +32,10 @@ function Spell:new(data)
         radiusPerLevel = data.radiusPerLevel or 30,
         durationPerLevel = data.durationPerLevel or 10,
         
+        -- Attack spell properties
+        damage = data.damage or nil, -- Base damage for attack spells
+        damagePerLevel = data.damagePerLevel or 0, -- Extra damage per level
+        
         -- Visual properties
         particleConfig = data.particleConfig or nil,
         lightColor = data.lightColor or {1, 1, 0.7},
@@ -77,7 +81,8 @@ function Spell:canActivate(playerMana)
         return false, "Not enough mana"
     end
     
-    if self.isActive then
+    -- Only check isActive for duration spells (not attack spells)
+    if self.isActive and not self.damage then
         return false, "Spell is already active"
     end
     
