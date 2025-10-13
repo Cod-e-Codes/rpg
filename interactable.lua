@@ -7,25 +7,27 @@ function Interactable:new(x, y, width, height, type, data)
         y = y,
         width = width,
         height = height,
-        type = type, -- "chest", "door", "npc", "scroll", "cave_exit", etc.
+        type = type, -- "chest", "door", "npc", "scroll", "cave_exit", "portal", etc.
         data = data or {},
         isOpen = false,
         -- Animation properties
         openProgress = 0, -- 0 = closed, 1 = open
         targetProgress = 0,
         animationSpeed = 6, -- How fast to animate (increased for snappier feel)
-        -- Particle emitter (for glowing objects like scrolls)
+        -- Particle emitter (for glowing objects like scrolls and portals)
         particleEmitter = nil,
         -- Light source reference (for glowing objects)
-        lightSource = nil
+        lightSource = nil,
+        -- Portal animation
+        swirlTime = 0
     }
     setmetatable(obj, {__index = self})
     return obj
 end
 
 function Interactable:isPlayerNear(playerX, playerY, distance)
-    -- Doors, caves, and scrolls have larger interaction radius
-    if self.type == "door" or self.type == "cave" or self.type == "cave_exit" or self.type == "scroll" then
+    -- Doors, caves, portals, and scrolls have larger interaction radius
+    if self.type == "door" or self.type == "cave" or self.type == "cave_exit" or self.type == "portal" or self.type == "scroll" then
         distance = distance or 64
     else
         distance = distance or 48
@@ -41,6 +43,11 @@ function Interactable:update(dt, gameState)
         self.openProgress = math.min(self.openProgress + self.animationSpeed * dt, self.targetProgress)
     elseif self.openProgress > self.targetProgress then
         self.openProgress = math.max(self.openProgress - self.animationSpeed * dt, self.targetProgress)
+    end
+    
+    -- Update portal swirl animation
+    if self.type == "portal" then
+        self.swirlTime = self.swirlTime + dt
     end
     
     -- Handle door transition timer
@@ -123,6 +130,16 @@ function Interactable:interact(gameState)
         end
     elseif self.type == "sign" then
         return self.data.message or "..."
+    elseif self.type == "portal" then
+        -- Portal transition (with fade like caves for magical effect)
+        if self.data.destination then
+            return {
+                type = "fade_transition",
+                targetMap = self.data.destination,
+                spawnX = self.data.spawnX,
+                spawnY = self.data.spawnY
+            }
+        end
     elseif self.type == "cave" or self.type == "cave_exit" then
         -- Cave entrance with fade transition
         if self.data.targetMap then
@@ -309,6 +326,26 @@ function Interactable:draw(layer)
         love.graphics.setColor(0.38, 0.26, 0.16)
         for i = 0, 2 do
             love.graphics.rectangle("fill", self.x + 2, self.y + 4 + i * 4, 28, 2)
+        end
+        
+        -- Draw directional arrow if specified
+        if self.data.arrow then
+            love.graphics.setColor(0.2, 0.15, 0.1)
+            if self.data.arrow == "left" then
+                -- Left arrow
+                love.graphics.polygon("fill", 
+                    self.x + 6, self.y + 8,
+                    self.x + 12, self.y + 4,
+                    self.x + 12, self.y + 12
+                )
+            elseif self.data.arrow == "right" then
+                -- Right arrow
+                love.graphics.polygon("fill", 
+                    self.x + 26, self.y + 8,
+                    self.x + 20, self.y + 4,
+                    self.x + 20, self.y + 12
+                )
+            end
         end
         
         -- Nails (toon metal)
@@ -611,6 +648,139 @@ function Interactable:draw(layer)
         love.graphics.setColor(0.08, 0.05, 0.03)
         love.graphics.setLineWidth(2)
         love.graphics.polygon("line", openingPoints)
+        love.graphics.setLineWidth(1)
+        
+    elseif self.type == "portal" then
+        -- Swirling magical portal with toon shading and noise distortion
+        local centerX = self.x + self.width/2
+        local centerY = self.y + self.height/2
+        local baseRadius = math.min(self.width, self.height) * 0.45
+        
+        -- Portal frame - stone ring with noise distortion
+        local framePoints = {}
+        local frameSegments = 16
+        for i = 0, frameSegments do
+            local angle = (i / frameSegments) * math.pi * 2
+            -- Add noise using self position as seed for uniqueness
+            local noiseSeed = self.x * 0.1 + self.y * 0.1
+            local noiseOffset = math.sin(angle * 4 + noiseSeed) * 4 + math.cos(angle * 6 + noiseSeed) * 3
+            local r = (baseRadius + 12) + noiseOffset
+            local px = centerX + math.cos(angle) * r
+            local py = centerY + math.sin(angle) * r
+            table.insert(framePoints, px)
+            table.insert(framePoints, py)
+        end
+        
+        -- Draw stone frame (earth-tone like cave boulders)
+        love.graphics.setColor(0.35, 0.28, 0.20)
+        love.graphics.polygon("fill", framePoints)
+        
+        -- Frame highlights (lighter patches)
+        love.graphics.setColor(0.45, 0.38, 0.30)
+        for i = 0, 5 do
+            local angle = (i / 6) * math.pi * 2 + self.swirlTime * 0.1
+            local r = baseRadius + 12
+            local px = centerX + math.cos(angle) * r
+            local py = centerY + math.sin(angle) * r
+            love.graphics.circle("fill", px, py, 6)
+        end
+        
+        -- Frame outline (thick toon outline)
+        love.graphics.setColor(0.15, 0.10, 0.08)
+        love.graphics.setLineWidth(4)
+        love.graphics.polygon("line", framePoints)
+        love.graphics.setLineWidth(1)
+        
+        -- Portal inner energy - multiple swirling layers
+        -- Layer 1: Outer swirl (purple/blue)
+        for layer = 3, 1, -1 do
+            local layerRadius = baseRadius * (0.3 + layer * 0.23)
+            local layerSegments = 12
+            local spiralPoints = {}
+            
+            for i = 0, layerSegments do
+                local t = i / layerSegments
+                local angle = t * math.pi * 2 + self.swirlTime * (1 + layer * 0.3)
+                
+                -- Create spiral with noise distortion
+                local spiralOffset = math.sin(angle * 3 + self.swirlTime * 2) * (layerRadius * 0.15)
+                local noiseOffset = math.sin(t * 8 + self.swirlTime * 1.5) * 5
+                local r = layerRadius + spiralOffset + noiseOffset
+                
+                local px = centerX + math.cos(angle) * r
+                local py = centerY + math.sin(angle) * r
+                table.insert(spiralPoints, px)
+                table.insert(spiralPoints, py)
+            end
+            
+            -- Color gradient based on layer (purple to blue to cyan)
+            if layer == 3 then
+                love.graphics.setColor(0.3, 0.15, 0.5, 0.7) -- Deep purple
+            elseif layer == 2 then
+                love.graphics.setColor(0.4, 0.25, 0.7, 0.8) -- Purple-blue
+            else
+                love.graphics.setColor(0.5, 0.4, 0.9, 0.9) -- Bright blue
+            end
+            love.graphics.polygon("fill", spiralPoints)
+        end
+        
+        -- Center vortex with bright glow
+        local vortexSegments = 10
+        local vortexRadius = baseRadius * 0.25
+        local vortexPoints = {}
+        
+        for i = 0, vortexSegments do
+            local angle = (i / vortexSegments) * math.pi * 2 + self.swirlTime * 3
+            -- Pulsing noise
+            local pulse = 1 + math.sin(self.swirlTime * 4) * 0.2
+            local noiseOffset = math.sin(angle * 5 + self.swirlTime * 3) * 3
+            local r = (vortexRadius * pulse) + noiseOffset
+            local px = centerX + math.cos(angle) * r
+            local py = centerY + math.sin(angle) * r
+            table.insert(vortexPoints, px)
+            table.insert(vortexPoints, py)
+        end
+        
+        -- Bright cyan-white center
+        love.graphics.setColor(0.7, 0.85, 1.0, 0.95)
+        love.graphics.polygon("fill", vortexPoints)
+        
+        -- Inner glow ring
+        love.graphics.setColor(0.9, 0.95, 1.0, 0.8)
+        love.graphics.circle("fill", centerX, centerY, vortexRadius * 0.5)
+        
+        -- Swirling energy tendrils
+        love.graphics.setLineWidth(2)
+        for i = 0, 4 do
+            local angle = (i / 5) * math.pi * 2 + self.swirlTime * 2
+            local tendrilPoints = {}
+            
+            for j = 0, 8 do
+                local t = j / 8
+                local r = baseRadius * (0.2 + t * 0.6)
+                local spiralAngle = angle + t * math.pi * 1.5 + self.swirlTime
+                local wobble = math.sin(t * 6 + self.swirlTime * 3) * (baseRadius * 0.1)
+                
+                local px = centerX + math.cos(spiralAngle) * (r + wobble)
+                local py = centerY + math.sin(spiralAngle) * (r + wobble)
+                table.insert(tendrilPoints, px)
+                table.insert(tendrilPoints, py)
+            end
+            
+            -- Draw tendril with color fade
+            local alpha = 0.6 + math.sin(self.swirlTime * 2 + i) * 0.2
+            love.graphics.setColor(0.6, 0.5, 0.9, alpha)
+            
+            for j = 1, #tendrilPoints - 2, 2 do
+                love.graphics.line(tendrilPoints[j], tendrilPoints[j+1], tendrilPoints[j+2], tendrilPoints[j+3])
+            end
+        end
+        love.graphics.setLineWidth(1)
+        
+        -- Outer portal edge glow
+        love.graphics.setColor(0.5, 0.4, 0.8, 0.4)
+        love.graphics.setLineWidth(3)
+        love.graphics.circle("line", centerX, centerY, baseRadius)
         love.graphics.setLineWidth(1)
     end
     

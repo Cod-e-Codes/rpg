@@ -475,7 +475,7 @@ function World:createCaveLevel1()
 end
 
 function World:createLevel2()
-    -- Empty placeholder level for future development
+    -- Level 2: Grassy area with cave connection and portal to overworld
     local TileMap = require("tilemap")
     local map = TileMap:new(30, 20, 32)
     
@@ -504,13 +504,40 @@ function World:createLevel2()
     map:loadFromData({ground = ground, collision = collision})
     self.maps["level_2"] = map
     
-    -- Add a cave exit to return to cave
+    -- Add interactables
     self.interactables["level_2"] = {}
+    
+    -- Cave exit on west side (return to cave)
     table.insert(self.interactables["level_2"], 
-        Interactable:new(1*32, 15*32, 64, 64, "cave_exit", {
+        Interactable:new(1*32, 8*32, 96, 96, "cave_exit", {
             destination = "cave_level1",
             spawnX = 23*32 + 32,  -- Near the east exit where they came from
             spawnY = 9*32
+        })
+    )
+    
+    -- Sign pointing to cave (left arrow)
+    table.insert(self.interactables["level_2"],
+        Interactable:new(6*32, 9*32, 32, 32, "sign", {
+            message = "<- Mysterious cave",
+            arrow = "left"
+        })
+    )
+    
+    -- Portal on eastern border (return to overworld)
+    table.insert(self.interactables["level_2"],
+        Interactable:new(27*32, 9*32, 64, 64, "portal", {
+            destination = "overworld",
+            spawnX = 30*32,  -- Spawn player safely in overworld
+            spawnY = 30*32
+        })
+    )
+    
+    -- Sign pointing to portal (right arrow)
+    table.insert(self.interactables["level_2"],
+        Interactable:new(24*32, 9*32, 32, 32, "sign", {
+            message = "Back to Overworld ->",
+            arrow = "right"
         })
     )
     

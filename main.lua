@@ -75,7 +75,7 @@ local selectedInventoryItem = nil -- Currently selected item for equipping
 local showHelp = false
 local showDebugPanel = false
 local isPaused = false
-local pauseMenuState = "main" -- "main" or "controls"
+local pauseMenuState = "main" -- "main", "controls", or "save_confirm"
 local pauseMenuHeight = 250 -- Current animated height
 local pauseMenuTargetHeight = 250 -- Target height to lerp to
 
@@ -246,6 +246,16 @@ function love.update(dt)
                 if obj.type == "scroll" and not obj.isOpen then
                     lighting:addLight(obj.x + obj.width/2, obj.y + obj.height/2, 180, 2.0, {0.95, 0.85, 0.4}, 0.2)
                 end
+            end
+        end
+        
+        -- Add portal lights (glowing magical energy)
+        local interactables = world:getCurrentInteractables()
+        for _, obj in ipairs(interactables) do
+            if obj.type == "portal" then
+                -- Pulsing purple/blue magical light
+                local pulse = 1 + math.sin(love.timer.getTime() * 3) * 0.2
+                lighting:addLight(obj.x + obj.width/2, obj.y + obj.height/2, 120 * pulse, 1.5, {0.6, 0.5, 0.9}, 0.15)
             end
         end
         
@@ -1121,7 +1131,12 @@ function drawPauseMenu()
     
     love.graphics.setColor(1, 0.95, 0.7)
     local font = love.graphics.getFont()
-    local titleText = pauseMenuState == "controls" and "CONTROLS" or "PAUSED"
+    local titleText = "PAUSED"
+    if pauseMenuState == "controls" then
+        titleText = "CONTROLS"
+    elseif pauseMenuState == "save_confirm" then
+        titleText = "CONFIRM OVERWRITE"
+    end
     local titleWidth = font:getWidth(titleText)
     love.graphics.print(titleText, panelX + (panelWidth - titleWidth) / 2, panelY + 12)
     
@@ -1145,6 +1160,10 @@ function drawPauseMenu()
             "Quit Game (Q)"
         }
         pauseMenuTargetHeight = 250
+    elseif pauseMenuState == "save_confirm" then
+        -- Save confirmation - will be drawn differently below
+        options = {}
+        pauseMenuTargetHeight = 200
     elseif pauseMenuState == "controls" then
         -- Controls screen - will be drawn differently below
         options = {"Back (ESC)"}
@@ -1156,6 +1175,23 @@ function drawPauseMenu()
     if pauseMenuState == "main" then
         -- Main pause menu
         for i, option in ipairs(options) do
+            local optionWidth = font:getWidth(option)
+            love.graphics.print(option, panelX + (panelWidth - optionWidth) / 2, yPos)
+            yPos = yPos + 30
+        end
+    elseif pauseMenuState == "save_confirm" then
+        -- Save confirmation dialog
+        love.graphics.setColor(0.9, 0.85, 0.7)
+        local msg1 = "A save file already exists."
+        local msg2 = "Overwrite it?"
+        local msg1Width = font:getWidth(msg1)
+        local msg2Width = font:getWidth(msg2)
+        love.graphics.print(msg1, panelX + (panelWidth - msg1Width) / 2, yPos)
+        love.graphics.print(msg2, panelX + (panelWidth - msg2Width) / 2, yPos + 25)
+        
+        yPos = yPos + 65
+        local confirmOptions = {"Yes (Y)", "No (N)"}
+        for _, option in ipairs(confirmOptions) do
             local optionWidth = font:getWidth(option)
             love.graphics.print(option, panelX + (panelWidth - optionWidth) / 2, yPos)
             yPos = yPos + 30
@@ -1872,6 +1908,12 @@ function love.keypressed(key)
         if isPaused and pauseMenuState == "controls" then
             -- Return to main pause menu
             pauseMenuState = "main"
+            pauseMenuTargetHeight = 250
+            return
+        elseif isPaused and pauseMenuState == "save_confirm" then
+            -- Cancel save confirmation
+            pauseMenuState = "main"
+            pauseMenuTargetHeight = 250
             return
         end
         
@@ -1888,13 +1930,21 @@ function love.keypressed(key)
     -- Pause menu shortcuts
     if isPaused then
         if key == "s" then
-            -- Quick save
-            local success, msg = saveManager:save(gameState, 1)
-            currentMessage = msg or "Game saved to slot 1"
-            messageTimer = 3
+            -- Quick save - check if save exists first
+            local saveExists = saveManager:saveExists()
+            if saveExists then
+                -- Show confirmation dialog
+                pauseMenuState = "save_confirm"
+                pauseMenuTargetHeight = 200
+            else
+                -- No existing save, just save
+                local success, msg = saveManager:save(gameState, player.x, player.y)
+                currentMessage = msg or "Game saved"
+                messageTimer = 3
+            end
         elseif key == "l" then
             -- Quick load
-            local saveData, err = saveManager:load(1)
+            local saveData, err = saveManager:load()
             if saveData then
                 saveManager:applySaveData(gameState, saveData)
                 world:loadMap(gameState.currentMap)
@@ -1906,7 +1956,7 @@ function love.keypressed(key)
                 spellSystem:rebuildLearnedSpells()
                 
                 isPaused = false
-                currentMessage = "Game loaded from slot 1"
+                currentMessage = "Game loaded"
                 messageTimer = 3
             else
                 currentMessage = err or "Failed to load game"
@@ -1914,7 +1964,20 @@ function love.keypressed(key)
                 print("Load error: " .. tostring(err))
             end
         elseif key == "c" then
+            -- Show controls submenu
             pauseMenuState = "controls"
+            pauseMenuTargetHeight = 380
+        elseif key == "y" and pauseMenuState == "save_confirm" then
+            -- Confirm overwrite
+            local success, msg = saveManager:save(gameState, player.x, player.y)
+            currentMessage = msg or "Game saved"
+            messageTimer = 3
+            pauseMenuState = "main"
+            pauseMenuTargetHeight = 250
+        elseif key == "n" and pauseMenuState == "save_confirm" then
+            -- Cancel save
+            pauseMenuState = "main"
+            pauseMenuTargetHeight = 250
         elseif key == "q" then
             love.event.quit()
         end

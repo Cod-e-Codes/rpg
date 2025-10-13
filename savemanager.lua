@@ -61,22 +61,26 @@ function SaveManager.simpleDecode(str)
     end
 end
 
-function SaveManager:getSaveFilePath(slotNumber)
-    slotNumber = slotNumber or 1
-    return "save_slot_" .. slotNumber .. ".sav"
+function SaveManager:getSaveFilePath()
+    return "savegame.sav"
 end
 
-function SaveManager:save(gameState, slotNumber)
-    slotNumber = slotNumber or 1
+function SaveManager:saveExists()
+    local filepath = self:getSaveFilePath()
+    local info = love.filesystem.getInfo(filepath)
+    return info ~= nil
+end
+
+function SaveManager:save(gameState, playerX, playerY)
     
     -- Build save data
     local saveData = {
         version = "1.0",
         timestamp = os.time(),
         
-        -- Player position
-        playerX = gameState.playerSpawn.x,
-        playerY = gameState.playerSpawn.y,
+        -- Player position (use actual position if provided, otherwise use spawn point)
+        playerX = playerX or gameState.playerSpawn.x,
+        playerY = playerY or gameState.playerSpawn.y,
         
         -- Game state
         currentMap = gameState.currentMap,
@@ -113,11 +117,11 @@ function SaveManager:save(gameState, slotNumber)
     local encoded = SaveManager.simpleEncode(saveData)
     
     -- Write to file
-    local filepath = self:getSaveFilePath(slotNumber)
+    local filepath = self:getSaveFilePath()
     local success = love.filesystem.write(filepath, encoded)
     
     if success then
-        print("Game saved to slot " .. slotNumber)
+        print("Game saved successfully")
         return true, "Game saved successfully"
     else
         print("Failed to save game")
@@ -125,14 +129,13 @@ function SaveManager:save(gameState, slotNumber)
     end
 end
 
-function SaveManager:load(slotNumber)
-    slotNumber = slotNumber or 1
-    local filepath = self:getSaveFilePath(slotNumber)
+function SaveManager:load()
+    local filepath = self:getSaveFilePath()
     
     -- Check if file exists
     local info = love.filesystem.getInfo(filepath)
     if not info then
-        return nil, "No save file found in slot " .. slotNumber
+        return nil, "No save file found"
     end
     
     -- Read file
@@ -156,43 +159,16 @@ function SaveManager:load(slotNumber)
     end
     saveData.openedChests = openedChests
     
-    print("Game loaded from slot " .. slotNumber)
+    print("Game loaded successfully")
     return saveData, "Game loaded successfully"
 end
 
-function SaveManager:listSaves()
-    local saves = {}
-    
-    for slot = 1, 5 do
-        local filepath = self:getSaveFilePath(slot)
-        local info = love.filesystem.getInfo(filepath)
-        
-        if info then
-            local contents = love.filesystem.read(filepath)
-            if contents then
-                local saveData = SaveManager.simpleDecode(contents)
-                if saveData then
-                    table.insert(saves, {
-                        slot = slot,
-                        timestamp = saveData.timestamp,
-                        currentMap = saveData.currentMap,
-                        playTime = saveData.playTime,
-                        questState = saveData.questState
-                    })
-                end
-            end
-        end
-    end
-    
-    return saves
-end
-
-function SaveManager:deleteSave(slotNumber)
-    local filepath = self:getSaveFilePath(slotNumber)
+function SaveManager:deleteSave()
+    local filepath = self:getSaveFilePath()
     local success = love.filesystem.remove(filepath)
     
     if success then
-        print("Save slot " .. slotNumber .. " deleted")
+        print("Save deleted")
         return true, "Save deleted"
     else
         return false, "Failed to delete save"
