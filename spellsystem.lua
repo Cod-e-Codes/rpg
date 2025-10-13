@@ -658,9 +658,9 @@ function SpellSystem:activateSlot(slotIndex)
             self.particleEmitters[slotIndex] = emitter
         end
         
-        self.currentSpellMessage = string.format("%s activated!", spell.name)
-        self.spellMessageTimer = 2
+        -- Don't show success message, let animations speak for themselves
     else
+        -- Only show error messages (not enough mana, on cooldown, etc)
         self.currentSpellMessage = message
         self.spellMessageTimer = 2
     end
