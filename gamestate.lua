@@ -66,6 +66,13 @@ function GameState:removeItem(item, count)
         self.inventory[item] = self.inventory[item] - count
         if self.inventory[item] <= 0 then
             self.inventory[item] = nil
+            
+            -- Also unequip from quick slots if equipped
+            for i = 1, 5 do
+                if self.quickSlots[i] == item then
+                    self.quickSlots[i] = nil
+                end
+            end
         end
         return true
     end
