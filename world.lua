@@ -235,9 +235,9 @@ function World:createExampleOverworld()
     table.insert(self.interactables["overworld"],
         Interactable:new(0, 26*32, 160, 192, "cave", {
             targetMap = "cave_level1",
-            spawnX = 3*32,  -- Spawn on west side (opposite of exit)
-            spawnY = 10*32, -- Middle height
-            questRequired = "sword_collected" -- Only appears after getting sword
+            spawnX = 3*32,  -- Spawn on west side inside cave
+            spawnY = 9*32,  -- Align with cave entrance at y=9
+            questMinimum = "sword_collected" -- Appears after getting sword and stays visible
         })
     )
     
@@ -357,53 +357,165 @@ function World:createHouseInterior()
 end
 
 function World:createCaveLevel1()
-    -- Cave interior - empty dark level for now
-    local map = TileMap:new(25, 20, 32)
+    -- Simple introductory cave for learning the spell system
+    local map = TileMap:new(25, 18, 32)
     
-    -- Cave floor (dark stone)
+    -- Cave floor (dark stone - tile 5)
     local ground = {}
-    for y = 0, 19 do
+    for y = 0, 17 do
         ground[y] = {}
         for x = 0, 24 do
-            ground[y][x] = 3 -- Stone floor
+            ground[y][x] = 5 -- Dark stone
         end
     end
     
-    -- Cave walls (natural cavern shape)
+    -- Simple layout - wide corridors, easy to navigate
+    --[[
+    E = Entrance (west, y=9)
+    S = Scroll (center area)
+    X = Exit (east, y=9)
+    C = Chest
+    # = Wall
+    ]]
+    
+    local mazeLayout = {
+        "#########################",
+        "#                       #",
+        "#   ##             ##   #",
+        "#   ##             ##   #",
+        "#                       #",
+        "#                       #",
+        "#           S           #",
+        "#                       #",
+        "#                       #",
+        "                         ",
+        "#                     C #",
+        "#                       #",
+        "#   ##             ##   #",
+        "#   ##             ##   #",
+        "#                       #",
+        "#                       #",
+        "#                       #",
+        "#########################"
+    }
+    
     local collision = {}
-    for y = 0, 19 do
+    for y = 0, 17 do
         collision[y] = {}
         for x = 0, 24 do
-            -- Create cave boundaries
-            if x == 0 or x == 24 or y == 0 or y == 19 then
-                collision[y][x] = 2  -- Rock walls
+            if y < #mazeLayout and x < string.len(mazeLayout[y + 1]) then
+                local char = string.sub(mazeLayout[y + 1], x + 1, x + 1)
+                if char == '#' then
+                    collision[y][x] = 2 -- Wall
+                elseif char == 'S' or char == 'C' then
+                    collision[y][x] = 0 -- Special locations
+                else
+                    collision[y][x] = 0 -- Walkable
+                end
             else
                 collision[y][x] = 0
             end
         end
     end
     
-    -- Cave entrance/exit at middle of east wall
-    local exitY = math.floor(19 / 2)  -- Middle of 20-tile height
-    collision[exitY][24] = 0
-    collision[exitY + 1][24] = 0
-    
     map:loadFromData({ground = ground, collision = collision})
     self.maps["cave_level1"] = map
     
-    -- Cave exit (leads back to overworld) - on east wall at opened tile
+    -- Interactables
     self.interactables["cave_level1"] = {}
+    
+    -- Glowing scroll in center (teaches Illumination spell)
     table.insert(self.interactables["cave_level1"], 
-        Interactable:new(23*32, exitY*32, 64, 64, "cave_exit", {
-            destination = "overworld",
-            spawnX = 7*32,
-            spawnY = 31*32  -- Spawn just outside cave
+        Interactable:new(12*32, 6*32, 32, 32, "scroll", {
+            spell = "Illumination"
         })
     )
     
-    -- No enemies or NPCs in cave yet (placeholder for future content)
-    self.npcs["cave_level1"] = {}
+    -- Cave entrance (leads back to overworld)
+    table.insert(self.interactables["cave_level1"], 
+        Interactable:new(0*32, 9*32, 64, 64, "cave_exit", {
+            destination = "overworld",
+            spawnX = 7*32 + 32,
+            spawnY = 31*32
+        })
+    )
+    
+    -- Cave exit (leads to next level)
+    table.insert(self.interactables["cave_level1"], 
+        Interactable:new(23*32, 9*32, 64, 64, "cave_exit", {
+            destination = "level_2",
+            spawnX = 3*32,
+            spawnY = 15*32
+        })
+    )
+    
+    -- Single chest as reward
+    table.insert(self.interactables["cave_level1"], 
+        Interactable:new(23*32, 10*32, 32, 32, "chest", {
+            id = "cave_chest_1",
+            item = "Health Potion"
+        })
+    )
+    
+    -- Just ONE skeleton enemy for flavor
     self.enemies["cave_level1"] = {}
+    local skeleton1Patrol = {
+        {x = 12*32, y = 12*32},
+        {x = 12*32, y = 6*32}
+    }
+    table.insert(self.enemies["cave_level1"],
+        Enemy:new(12*32, 10*32, "skeleton", {
+            patrolRoute = skeleton1Patrol,
+            aggroRange = 100,
+            deaggroRange = 180
+        })
+    )
+    
+    self.npcs["cave_level1"] = {}
+end
+
+function World:createLevel2()
+    -- Empty placeholder level for future development
+    local TileMap = require("tilemap")
+    local map = TileMap:new(30, 20, 32)
+    
+    -- Simple grassy ground
+    local ground = {}
+    for y = 0, 19 do
+        ground[y] = {}
+        for x = 0, 29 do
+            ground[y][x] = 1 -- Grass
+        end
+    end
+    
+    -- Basic perimeter walls
+    local collision = {}
+    for y = 0, 19 do
+        collision[y] = {}
+        for x = 0, 29 do
+            if x == 0 or x == 29 or y == 0 or y == 19 then
+                collision[y][x] = 2 -- Wall
+            else
+                collision[y][x] = 0 -- Walkable
+            end
+        end
+    end
+    
+    map:loadFromData({ground = ground, collision = collision})
+    self.maps["level_2"] = map
+    
+    -- Add a cave exit to return to cave
+    self.interactables["level_2"] = {}
+    table.insert(self.interactables["level_2"], 
+        Interactable:new(1*32, 15*32, 64, 64, "cave_exit", {
+            destination = "cave_level1",
+            spawnX = 23*32 + 32,  -- Near the east exit where they came from
+            spawnY = 9*32
+        })
+    )
+    
+    self.enemies["level_2"] = {}
+    self.npcs["level_2"] = {}
 end
 
 function World:loadMap(mapName)
@@ -419,9 +531,28 @@ function World:getCurrentInteractables()
             for _, obj in ipairs(interactables) do
                 local shouldShow = true
                 
-                -- Check if this interactable requires a quest state
+                -- Check if this interactable requires an exact quest state
                 if obj.data.questRequired and self.gameState then
                     shouldShow = (self.gameState.questState == obj.data.questRequired)
+                end
+                
+                -- Check if this interactable requires a minimum quest state (unlocked and stays visible)
+                if obj.data.questMinimum and self.gameState then
+                    -- Define quest progression order
+                    local questOrder = {"initial", "sword_collected", "cave_completed", "final"}
+                    local currentIndex = 1
+                    local minimumIndex = 1
+                    
+                    for i, q in ipairs(questOrder) do
+                        if q == self.gameState.questState then
+                            currentIndex = i
+                        end
+                        if q == obj.data.questMinimum then
+                            minimumIndex = i
+                        end
+                    end
+                    
+                    shouldShow = (currentIndex >= minimumIndex)
                 end
                 
                 if shouldShow then

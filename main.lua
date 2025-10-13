@@ -4,6 +4,11 @@
 -- Require modules
 local GameState = require("gamestate")
 local World = require("world")
+local Spell = require("spell")
+local SpellSystem = require("spellsystem")
+local Lighting = require("lighting")
+local SaveManager = require("savemanager")
+local DevMode = require("devmode")
 
 -- Debug mode
 DEBUG_MODE = false
@@ -49,15 +54,23 @@ local camera = {
 -- Game systems
 local gameState
 local world
+local spellSystem
+local lighting
+local saveManager
+local devMode
 local currentMessage = nil
 local currentMessageItem = nil  -- Store item for message icon
 local messageTimer = 0
-local messageDuration = 3
+local messageDuration = 5  -- Increased from 3 to give more time to read
 
 -- UI state
 local showInventory = false
 local showHelp = false
 local showDebugPanel = false
+local isPaused = false
+local pauseMenuState = "main" -- "main" or "controls"
+local pauseMenuHeight = 250 -- Current animated height
+local pauseMenuTargetHeight = 250 -- Target height to lerp to
 
 -- Cutscene state
 local inCutscene = false
@@ -88,7 +101,7 @@ local directions = {
 }
 
 -- Forward declarations
-local loadAnimations, getDirection, drawPlayer, drawUI, drawMessage
+local loadAnimations, getDirection, drawPlayer, drawUI, drawMessage, drawPauseMenu
 local checkInteraction, getNearestInteractable, getNearestNPC
 
 function love.load()
@@ -102,10 +115,23 @@ function love.load()
     world = World:new()
     world:setGameState(gameState)
     
+    -- Initialize spell system
+    spellSystem = SpellSystem:new(gameState)
+    
+    -- Initialize lighting system
+    lighting = Lighting:new()
+    
+    -- Initialize save manager
+    saveManager = SaveManager
+    
+    -- Initialize dev mode
+    devMode = DevMode:new()
+    
     -- Create example maps
     world:createExampleOverworld()
     world:createHouseInterior()
     world:createCaveLevel1()
+    world:createLevel2()
     world:loadMap("overworld")
     
     -- Sync all interactables with game state
@@ -161,7 +187,88 @@ function loadAnimations()
 end
 
 function love.update(dt)
+    -- Always update pause menu animations
+    if isPaused then
+        -- Lerp pause menu height
+        local lerpSpeed = 12
+        pauseMenuHeight = pauseMenuHeight + (pauseMenuTargetHeight - pauseMenuHeight) * lerpSpeed * dt
+        return
+    end
+    
+    -- Apply dev mode speed multiplier
+    if devMode and devMode.enabled and devMode.speedMultiplier > 1 then
+        dt = dt * devMode.speedMultiplier
+    end
+    
     gameTime = gameTime + dt
+    
+    -- Update play time
+    gameState.playTime = gameState.playTime + dt
+    
+    -- Update dev mode
+    if devMode then
+        devMode:update(dt)
+    end
+    
+    -- Update lighting system
+    if lighting then
+        lighting:update(dt)
+        
+        -- Update ambient darkness based on current map
+        if gameState.currentMap == "cave_level1" then
+            lighting:setAmbientDarkness(0.88) -- Very dark - need illumination spell
+        else
+            lighting:setAmbientDarkness(0) -- No darkness in overworld/house
+        end
+        
+        -- Clear and recreate lights each frame
+        lighting:clearLights()
+        
+        -- Add cave entrance light (if in cave)
+        if gameState.currentMap == "cave_level1" then
+            -- Light from entrance (modest glow)
+            lighting:addLight(2*32, 9*32, 120, 1.2, {0.7, 0.7, 0.6}, 0.1)
+            
+            -- Light from scroll (if not collected) - bright beacon that reveals cave
+            local interactables = world:getCurrentInteractables()
+            for _, obj in ipairs(interactables) do
+                if obj.type == "scroll" and not obj.isOpen then
+                    lighting:addLight(obj.x + obj.width/2, obj.y + obj.height/2, 180, 2.0, {0.95, 0.85, 0.4}, 0.2)
+                end
+            end
+        end
+        
+        -- Add active spell lights (illumination spell)
+        if spellSystem then
+            for slotIndex, spell in pairs(spellSystem.equippedSpells) do
+                if spell and spell.isActive and spell.name == "Illumination" then
+                    -- Large bright light that fully reveals the cave floor
+                    lighting:addLight(player.x, player.y, spell:getCurrentRadius() * 2.5, 2.5, spell.lightColor, 0.05)
+                end
+            end
+        end
+    end
+    
+    -- Update spell system
+    if spellSystem then
+        spellSystem:update(dt, player.x, player.y, camera)
+        
+        -- Sync mana with game state
+        gameState.currentMana = spellSystem.currentMana
+        gameState.maxMana = spellSystem.maxMana
+        
+        -- Rebuild learned spells from game state (after loading)
+        if #spellSystem.learnedSpells == 0 and #gameState.learnedSpells > 0 then
+            for _, spellName in ipairs(gameState.learnedSpells) do
+                if spellName == "Illumination" then
+                    local spell = Spell.createIllumination()
+                    spell.level = gameState:getSpellLevel(spellName)
+                    spell.experience = gameState:getSpellExperience(spellName)
+                    spellSystem:learnSpell(spell)
+                end
+            end
+        end
+    end
     
     -- Update fade transitions
     if fadeState == "fade_out" then
@@ -941,9 +1048,29 @@ function love.draw()
     
     love.graphics.pop()
     
+    -- Draw lighting overlay in screen space (after pop) so it covers the world but not UI
+    if lighting then
+        lighting:draw(camera)
+    end
+    
     -- Draw UI (screen space)
     drawUI()
     drawMessage()
+    
+    -- Draw spell system UI (includes particles and spell bar)
+    if spellSystem then
+        spellSystem:draw(camera, player.x, player.y)
+    end
+    
+    -- Draw dev mode panel
+    if devMode and devMode.enabled then
+        devMode:draw()
+    end
+    
+    -- Draw pause menu
+    if isPaused then
+        drawPauseMenu()
+    end
     
     -- Draw fade overlay (for cave transitions)
     if fadeAlpha > 0 then
@@ -951,6 +1078,115 @@ function love.draw()
         love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
         love.graphics.setColor(1, 1, 1, 1)
     end
+end
+
+function drawPauseMenu()
+    local screenWidth = love.graphics.getWidth()
+    local screenHeight = love.graphics.getHeight()
+    
+    -- Semi-transparent overlay
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+    
+    -- Pause menu panel (animated height)
+    local panelWidth = 300
+    local panelHeight = math.floor(pauseMenuHeight) -- Use animated height
+    local panelX = (screenWidth - panelWidth) / 2
+    local panelY = (screenHeight - panelHeight) / 2
+    
+    -- Background
+    love.graphics.setColor(0.08, 0.08, 0.10, 0.95)
+    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 4, 4)
+    
+    -- Border
+    love.graphics.setColor(0.75, 0.65, 0.25)
+    love.graphics.setLineWidth(3)
+    love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 4, 4)
+    love.graphics.setLineWidth(1)
+    
+    -- Header
+    love.graphics.setColor(0.12, 0.10, 0.08, 0.9)
+    love.graphics.rectangle("fill", panelX + 2, panelY + 2, panelWidth - 4, 36, 3, 3)
+    
+    love.graphics.setColor(1, 0.95, 0.7)
+    local font = love.graphics.getFont()
+    local titleText = pauseMenuState == "controls" and "CONTROLS" or "PAUSED"
+    local titleWidth = font:getWidth(titleText)
+    love.graphics.print(titleText, panelX + (panelWidth - titleWidth) / 2, panelY + 12)
+    
+    -- Divider
+    love.graphics.setColor(0.65, 0.55, 0.20)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(panelX + 8, panelY + 42, panelX + panelWidth - 8, panelY + 42)
+    love.graphics.setLineWidth(1)
+    
+    -- Menu options
+    local yPos = panelY + 60
+    local padding = 12
+    local options = {}
+    
+    if pauseMenuState == "main" then
+        options = {
+            "Resume (ESC)",
+            "Save Game (S)",
+            "Load Game (L)",
+            "Controls (C)",
+            "Quit Game (Q)"
+        }
+        pauseMenuTargetHeight = 250
+    elseif pauseMenuState == "controls" then
+        -- Controls screen - will be drawn differently below
+        options = {"Back (ESC)"}
+        pauseMenuTargetHeight = 380 -- Taller for controls list
+    end
+    
+    love.graphics.setColor(1, 0.95, 0.8)
+    
+    if pauseMenuState == "main" then
+        -- Main pause menu
+        for i, option in ipairs(options) do
+            local optionWidth = font:getWidth(option)
+            love.graphics.print(option, panelX + (panelWidth - optionWidth) / 2, yPos)
+            yPos = yPos + 30
+        end
+    elseif pauseMenuState == "controls" then
+        -- Controls screen
+        local controlsList = {
+            {"WASD / Arrow Keys", "Move"},
+            {"E", "Interact"},
+            {"1-5", "Cast Spell (Slot)"},
+            {"B", "Open Spellbook"},
+            {"I", "Inventory"},
+            {"ESC / P", "Pause"},
+            {"F3", "Debug Info"},
+            {"F12", "Dev Mode"}
+        }
+        
+        yPos = yPos + 10
+        for _, control in ipairs(controlsList) do
+            love.graphics.setColor(0.9, 0.8, 0.4)
+            love.graphics.print(control[1], panelX + padding + 10, yPos)
+            love.graphics.setColor(0.8, 0.8, 0.8)
+            love.graphics.print(control[2], panelX + 200, yPos)
+            yPos = yPos + 25
+        end
+        
+        yPos = yPos + 20
+        love.graphics.setColor(0.6, 0.6, 0.6)
+        local backText = "Press ESC to return"
+        local backWidth = font:getWidth(backText)
+        love.graphics.print(backText, panelX + (panelWidth - backWidth) / 2, yPos)
+    end
+    
+    -- Footer hint (only in main menu, controls has its own "return" hint)
+    if pauseMenuState == "main" then
+        love.graphics.setColor(0.6, 0.55, 0.45)
+        local hintText = "Press ESC to resume"
+        local hintWidth = font:getWidth(hintText)
+        love.graphics.print(hintText, panelX + (panelWidth - hintWidth) / 2, panelY + panelHeight - 25)
+    end
+    
+    love.graphics.setColor(1, 1, 1)
 end
 
 function drawPlayer()
@@ -1116,10 +1352,6 @@ local function drawItemIcon(itemName, x, y, size, isHovered)
 end
 
 function drawUI()
-    -- Draw toggle hints at bottom
-    love.graphics.setColor(1, 1, 1, 0.7)
-    love.graphics.print("[I] Inventory  [H] Help  [F3] Debug", 10, love.graphics.getHeight() - 20)
-    
     -- Draw help panel
     if showHelp then
         local screenWidth = love.graphics.getWidth()
@@ -1255,6 +1487,14 @@ function drawUI()
         -- FPS
         love.graphics.setColor(0.9, 0.85, 0.6)
         love.graphics.print(string.format("FPS: %d", love.timer.getFPS()), panelX + padding + 8, yPos)
+        yPos = yPos + lineHeight
+        
+        -- Mana (if spells learned)
+        if spellSystem and #spellSystem.learnedSpells > 0 then
+            love.graphics.setColor(0.3, 0.5, 0.9)
+            love.graphics.print(string.format("Mana: %d/%d", 
+                math.floor(spellSystem.currentMana), spellSystem.maxMana), panelX + padding + 8, yPos)
+        end
         
         -- Note about hitboxes
         love.graphics.setColor(0.7, 0.7, 0.7)
@@ -1489,6 +1729,20 @@ checkInteraction = function()
     if obj then
         local result = obj:interact(gameState)
         
+        -- Handle spell learned (special result type)
+        if type(result) == "table" and result.type == "spell_learned" then
+            -- Create and learn the spell
+            if result.spell == "Illumination" and spellSystem then
+                local spell = Spell.createIllumination()
+                spellSystem:learnSpell(spell)
+            end
+            
+            currentMessage = result.message
+            messageTimer = 5 -- Longer duration for tutorial message
+            currentMessageItem = nil
+            return
+        end
+        
         -- Handle fade transitions (caves)
         if type(result) == "table" and result.type == "fade_transition" then
             fadeState = "fade_out"
@@ -1515,9 +1769,83 @@ checkInteraction = function()
 end
 
 function love.keypressed(key)
+    -- Dev mode toggle (works always) - F12 toggles both dev mode and panel
+    if key == "f12" then
+        if devMode then
+            devMode:toggle()
+        end
+        return
+    end
+    
+    -- Pause handling
     if key == "escape" then
-        love.event.quit()
-    elseif key == "e" and not inCutscene then
+        -- Close spell menu if open
+        if spellSystem and spellSystem.showSpellMenu then
+            spellSystem:toggleSpellMenu()
+            return
+        end
+        
+        -- Close dev panel if open
+        if devMode and devMode.enabled and devMode.showPanel then
+            devMode:togglePanel()
+            return
+        end
+        
+        -- Handle pause menu navigation
+        if isPaused and pauseMenuState == "controls" then
+            -- Return to main pause menu
+            pauseMenuState = "main"
+            return
+        end
+        
+        -- Toggle pause
+        isPaused = not isPaused
+        if isPaused then
+            pauseMenuState = "main" -- Reset to main menu when pausing
+            pauseMenuTargetHeight = 250
+            pauseMenuHeight = 250 -- Reset animation
+        end
+        return
+    end
+    
+    -- Pause menu shortcuts
+    if isPaused then
+        if key == "s" then
+            -- Quick save
+            local success, msg = saveManager:save(gameState, 1)
+            currentMessage = msg or "Game saved to slot 1"
+            messageTimer = 3
+        elseif key == "l" then
+            -- Quick load
+            local saveData, err = saveManager:load(1)
+            if saveData then
+                saveManager:applySaveData(gameState, saveData)
+                world:loadMap(gameState.currentMap)
+                player.x = gameState.playerSpawn.x
+                player.y = gameState.playerSpawn.y
+                
+                -- Rebuild spell system from loaded data
+                spellSystem.gameState = gameState
+                spellSystem:rebuildLearnedSpells()
+                
+                isPaused = false
+                currentMessage = "Game loaded from slot 1"
+                messageTimer = 3
+            else
+                currentMessage = err or "Failed to load game"
+                messageTimer = 3
+                print("Load error: " .. tostring(err))
+            end
+        elseif key == "c" then
+            pauseMenuState = "controls"
+        elseif key == "q" then
+            love.event.quit()
+        end
+        return
+    end
+    
+    -- Normal game controls (not paused)
+    if key == "e" and not inCutscene then
         checkInteraction()
     elseif key == "f3" then
         showDebugPanel = not showDebugPanel
@@ -1526,6 +1854,43 @@ function love.keypressed(key)
         showInventory = not showInventory
     elseif key == "h" and not inCutscene then
         showHelp = not showHelp
+    elseif key == "b" and not inCutscene then
+        -- Toggle spell menu (only if spells learned)
+        if spellSystem then
+            if #gameState.learnedSpells > 0 then
+                spellSystem:toggleSpellMenu()
+            else
+                currentMessage = "You haven't learned any spells yet..."
+                messageTimer = 2
+            end
+        end
+    elseif key == "1" and not inCutscene and spellSystem then
+        spellSystem:activateSlot(1)
+    elseif key == "2" and not inCutscene and spellSystem then
+        spellSystem:activateSlot(2)
+    elseif key == "3" and not inCutscene and spellSystem then
+        spellSystem:activateSlot(3)
+    elseif key == "4" and not inCutscene and spellSystem then
+        spellSystem:activateSlot(4)
+    elseif key == "5" and not inCutscene and spellSystem then
+        spellSystem:activateSlot(5)
+    elseif key == "p" and not inCutscene then
+        -- Alternative pause key
+        isPaused = not isPaused
+    end
+end
+
+function love.mousepressed(x, y, button)
+    if button == 1 then -- Left click
+        -- Dev mode clicks
+        if devMode and devMode.enabled and devMode.showPanel then
+            devMode:handleClick(x, y, gameState, world, player, spellSystem, Spell)
+        end
+        
+        -- Handle spell menu clicks
+        if spellSystem and spellSystem.showSpellMenu then
+            spellSystem:handleClick(x, y)
+        end
     end
 end
 

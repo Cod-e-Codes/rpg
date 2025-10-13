@@ -7,21 +7,25 @@ function Interactable:new(x, y, width, height, type, data)
         y = y,
         width = width,
         height = height,
-        type = type, -- "chest", "door", "npc", etc.
+        type = type, -- "chest", "door", "npc", "scroll", "cave_exit", etc.
         data = data or {},
         isOpen = false,
         -- Animation properties
         openProgress = 0, -- 0 = closed, 1 = open
         targetProgress = 0,
-        animationSpeed = 6 -- How fast to animate (increased for snappier feel)
+        animationSpeed = 6, -- How fast to animate (increased for snappier feel)
+        -- Particle emitter (for glowing objects like scrolls)
+        particleEmitter = nil,
+        -- Light source reference (for glowing objects)
+        lightSource = nil
     }
     setmetatable(obj, {__index = self})
     return obj
 end
 
 function Interactable:isPlayerNear(playerX, playerY, distance)
-    -- Doors and caves have larger interaction radius
-    if self.type == "door" or self.type == "cave" or self.type == "cave_exit" then
+    -- Doors, caves, and scrolls have larger interaction radius
+    if self.type == "door" or self.type == "cave" or self.type == "cave_exit" or self.type == "scroll" then
         distance = distance or 64
     else
         distance = distance or 48
@@ -65,7 +69,27 @@ function Interactable:syncWithGameState(gameState)
 end
 
 function Interactable:interact(gameState)
-    if self.type == "chest" then
+    if self.type == "scroll" then
+        -- Learn spell from scroll
+        if self.data.spell and not gameState:hasSpell(self.data.spell) then
+            gameState:learnSpell(self.data.spell)
+            self.isOpen = true -- Mark as used
+            
+            -- Disable particle emitter
+            if self.particleEmitter then
+                self.particleEmitter:setActive(false)
+            end
+            
+            -- Return spell learned message with tutorial
+            return {
+                type = "spell_learned",
+                spell = self.data.spell,
+                message = string.format("You learned %s!\n\nPress M to open spell menu, then equip it to a slot.\nPress 1-5 to cast equipped spells.", self.data.spell)
+            }
+        else
+            return "The scroll's magic has faded..."
+        end
+    elseif self.type == "chest" then
         if not gameState:isChestOpened(self.data.id) then
             gameState:openChest(self.data.id)
             if self.data.item then
@@ -319,18 +343,21 @@ function Interactable:draw(layer)
         love.graphics.rectangle("line", self.x + 12, self.y + 16, 8, 16)  -- Only bottom part of post
         love.graphics.setLineWidth(1)
         
-    elseif self.type == "cave" then
-        -- Large cave entrance with two staggered boulders
+    elseif self.type == "cave" or self.type == "cave_exit" then
+        -- Large cave entrance/exit with two staggered boulders
         -- Player walks behind front boulder to access partially hidden entrance
         
-        local function drawBoulder(centerX, centerY, radius)
+        -- Use position to create unique noise seed for each entrance
+        local noiseSeed = self.x * 0.1 + self.y * 0.1
+        
+        local function drawBoulder(centerX, centerY, radius, seed)
             -- Create irregular boulder shape with noise
             local rockPoints = {}
             local segments = 14
             for i = 0, segments do
                 local angle = (i / segments) * math.pi * 2
-                -- Add noise to radius for irregular shape
-                local noiseOffset = math.sin(angle * 3) * 8 + math.cos(angle * 5) * 6
+                -- Add noise to radius for irregular shape (unique per boulder)
+                local noiseOffset = math.sin(angle * 3 + seed) * 8 + math.cos(angle * 5 + seed * 1.3) * 6
                 local r = radius + noiseOffset
                 local px = centerX + math.cos(angle) * r
                 local py = centerY + math.sin(angle) * r * 0.85 -- Slightly oval
@@ -338,24 +365,24 @@ function Interactable:draw(layer)
                 table.insert(rockPoints, py)
             end
             
-            -- Main rock body (medium brown) - toon base
+            -- Main rock body (earth tone brown) - toon base
             love.graphics.setColor(0.42, 0.32, 0.22)
             love.graphics.polygon("fill", rockPoints)
             
-            -- Rock texture patches (darker brown)
+            -- Rock texture patches (darker brown) - unique placement
             love.graphics.setColor(0.32, 0.24, 0.16)
             for i = 0, 6 do
-                local angle = (i / 7) * math.pi * 2 + 0.3
+                local angle = (i / 7) * math.pi * 2 + 0.3 + seed * 0.5
                 local r = radius * 0.55
                 local px = centerX + math.cos(angle) * r
                 local py = centerY + math.sin(angle) * r * 0.85
                 love.graphics.circle("fill", px, py, radius * 0.22)
             end
             
-            -- Toon highlights (lighter brown)
+            -- Toon highlights (lighter brown) - unique placement
             love.graphics.setColor(0.52, 0.42, 0.32)
             for i = 0, 4 do
-                local angle = (i / 5) * math.pi * 2 + 1.2
+                local angle = (i / 5) * math.pi * 2 + 1.2 + seed * 0.7
                 local r = radius * 0.65
                 local px = centerX + math.cos(angle) * r
                 local py = centerY + math.sin(angle) * r * 0.85
@@ -375,7 +402,7 @@ function Interactable:draw(layer)
             local backBoulderX = self.x + 45
             local backBoulderY = self.y + 50
             local backBoulderRadius = 55
-            drawBoulder(backBoulderX, backBoulderY, backBoulderRadius)
+            drawBoulder(backBoulderX, backBoulderY, backBoulderRadius, noiseSeed)
             
             -- Cave opening (between/behind boulders) - player walks IN FRONT of this
             local openingX = self.x + 60
@@ -428,8 +455,72 @@ function Interactable:draw(layer)
             local frontBoulderX = self.x + 85
             local frontBoulderY = self.y + 135
             local frontBoulderRadius = 60
-            drawBoulder(frontBoulderX, frontBoulderY, frontBoulderRadius)
+            drawBoulder(frontBoulderX, frontBoulderY, frontBoulderRadius, noiseSeed + 1.7) -- Different seed for variation
         end
+        
+    elseif self.type == "scroll" then
+        -- Magical glowing scroll
+        local centerX = self.x + self.width/2
+        local centerY = self.y + self.height/2
+        
+        -- Don't draw if already collected
+        if self.isOpen then
+            return
+        end
+        
+        -- Floating animation
+        local floatOffset = math.sin(love.timer.getTime() * 2) * 4
+        local scrollY = centerY + floatOffset
+        
+        -- Glow effect (pulsing)
+        local glowPulse = 0.7 + math.sin(love.timer.getTime() * 3) * 0.3
+        for i = 3, 1, -1 do
+            local alpha = 0.2 * i * glowPulse
+            love.graphics.setColor(0.95, 0.85, 0.4, alpha)
+            love.graphics.circle("fill", centerX, scrollY, 20 + i * 4)
+        end
+        
+        -- Scroll parchment (rolled up)
+        love.graphics.setColor(0.95, 0.90, 0.75)
+        love.graphics.rectangle("fill", centerX - 12, scrollY - 16, 24, 32, 2, 2)
+        
+        -- Parchment texture (horizontal lines)
+        love.graphics.setColor(0.85, 0.80, 0.65, 0.3)
+        for i = 0, 3 do
+            love.graphics.rectangle("fill", centerX - 10, scrollY - 12 + i * 8, 20, 2)
+        end
+        
+        -- Scroll ends (darker rolls)
+        love.graphics.setColor(0.75, 0.70, 0.55)
+        love.graphics.rectangle("fill", centerX - 14, scrollY - 18, 4, 36, 1, 1)
+        love.graphics.rectangle("fill", centerX + 10, scrollY - 18, 4, 36, 1, 1)
+        
+        -- Magical runes (glowing symbols)
+        love.graphics.setColor(0.9, 0.75, 0.3, 0.8 + math.sin(love.timer.getTime() * 4) * 0.2)
+        -- Draw simple rune symbols
+        love.graphics.circle("fill", centerX - 4, scrollY - 6, 2)
+        love.graphics.circle("fill", centerX + 4, scrollY - 6, 2)
+        love.graphics.circle("fill", centerX, scrollY + 2, 2)
+        love.graphics.rectangle("fill", centerX - 1, scrollY - 2, 2, 8)
+        
+        -- Outline
+        love.graphics.setColor(0.3, 0.25, 0.15)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", centerX - 12, scrollY - 16, 24, 32, 2, 2)
+        love.graphics.setLineWidth(1)
+        
+        -- Light rays (toon style)
+        love.graphics.setColor(0.95, 0.85, 0.4, 0.4 * glowPulse)
+        love.graphics.setLineWidth(2)
+        for i = 0, 5 do
+            local angle = (i / 6) * math.pi * 2 + love.timer.getTime()
+            local x1 = centerX + math.cos(angle) * 15
+            local y1 = scrollY + math.sin(angle) * 15
+            local x2 = centerX + math.cos(angle) * 25
+            local y2 = scrollY + math.sin(angle) * 25
+            love.graphics.line(x1, y1, x2, y2)
+        end
+        love.graphics.setLineWidth(1)
         
     elseif self.type == "cave_exit" then
         -- Simple cave exit (interior)

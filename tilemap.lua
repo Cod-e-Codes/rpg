@@ -241,6 +241,41 @@ function TileMap:draw(camera, gameTime)
                         love.graphics.setColor(0.60, 0.60, 0.60, 0.4)
                         love.graphics.rectangle("fill", px + 2, py + 2, 10, 10)
                     end
+                    
+                elseif tile == 5 then
+                    -- Dark cave stone with toon shading (darker than regular stone)
+                    local seed = x * 5 + y * 11
+                    local toonLevel = (seed % 3)
+                    
+                    -- Earth tone color palette for caves (browns like the entrance boulders)
+                    if toonLevel == 0 then
+                        love.graphics.setColor(0.28, 0.21, 0.15)  -- Dark earthy brown
+                    elseif toonLevel == 1 then
+                        love.graphics.setColor(0.32, 0.24, 0.17)  -- Medium brown
+                    else
+                        love.graphics.setColor(0.38, 0.28, 0.20)  -- Lighter brown
+                    end
+                    
+                    love.graphics.rectangle("fill", px, py, self.tileSize, self.tileSize)
+                    
+                    -- Add some texture (cracks/roughness) - darker brown
+                    love.graphics.setColor(0.18, 0.13, 0.09, 0.5)
+                    local crackCount = (seed % 3) + 1
+                    for i = 0, crackCount do
+                        local crackSeed = seed * 7 + i * 13
+                        local cx1 = px + ((crackSeed * 3) % 28) + 2
+                        local cy1 = py + ((crackSeed * 5) % 28) + 2
+                        local cx2 = cx1 + ((crackSeed * 7) % 8) - 4
+                        local cy2 = cy1 + ((crackSeed * 11) % 8) - 4
+                        love.graphics.setLineWidth(1)
+                        love.graphics.line(cx1, cy1, cx2, cy2)
+                    end
+                    
+                    -- Subtle highlight on lighter tiles - warm brown
+                    if toonLevel == 2 then
+                        love.graphics.setColor(0.44, 0.34, 0.24, 0.3)
+                        love.graphics.rectangle("fill", px + 2, py + 2, 8, 8)
+                    end
                 end
                 
                 -- Dirt path texture (only if it's a path tile)
@@ -512,17 +547,31 @@ function TileMap:draw(camera, gameTime)
                 local py = y * self.tileSize
                 local seed = x * 7 + y * 13
                 
-                -- Random size variation (make rocks different sizes)
-                local sizeVar = ((seed % 7) / 10) + 0.7  -- 0.7 to 1.4
+                -- Check if we're in a cave (dark ground tile)
+                local groundTile = self:getTile(x, y, "ground")
+                local isInCave = (groundTile == 5)
+                
+                -- Cave boulders are larger and more imposing
+                local sizeVar
+                if isInCave then
+                    sizeVar = ((seed % 8) / 10) + 1.0  -- 1.0 to 1.8 (bigger)
+                else
+                    sizeVar = ((seed % 7) / 10) + 0.7  -- 0.7 to 1.4 (normal)
+                end
+                
                 local rockSize = self.tileSize * sizeVar
                 local offsetX = (self.tileSize - rockSize) / 2
                 local offsetY = (self.tileSize - rockSize) / 2
                 
-                -- Noise distortion for irregular shapes
+                -- More irregular shapes for cave walls (more segments)
+                local segments = isInCave and 10 or 7
                 local noisePoints = {}
-                for i = 0, 7 do
-                    local angle = (i / 8) * math.pi * 2
+                for i = 0, segments do
+                    local angle = (i / segments) * math.pi * 2
                     local distortion = ((seed * 11 + i * 17) % 10) / 30 + 0.85
+                    if isInCave then
+                        distortion = distortion * 0.9  -- More irregular in caves
+                    end
                     local radius = (rockSize / 2) * distortion
                     local cx = px + self.tileSize / 2
                     local cy = py + self.tileSize / 2
@@ -530,40 +579,64 @@ function TileMap:draw(camera, gameTime)
                     table.insert(noisePoints, cy + math.sin(angle) * radius)
                 end
                 
-                -- Toon shading (3 levels based on position)
+                -- Color palette (darker in caves)
                 local lightLevel = ((seed % 5) / 5)
                 local baseColor
-                if lightLevel < 0.33 then
-                    baseColor = {0.35, 0.30, 0.25}  -- Dark
-                elseif lightLevel < 0.66 then
-                    baseColor = {0.42, 0.37, 0.32}  -- Medium
+                if isInCave then
+                    -- Earth tone cave boulders (like entrance boulders)
+                    if lightLevel < 0.33 then
+                        baseColor = {0.32, 0.24, 0.16}  -- Dark earthy brown
+                    elseif lightLevel < 0.66 then
+                        baseColor = {0.38, 0.28, 0.20}  -- Medium brown
+                    else
+                        baseColor = {0.42, 0.32, 0.22}  -- Lighter brown (matches entrance)
+                    end
                 else
-                    baseColor = {0.50, 0.45, 0.40}  -- Light
+                    -- Regular overworld rocks
+                    if lightLevel < 0.33 then
+                        baseColor = {0.35, 0.30, 0.25}  -- Dark
+                    elseif lightLevel < 0.66 then
+                        baseColor = {0.42, 0.37, 0.32}  -- Medium
+                    else
+                        baseColor = {0.50, 0.45, 0.40}  -- Light
+                    end
                 end
                 
-                -- Draw main rock shape (polygon with noise-distorted edges)
+                -- Draw main rock shape
                 love.graphics.setColor(baseColor)
                 love.graphics.polygon("fill", noisePoints)
                 
-                -- Toon highlights (sharp edge lighting)
+                -- Toon highlights (more subtle in caves)
                 if lightLevel >= 0.66 then
-                    love.graphics.setColor(0.60, 0.55, 0.50, 0.7)
-                    -- Top-left highlight
+                    if isInCave then
+                        love.graphics.setColor(0.52, 0.42, 0.32, 0.5)
+                    else
+                        love.graphics.setColor(0.60, 0.55, 0.50, 0.7)
+                    end
                     local highlightSize = rockSize * 0.3
                     love.graphics.circle("fill", px + offsetX + highlightSize, py + offsetY + highlightSize, highlightSize * 0.5)
                 end
                 
-                -- Toon shadows (sharp)
-                love.graphics.setColor(0.22, 0.18, 0.15, 0.6)
+                -- Toon shadows (deeper in caves)
+                if isInCave then
+                    love.graphics.setColor(0.14, 0.12, 0.10, 0.8)
+                else
+                    love.graphics.setColor(0.22, 0.18, 0.15, 0.6)
+                end
                 local shadowSize = rockSize * 0.25
                 love.graphics.circle("fill", 
                     px + self.tileSize / 2 + shadowSize, 
                     py + self.tileSize / 2 + shadowSize, 
                     shadowSize)
                 
-                -- Cracks with noise
-                love.graphics.setColor(0.18, 0.14, 0.10, 0.8)
-                love.graphics.setLineWidth(2)
+                -- More prominent cracks in caves
+                if isInCave then
+                    love.graphics.setColor(0.12, 0.10, 0.08, 0.9)
+                else
+                    love.graphics.setColor(0.18, 0.14, 0.10, 0.8)
+                end
+                love.graphics.setLineWidth(isInCave and 3 or 2)
+                
                 local crackPattern = (seed % 4)
                 if crackPattern == 0 then
                     love.graphics.line(
@@ -584,9 +657,9 @@ function TileMap:draw(camera, gameTime)
                         rockSize * 0.3)
                 end
                 
-                -- Outline (toon style - thick and dark)
-                love.graphics.setColor(0.15, 0.12, 0.08)
-                love.graphics.setLineWidth(3)
+                -- Thicker outline for cave boulders
+                love.graphics.setColor(0.10, 0.08, 0.06)
+                love.graphics.setLineWidth(isInCave and 4 or 3)
                 love.graphics.polygon("line", noisePoints)
                 love.graphics.setLineWidth(1)
             end
