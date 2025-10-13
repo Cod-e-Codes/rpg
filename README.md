@@ -2,6 +2,8 @@
 
 A top-down RPG game built with LÖVE (Love2D). Personal side project for learning game development.
 
+![Gameplay Demo](assets/demo/rpg.gif)
+
 ## What it is
 
 A simple action RPG with:
