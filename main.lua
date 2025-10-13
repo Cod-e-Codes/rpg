@@ -233,13 +233,28 @@ local projectiles = {} -- Active projectiles
 local lighting
 local saveManager
 
--- Audio
-local footstepSound = nil
-local riverSound = nil
-local riverTargetVolume = 0  -- Target volume for smooth fading
-local riverCurrentVolume = 0  -- Current volume
-local riverFadeSpeed = 0.5  -- How fast to fade in/out
-local riverPreviousTargetVolume = 0  -- Track previous target for logging
+-- Audio (grouped to reduce upvalue count)
+---@class AudioManager
+---@field footstepSound any
+---@field footstepTargetVolume number
+---@field footstepCurrentVolume number
+---@field footstepFadeSpeed number
+---@field riverSound any
+---@field riverTargetVolume number
+---@field riverCurrentVolume number
+---@field riverFadeSpeed number
+---@field riverPreviousTargetVolume number
+local audio = {
+    footstepSound = nil,
+    footstepTargetVolume = 0,
+    footstepCurrentVolume = 0,
+    footstepFadeSpeed = 2.0,
+    riverSound = nil,
+    riverTargetVolume = 0,
+    riverCurrentVolume = 0,
+    riverFadeSpeed = 0.5,
+    riverPreviousTargetVolume = 0
+}
 local devMode
 local currentMessage = nil
 local currentMessageItem = nil  -- Store item for message icon
@@ -386,33 +401,43 @@ function love.load()
     
     -- Load audio
     local audioSuccess, audioError = pcall(function()
-        footstepSound = love.audio.newSource("assets/sounds/footsteps.mp3", "stream")
-        footstepSound:setLooping(true)
-        footstepSound:setVolume(0.5)  -- Increased from 0.3 to 0.5 for better audibility
-        footstepSound:setPitch(2.0)  -- Play twice as fast
+        ---@type any
+        local footsteps = love.audio.newSource("assets/sounds/footsteps.mp3", "stream")
+        audio.footstepSound = footsteps
+        footsteps:setLooping(true)
+        footsteps:setVolume(0)  -- Start at 0, will fade in when moving
+        footsteps:setPitch(2.0)  -- Play twice as fast
     end)
     if not audioSuccess then
         print("Warning: Could not load footsteps.mp3: " .. tostring(audioError))
     else
-        print("[AUDIO] Loaded footsteps.mp3 successfully. Volume: 0.5, Pitch: 2.0x, Looping: true")
-        if footstepSound then
-            print("[AUDIO] Audio duration: " .. string.format("%.2f", footstepSound:getDuration()) .. "s")
+        print("[AUDIO] Loaded footsteps.mp3 successfully. Max Volume: 0.5, Pitch: 2.0x, Looping: true")
+        if audio.footstepSound then
+            ---@type any
+            local fs = audio.footstepSound
+            print("[AUDIO] Audio duration: " .. string.format("%.2f", fs:getDuration()) .. "s")
+            fs:play()  -- Start playing but at 0 volume
+            print("[AUDIO] Footsteps playback started (will fade in when moving)")
         end
     end
     
     -- Load river sound
     audioSuccess, audioError = pcall(function()
-        riverSound = love.audio.newSource("assets/sounds/river.mp3", "stream")
-        riverSound:setLooping(true)
-        riverSound:setVolume(0)  -- Start at 0, will fade in when visible
+        ---@type any
+        local river = love.audio.newSource("assets/sounds/river.mp3", "stream")
+        audio.riverSound = river
+        river:setLooping(true)
+        river:setVolume(0)  -- Start at 0, will fade in when visible
     end)
     if not audioSuccess then
         print("Warning: Could not load river.mp3: " .. tostring(audioError))
     else
         print("[AUDIO] Loaded river.mp3 successfully. Looping: true, Max Volume: 1.0")
-        if riverSound then
-            print("[AUDIO] River duration: " .. string.format("%.2f", riverSound:getDuration()) .. "s")
-            riverSound:play()  -- Start playing but at 0 volume
+        if audio.riverSound then
+            ---@type any
+            local rs = audio.riverSound
+            print("[AUDIO] River duration: " .. string.format("%.2f", rs:getDuration()) .. "s")
+            rs:play()  -- Start playing but at 0 volume
             print("[AUDIO] River playback started (will fade in when water visible)")
         end
     end
@@ -505,30 +530,47 @@ function love.update(dt)
     -- Update play time
     gameState.playTime = gameState.playTime + dt
     
-    -- Update river sound volume based on visibility
-    if riverSound and gameStarted and world.currentMap then
-        local hasWater = world.currentMap:hasVisibleWater(camera)
-        
-        -- Set target volume based on whether water is visible
-        riverTargetVolume = hasWater and 1.0 or 0  -- Max volume of 1.0 when visible
-        
+    -- Update footstep sound volume with smooth fading
+    if audio.footstepSound and gameStarted then
         -- Smoothly lerp current volume towards target
-        if riverCurrentVolume < riverTargetVolume then
-            riverCurrentVolume = math.min(riverTargetVolume, riverCurrentVolume + riverFadeSpeed * dt)
-        elseif riverCurrentVolume > riverTargetVolume then
-            riverCurrentVolume = math.max(riverTargetVolume, riverCurrentVolume - riverFadeSpeed * dt)
+        if audio.footstepCurrentVolume < audio.footstepTargetVolume then
+            audio.footstepCurrentVolume = math.min(audio.footstepTargetVolume, audio.footstepCurrentVolume + audio.footstepFadeSpeed * dt)
+        elseif audio.footstepCurrentVolume > audio.footstepTargetVolume then
+            audio.footstepCurrentVolume = math.max(audio.footstepTargetVolume, audio.footstepCurrentVolume - audio.footstepFadeSpeed * dt)
         end
         
         -- Apply the current volume
-        riverSound:setVolume(riverCurrentVolume)
+        ---@type any
+        local fs = audio.footstepSound
+        fs:setVolume(audio.footstepCurrentVolume)
+    end
+    
+    -- Update river sound volume based on visibility
+    if audio.riverSound and gameStarted and world.currentMap then
+        local hasWater = world.currentMap:hasVisibleWater(camera)
+        
+        -- Set target volume based on whether water is visible
+        audio.riverTargetVolume = hasWater and 1.0 or 0  -- Max volume of 1.0 when visible
+        
+        -- Smoothly lerp current volume towards target
+        if audio.riverCurrentVolume < audio.riverTargetVolume then
+            audio.riverCurrentVolume = math.min(audio.riverTargetVolume, audio.riverCurrentVolume + audio.riverFadeSpeed * dt)
+        elseif audio.riverCurrentVolume > audio.riverTargetVolume then
+            audio.riverCurrentVolume = math.max(audio.riverTargetVolume, audio.riverCurrentVolume - audio.riverFadeSpeed * dt)
+        end
+        
+        -- Apply the current volume
+        ---@type any
+        local rs = audio.riverSound
+        rs:setVolume(audio.riverCurrentVolume)
         
         -- Debug logging for visibility changes
-        if DEBUG_MODE and riverTargetVolume ~= riverPreviousTargetVolume then
+        if DEBUG_MODE and audio.riverTargetVolume ~= audio.riverPreviousTargetVolume then
             print(string.format("[AUDIO] River visibility: %s (target: %.0f%%, current: %.0f%%)", 
                 hasWater and "VISIBLE" or "HIDDEN", 
-                riverTargetVolume * 100, 
-                riverCurrentVolume * 100))
-            riverPreviousTargetVolume = riverTargetVolume
+                audio.riverTargetVolume * 100, 
+                audio.riverCurrentVolume * 100))
+            audio.riverPreviousTargetVolume = audio.riverTargetVolume
         end
     end
     
@@ -972,13 +1014,8 @@ function love.update(dt)
                     if player.health <= 0 then
                         player.health = 0
                         player.isDead = true
-                        -- Stop footsteps on death
-                        if footstepSound and footstepSound:isPlaying() then
-                            footstepSound:stop()
-                            if DEBUG_MODE then
-                                print("[AUDIO] Stopped footsteps (player died from enemy)")
-                            end
-                        end
+                        -- Fade out footsteps on death
+                        audio.footstepTargetVolume = 0
                     end
                 end
             end
@@ -1074,13 +1111,8 @@ function love.update(dt)
             if player.health <= 0 then
                 player.health = 0
                 player.isDead = true
-                -- Stop footsteps on death
-                if footstepSound and footstepSound:isPlaying() then
-                    footstepSound:stop()
-                    if DEBUG_MODE then
-                        print("[AUDIO] Stopped footsteps (player died from environmental hazard)")
-                    end
-                end
+                -- Fade out footsteps on death
+                audio.footstepTargetVolume = 0
             end
             
             -- Grant brief immunity to prevent rapid damage ticks
@@ -1260,25 +1292,23 @@ function love.update(dt)
         currentFrame = 1
         frameTimer = 0
         
-        -- Handle footstep audio
-        if footstepSound then
-            if player.isMoving and gameStarted then
-                -- Start playing footsteps from a random position (0-65 seconds)
+        -- Handle footstep audio - just set target volume, don't play/stop
+        if audio.footstepSound and gameStarted then
+            -- Set target volume based on movement
+            local newTargetVolume = player.isMoving and 0.5 or 0
+            
+            -- Randomize position when starting to move
+            if player.isMoving and not player.wasMoving then
                 local randomStart = love.math.random() * 65  -- Random start in the 1m5s track
-                footstepSound:seek(randomStart)
-                footstepSound:play()
+                ---@type any
+                local fs = audio.footstepSound
+                fs:seek(randomStart)
                 if DEBUG_MODE then
-                    print("[AUDIO] Started footsteps at position: " .. string.format("%.2f", randomStart) .. "s (from player movement)")
-                end
-            else
-                -- Stop footsteps when not moving
-                if footstepSound:isPlaying() then
-                    footstepSound:stop()
-                    if DEBUG_MODE then
-                        print("[AUDIO] Stopped footsteps (player stopped moving)")
-                    end
+                    print("[AUDIO] Randomizing footstep position: " .. string.format("%.2f", randomStart) .. "s")
                 end
             end
+            
+            audio.footstepTargetVolume = newTargetVolume
         end
     end
     player.wasMoving = player.isMoving
@@ -2953,24 +2983,27 @@ function drawUI()
         
         -- Audio Debug Info
         love.graphics.setColor(0.7, 0.9, 1.0)
-        if footstepSound then
-            local isPlaying = footstepSound:isPlaying()
-            local volume = footstepSound:getVolume()
-            local pitch = footstepSound:getPitch()
-            local position = footstepSound:tell()
-            love.graphics.print(string.format("Footsteps: %s", isPlaying and "PLAYING" or "STOPPED"), panelX + padding + 8, yPos)
+        if audio.footstepSound then
+            ---@type any
+            local fs = audio.footstepSound
+            local isPlaying = fs:isPlaying()
+            local volume = fs:getVolume()
+            local pitch = fs:getPitch()
+            love.graphics.print(string.format("Footsteps: %s (%.0f%% -> %.0f%%)", isPlaying and "PLAYING" or "STOPPED", volume * 100, audio.footstepTargetVolume * 100), panelX + padding + 8, yPos)
             yPos = yPos + lineHeight
-            love.graphics.print(string.format("Vol: %.0f%%  Pitch: %.1fx  Pos: %.1fs", volume * 100, pitch, position), panelX + padding + 8, yPos)
+            love.graphics.print(string.format("Pitch: %.1fx  Moving: %s", pitch, tostring(player.isMoving)), panelX + padding + 8, yPos)
             yPos = yPos + lineHeight
         else
             love.graphics.print("Footsteps: NOT LOADED", panelX + padding + 8, yPos)
             yPos = yPos + lineHeight
         end
         
-        if riverSound then
-            local isPlaying = riverSound:isPlaying()
-            local volume = riverSound:getVolume()
-            love.graphics.print(string.format("River: %s (%.0f%% -> %.0f%%)", isPlaying and "PLAYING" or "STOPPED", volume * 100, riverTargetVolume * 100), panelX + padding + 8, yPos)
+        if audio.riverSound then
+            ---@type any
+            local rs = audio.riverSound
+            local isPlaying = rs:isPlaying()
+            local volume = rs:getVolume()
+            love.graphics.print(string.format("River: %s (%.0f%% -> %.0f%%)", isPlaying and "PLAYING" or "STOPPED", volume * 100, audio.riverTargetVolume * 100), panelX + padding + 8, yPos)
             yPos = yPos + lineHeight
         else
             love.graphics.print("River: NOT LOADED", panelX + padding + 8, yPos)
