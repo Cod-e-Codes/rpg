@@ -18,8 +18,9 @@ function SpellSystem:new(gameState)
         
         -- UI state
         showSpellMenu = false,
-        selectedSpell = nil, -- Currently selected spell in menu
-        selectedSlot = 1, -- Currently selected slot (1-5) for equipping
+        spellMenuWidth = 0, -- Current animated width
+        spellMenuTargetWidth = 0, -- Target width for lerping
+        selectedSpellForEquip = nil, -- Currently selected spell to equip
         hoveredSlot = nil, -- Slot being hovered in bottom bar
         hoveredMenuSpell = nil, -- Spell being hovered in menu
         
@@ -38,6 +39,10 @@ function SpellSystem:new(gameState)
 end
 
 function SpellSystem:update(dt, playerX, playerY, camera)
+    -- Lerp spell menu width
+    local lerpSpeed = 12
+    self.spellMenuWidth = self.spellMenuWidth + (self.spellMenuTargetWidth - self.spellMenuWidth) * lerpSpeed * dt
+    
     -- Update mana regeneration
     if self.currentMana < self.maxMana then
         self.currentMana = math.min(self.maxMana, self.currentMana + self.manaRegenRate * dt)
@@ -95,7 +100,8 @@ function SpellSystem:draw(camera, playerX, playerY)
         self:drawSlotBar()
     end
     
-    if self.showSpellMenu then
+    -- Draw spell menu if it has any width (for lerp animation)
+    if self.spellMenuWidth > 5 then
         self:drawSpellMenu()
     end
     
@@ -242,55 +248,53 @@ function SpellSystem:drawSlotTooltip(spell, mouseX, mouseY)
 end
 
 function SpellSystem:drawSpellMenu()
+    if self.spellMenuWidth < 5 then return end -- Don't draw if not visible
+    
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
     
-    local panelWidth = 500
-    local panelHeight = 400
-    local panelX = (screenWidth - panelWidth) / 2
-    local panelY = (screenHeight - panelHeight) / 2
+    local panelWidth = self.spellMenuWidth
+    local panelHeight = screenHeight
+    local panelX = 0
+    local panelY = 0
     
-    -- Semi-transparent background overlay
-    love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+    -- Semi-transparent background overlay (only if fully open)
+    if self.spellMenuWidth > 400 then
+        love.graphics.setColor(0, 0, 0, 0.5)
+        love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+    end
     
     -- Main panel background
     love.graphics.setColor(0.08, 0.08, 0.10, 0.95)
-    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 4, 4)
+    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight)
     
-    -- Border
+    -- Border on right edge
     love.graphics.setColor(0.75, 0.65, 0.25)
     love.graphics.setLineWidth(3)
-    love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 4, 4)
+    love.graphics.line(panelWidth, 0, panelWidth, screenHeight)
     love.graphics.setLineWidth(1)
     
     -- Header
     local headerHeight = 40
-    love.graphics.setColor(0.12, 0.10, 0.08, 0.9)
-    love.graphics.rectangle("fill", panelX + 2, panelY + 2, panelWidth - 4, headerHeight - 2, 3, 3)
-    
     love.graphics.setColor(1, 0.95, 0.7)
     local font = love.graphics.getFont()
     local headerText = "Spell Book"
-    local textWidth = font:getWidth(headerText)
-    love.graphics.print(headerText, panelX + (panelWidth - textWidth) / 2, panelY + 12)
+    love.graphics.print(headerText, panelX + 10, panelY + 12)
     
     -- Divider
     love.graphics.setColor(0.65, 0.55, 0.20)
     love.graphics.setLineWidth(2)
-    love.graphics.line(panelX + 8, panelY + headerHeight, panelX + panelWidth - 8, panelY + headerHeight)
+    love.graphics.line(panelX + 5, panelY + headerHeight, panelX + panelWidth - 5, panelY + headerHeight)
     love.graphics.setLineWidth(1)
     
-    -- Split into two columns
-    local listWidth = 200
-    local detailsWidth = panelWidth - listWidth - 30
+    -- Spell list
+    local listWidth = panelWidth - 30
     local contentY = panelY + headerHeight + 15
     local contentHeight = panelHeight - headerHeight - 80
     
-    -- Left column: Spell list
     local listX = panelX + 15
     love.graphics.setColor(1, 0.95, 0.7)
-    love.graphics.print("Learned Spells:", listX, contentY)
+    love.graphics.print("Click spell, then click slot:", listX, contentY)
     
     local spellListY = contentY + 25
     local mouseX, mouseY = love.mouse.getPosition()
@@ -300,12 +304,21 @@ function SpellSystem:drawSpellMenu()
         local itemY = spellListY + (i - 1) * 55
         local itemHeight = 50
         
+        -- Check if selected
+        local isSelected = (self.selectedSpellForEquip == spell)
+        
         -- Check hover
         local isHovered = mouseX >= listX and mouseX <= listX + listWidth and
                          mouseY >= itemY and mouseY <= itemY + itemHeight
         
         if isHovered then
             self.hoveredMenuSpell = spell
+        end
+        
+        -- Background
+        if isSelected then
+            love.graphics.setColor(0.35, 0.30, 0.22, 0.9)
+        elseif isHovered then
             love.graphics.setColor(0.25, 0.22, 0.18, 0.9)
         else
             love.graphics.setColor(0.15, 0.13, 0.11, 0.6)
@@ -314,7 +327,10 @@ function SpellSystem:drawSpellMenu()
         love.graphics.rectangle("fill", listX, itemY, listWidth, itemHeight, 3, 3)
         
         -- Border
-        if isHovered then
+        if isSelected then
+            love.graphics.setColor(1, 0.9, 0.4)
+            love.graphics.setLineWidth(3)
+        elseif isHovered then
             love.graphics.setColor(0.9, 0.8, 0.4)
             love.graphics.setLineWidth(2)
         else
@@ -325,7 +341,7 @@ function SpellSystem:drawSpellMenu()
         love.graphics.setLineWidth(1)
         
         -- Draw spell icon
-        spell:draw(listX + 5, itemY + 5, 40, isHovered, false)
+        spell:draw(listX + 5, itemY + 5, 40, false, false)
         
         -- Draw spell name
         love.graphics.setColor(1, 0.95, 0.7)
@@ -336,185 +352,106 @@ function SpellSystem:drawSpellMenu()
         love.graphics.print(string.format("Lv.%d", spell.level), listX + 52, itemY + 28)
     end
     
-    -- Right column: Spell details
-    local detailsX = panelX + listWidth + 30
-    if self.selectedSpell or self.hoveredMenuSpell then
-        local spell = self.hoveredMenuSpell or self.selectedSpell
-        
-        love.graphics.setColor(1, 0.95, 0.7)
-        love.graphics.print("Spell Details:", detailsX, contentY)
-        
-        local detailY = contentY + 30
-        
-        -- Draw large icon
-        spell:draw(detailsX + (detailsWidth - 64) / 2, detailY, 64, false, false)
-        detailY = detailY + 74
-        
-        -- Name
-        love.graphics.setColor(1, 0.95, 0.7)
-        local nameWidth = font:getWidth(spell.name)
-        love.graphics.print(spell.name, detailsX + (detailsWidth - nameWidth) / 2, detailY)
-        detailY = detailY + 25
-        
-        -- Description
-        love.graphics.setColor(0.9, 0.85, 0.7)
-        love.graphics.printf(spell.description, detailsX, detailY, detailsWidth, "left")
-        detailY = detailY + 40
-        
-        -- Stats
-        love.graphics.setColor(0.8, 0.75, 0.6)
-        love.graphics.print(string.format("Mana Cost: %d", spell.manaCost), detailsX, detailY)
-        detailY = detailY + 18
-        love.graphics.print(string.format("Cooldown: %.1fs", spell.cooldown), detailsX, detailY)
-        detailY = detailY + 18
-        love.graphics.print(string.format("Duration: %.0fs", spell:getCurrentDuration()), detailsX, detailY)
-        detailY = detailY + 18
-        love.graphics.print(string.format("Radius: %.0fpx", spell:getCurrentRadius()), detailsX, detailY)
-        detailY = detailY + 25
-        
-        -- Level and experience
-        love.graphics.setColor(0.9, 0.75, 0.2)
-        love.graphics.print(string.format("Level %d / %d", spell.level, spell.maxLevel), detailsX, detailY)
-        detailY = detailY + 20
-        
-        if spell.level < spell.maxLevel then
-            -- XP bar
-            local xpBarWidth = detailsWidth
-            local xpBarHeight = 12
-            
-            -- Background
-            love.graphics.setColor(0.15, 0.13, 0.11, 0.8)
-            love.graphics.rectangle("fill", detailsX, detailY, xpBarWidth, xpBarHeight, 2, 2)
-            
-            -- Fill
-            local progress = spell:getExperienceProgress()
-            love.graphics.setColor(0.3, 0.7, 0.3)
-            love.graphics.rectangle("fill", detailsX, detailY, xpBarWidth * progress, xpBarHeight, 2, 2)
-            
-            -- Border
-            love.graphics.setColor(0.65, 0.55, 0.20)
-            love.graphics.setLineWidth(2)
-            love.graphics.rectangle("line", detailsX, detailY, xpBarWidth, xpBarHeight, 2, 2)
-            love.graphics.setLineWidth(1)
-            
-            -- Text
-            love.graphics.setColor(1, 1, 1)
-            local xpText = string.format("%d / %d XP", math.floor(spell.experience), spell.experienceThresholds[spell.level])
-            local xpTextWidth = font:getWidth(xpText)
-            love.graphics.print(xpText, detailsX + (xpBarWidth - xpTextWidth) / 2, detailY + 2)
-        else
-            love.graphics.setColor(0.9, 0.75, 0.2)
-            love.graphics.print("MAX LEVEL", detailsX, detailY)
-        end
-    elseif #self.learnedSpells == 0 then
-        love.graphics.setColor(0.6, 0.55, 0.45)
-        love.graphics.printf("No spells learned yet.\nFind magical scrolls to learn spells!", detailsX, contentY + 50, detailsWidth, "center")
-    else
-        love.graphics.setColor(0.6, 0.55, 0.45)
-        love.graphics.printf("Hover over a spell to see details.", detailsX, contentY + 50, detailsWidth, "center")
+    -- Draw hover tooltip for spell details
+    if self.hoveredMenuSpell then
+        local spell = self.hoveredMenuSpell
+        self:drawSpellTooltip(spell, mouseX, mouseY)
     end
     
-    -- Bottom: Slot selector and equip button
-    local bottomY = panelY + panelHeight - 60
-    love.graphics.setColor(0.12, 0.10, 0.08, 0.9)
-    love.graphics.rectangle("fill", panelX + 10, bottomY, panelWidth - 20, 50, 3, 3)
+    -- Spell slots at bottom (click to equip selected spell)
+    local slotSize = 48
+    local slotSpacing = 8
+    local slotsStartY = screenHeight - 80
+    local slotsStartX = panelX + (panelWidth - (5 * (slotSize + slotSpacing))) / 2
     
     love.graphics.setColor(1, 0.95, 0.7)
-    love.graphics.print("Select Slot:", panelX + 20, bottomY + 10)
-    
-    -- Slot selector buttons
-    local slotButtonSize = 32
-    local slotButtonSpacing = 8
-    local slotStartX = panelX + 120
+    love.graphics.print("Equipped Spells (click to equip/unequip):", panelX + 10, slotsStartY - 25)
     
     for i = 1, 5 do
-        local slotBtnX = slotStartX + (i - 1) * (slotButtonSize + slotButtonSpacing)
-        local slotBtnY = bottomY + 10
-        
-        -- Check hover
-        local isHovered = mouseX >= slotBtnX and mouseX <= slotBtnX + slotButtonSize and
-                         mouseY >= slotBtnY and mouseY <= slotBtnY + slotButtonSize
+        local slotX = slotsStartX + (i - 1) * (slotSize + slotSpacing)
+        local slotY = slotsStartY
         
         -- Background
-        if i == self.selectedSlot then
-            love.graphics.setColor(0.3, 0.25, 0.18)
-        elseif isHovered then
-            love.graphics.setColor(0.25, 0.22, 0.18)
-        else
-            love.graphics.setColor(0.18, 0.16, 0.12)
+        love.graphics.setColor(0.18, 0.16, 0.12, 0.9)
+        love.graphics.rectangle("fill", slotX, slotY, slotSize, slotSize, 3, 3)
+        
+        -- Draw equipped spell icon if any
+        local equippedSpell = self.equippedSpells[i]
+        if equippedSpell then
+            equippedSpell:draw(slotX + 4, slotY + 4, slotSize - 8, false, false)
         end
-        love.graphics.rectangle("fill", slotBtnX, slotBtnY, slotButtonSize, slotButtonSize, 3, 3)
         
         -- Border
-        if i == self.selectedSlot then
-            love.graphics.setColor(0.9, 0.8, 0.4)
-            love.graphics.setLineWidth(2)
-        elseif isHovered then
-            love.graphics.setColor(0.7, 0.6, 0.3)
-            love.graphics.setLineWidth(2)
-        else
-            love.graphics.setColor(0.35, 0.30, 0.20)
-            love.graphics.setLineWidth(1)
-        end
-        love.graphics.rectangle("line", slotBtnX, slotBtnY, slotButtonSize, slotButtonSize, 3, 3)
+        love.graphics.setColor(0.35, 0.30, 0.20)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", slotX, slotY, slotSize, slotSize, 3, 3)
         love.graphics.setLineWidth(1)
         
-        -- Number
-        love.graphics.setColor(1, 0.95, 0.7)
-        local numText = tostring(i)
-        local numWidth = font:getWidth(numText)
-        love.graphics.print(numText, slotBtnX + (slotButtonSize - numWidth) / 2, slotBtnY + 8)
+        -- Slot number
+        love.graphics.setColor(0.8, 0.75, 0.6)
+        love.graphics.print(tostring(i), slotX + slotSize - 12, slotY + slotSize - 16)
     end
-    
-    -- Equip button
-    local equipBtnWidth = 100
-    local equipBtnHeight = 32
-    local equipBtnX = panelX + panelWidth - equipBtnWidth - 20
-    local equipBtnY = bottomY + 10
-    
-    local canEquip = (self.hoveredMenuSpell or self.selectedSpell) ~= nil
-    local equipHovered = mouseX >= equipBtnX and mouseX <= equipBtnX + equipBtnWidth and
-                        mouseY >= equipBtnY and mouseY <= equipBtnY + equipBtnHeight
-    
-    -- Button background
-    if canEquip then
-        if equipHovered then
-            love.graphics.setColor(0.35, 0.55, 0.35)
-        else
-            love.graphics.setColor(0.25, 0.45, 0.25)
-        end
-    else
-        love.graphics.setColor(0.2, 0.18, 0.15)
-    end
-    love.graphics.rectangle("fill", equipBtnX, equipBtnY, equipBtnWidth, equipBtnHeight, 3, 3)
-    
-    -- Button border
-    if canEquip and equipHovered then
-        love.graphics.setColor(0.9, 0.8, 0.4)
-        love.graphics.setLineWidth(2)
-    else
-        love.graphics.setColor(0.35, 0.30, 0.20)
-        love.graphics.setLineWidth(1)
-    end
-    love.graphics.rectangle("line", equipBtnX, equipBtnY, equipBtnWidth, equipBtnHeight, 3, 3)
-    love.graphics.setLineWidth(1)
-    
-    -- Button text
-    if canEquip then
-        love.graphics.setColor(1, 1, 1)
-    else
-        love.graphics.setColor(0.5, 0.45, 0.35)
-    end
-    local equipText = "Equip"
-    local equipTextWidth = font:getWidth(equipText)
-    love.graphics.print(equipText, equipBtnX + (equipBtnWidth - equipTextWidth) / 2, equipBtnY + 8)
     
     -- Close hint
-    love.graphics.setColor(0.6, 0.55, 0.45)
-    love.graphics.print("[B] or [ESC] to close", panelX + 20, panelY + panelHeight - 22)
+    love.graphics.setColor(0.7, 0.7, 0.7)
+    love.graphics.print("[B] or [ESC] to close", panelX + 10, screenHeight - 25)
     
     love.graphics.setColor(1, 1, 1)
 end
+
+function SpellSystem:drawSpellTooltip(spell, mouseX, mouseY)
+    local padding = 10
+    local lineHeight = 18
+    local font = love.graphics.getFont()
+    
+    -- Build tooltip lines
+    local lines = {
+        spell.name,
+        "",
+        spell.description,
+        "",
+        string.format("Mana: %d", spell.manaCost),
+        string.format("Cooldown: %.1fs", spell.cooldown),
+        string.format("Level %d/%d", spell.level, spell.maxLevel)
+    }
+    
+    -- Calculate size
+    local maxWidth = 0
+    for _, line in ipairs(lines) do
+        maxWidth = math.max(maxWidth, font:getWidth(line))
+    end
+    local tooltipWidth = math.min(maxWidth + padding * 2, 250)
+    local tooltipHeight = (#lines * lineHeight) + padding * 2
+    
+    -- Position (right side of spell menu)
+    local tooltipX = self.spellMenuWidth + 10
+    local tooltipY = mouseY - tooltipHeight / 2
+    
+    -- Keep on screen
+    if tooltipY < 0 then tooltipY = 0 end
+    if tooltipY + tooltipHeight > love.graphics.getHeight() then
+        tooltipY = love.graphics.getHeight() - tooltipHeight
+    end
+    
+    -- Background
+    love.graphics.setColor(0.12, 0.10, 0.08, 0.95)
+    love.graphics.rectangle("fill", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4, 4)
+    
+    -- Border
+    love.graphics.setColor(0.9, 0.8, 0.4)
+    love.graphics.setLineWidth(2)
+    love.graphics.rectangle("line", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4, 4)
+    love.graphics.setLineWidth(1)
+    
+    -- Text
+    love.graphics.setColor(1, 0.95, 0.7)
+    local yPos = tooltipY + padding
+    for _, line in ipairs(lines) do
+        love.graphics.print(line, tooltipX + padding, yPos)
+        yPos = yPos + lineHeight
+    end
+end
+
 
 function SpellSystem:drawSpellMessage()
     local screenWidth = love.graphics.getWidth()
@@ -683,66 +620,64 @@ end
 
 function SpellSystem:toggleSpellMenu()
     self.showSpellMenu = not self.showSpellMenu
+    if self.showSpellMenu then
+        self.spellMenuTargetWidth = 450
+    else
+        self.spellMenuTargetWidth = 0
+        self.selectedSpell = nil -- Clear selection when closing
+    end
 end
 
 function SpellSystem:handleClick(mouseX, mouseY)
-    if not self.showSpellMenu then return end
+    if not self.showSpellMenu or self.spellMenuWidth < 400 then return end
     
-    -- Handle spell list clicks
-    local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
-    local panelWidth = 500
-    local panelHeight = 400
-    local panelX = (screenWidth - panelWidth) / 2
-    local panelY = (screenHeight - panelHeight) / 2
-    
-    local listX = panelX + 15
-    local contentY = panelY + 40 + 15
+    local panelX = 0
+    local contentY = 40 + 15
     local spellListY = contentY + 25
-    local listWidth = 200
+    local listX = panelX + 15
+    local listWidth = self.spellMenuWidth - 30
     
-    -- Check spell list clicks
+    -- Check if clicking on spell list
     for i, spell in ipairs(self.learnedSpells) do
         local itemY = spellListY + (i - 1) * 55
         local itemHeight = 50
         
         if mouseX >= listX and mouseX <= listX + listWidth and
            mouseY >= itemY and mouseY <= itemY + itemHeight then
-            self.selectedSpell = spell
+            -- Toggle selection
+            if self.selectedSpellForEquip == spell then
+                self.selectedSpellForEquip = nil
+            else
+                self.selectedSpellForEquip = spell
+            end
             return
         end
     end
     
-    -- Check slot selector clicks
-    local bottomY = panelY + panelHeight - 60
-    local slotButtonSize = 32
-    local slotButtonSpacing = 8
-    local slotStartX = panelX + 120
+    -- Check if clicking on spell slots
+    local slotSize = 48
+    local slotSpacing = 8
+    local slotsStartY = screenHeight - 80
+    local slotsStartX = panelX + (self.spellMenuWidth - (5 * (slotSize + slotSpacing))) / 2
     
     for i = 1, 5 do
-        local slotBtnX = slotStartX + (i - 1) * (slotButtonSize + slotButtonSpacing)
-        local slotBtnY = bottomY + 10
+        local slotX = slotsStartX + (i - 1) * (slotSize + slotSpacing)
+        local slotY = slotsStartY
         
-        if mouseX >= slotBtnX and mouseX <= slotBtnX + slotButtonSize and
-           mouseY >= slotBtnY and mouseY <= slotBtnY + slotButtonSize then
-            self.selectedSlot = i
+        if mouseX >= slotX and mouseX <= slotX + slotSize and
+           mouseY >= slotY and mouseY <= slotY + slotSize then
+            -- Clicked on slot
+            if self.selectedSpellForEquip then
+                -- Equip selected spell to this slot
+                self:equipSpell(self.selectedSpellForEquip, i)
+                self.selectedSpellForEquip = nil
+            elseif self.equippedSpells[i] then
+                -- Unequip spell from this slot
+                self:unequipSpell(i)
+            end
             return
         end
-    end
-    
-    -- Check equip button click
-    local equipBtnWidth = 100
-    local equipBtnHeight = 32
-    local equipBtnX = panelX + panelWidth - equipBtnWidth - 20
-    local equipBtnY = bottomY + 10
-    
-    if mouseX >= equipBtnX and mouseX <= equipBtnX + equipBtnWidth and
-       mouseY >= equipBtnY and mouseY <= equipBtnY + equipBtnHeight then
-        local spell = self.hoveredMenuSpell or self.selectedSpell
-        if spell then
-            self:equipSpell(spell, self.selectedSlot)
-        end
-        return
     end
 end
 

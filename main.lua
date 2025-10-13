@@ -1658,32 +1658,28 @@ local function drawItemIcon(itemName, x, y, size, isHovered)
 end
 
 function drawUI()
-    -- Draw player health bar (only if class selected and not dead)
-    if gameState.playerClass then
-        local barWidth = 200
-        local barHeight = 20
-        local barX = (love.graphics.getWidth() - barWidth) / 2
-        local barY = 20
+    -- Draw player health bar (only if class selected and not dead) - vertical beside mana
+    if gameState.playerClass and spellSystem and #gameState.learnedSpells > 0 then
+        local healthBarWidth = 20
+        local healthBarHeight = 100
+        local healthBarX = 10 + 20 + 5  -- Beside mana bar (mana width + gap)
+        local healthBarY = 80 + (5 * (48 + 8)) + 20 -- Same Y as mana bar
         
         -- Background
-        love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
-        love.graphics.rectangle("fill", barX, barY, barWidth, barHeight, 3, 3)
+        love.graphics.setColor(0.08, 0.08, 0.10, 0.85)
+        love.graphics.rectangle("fill", healthBarX, healthBarY, healthBarWidth, healthBarHeight, 2, 2)
         
-        -- Health (red to green gradient based on health)
+        -- Health fill (bottom to top, red)
         local healthPercent = player.health / player.maxHealth
-        local r = 1 - (healthPercent * 0.5) -- Red 100% at 0 health, 50% at full
-        local g = healthPercent -- Green 0% at 0 health, 100% at full
-        love.graphics.setColor(r, g, 0.2)
-        love.graphics.rectangle("fill", barX, barY, barWidth * healthPercent, barHeight, 3, 3)
+        local fillHeight = healthBarHeight * healthPercent
+        love.graphics.setColor(0.8, 0.2, 0.2)
+        love.graphics.rectangle("fill", healthBarX, healthBarY + (healthBarHeight - fillHeight), healthBarWidth, fillHeight, 2, 2)
         
         -- Border
-        love.graphics.setColor(0, 0, 0)
+        love.graphics.setColor(0.75, 0.65, 0.25)
         love.graphics.setLineWidth(2)
-        love.graphics.rectangle("line", barX, barY, barWidth, barHeight, 3, 3)
-        
-        -- Health text
-        love.graphics.setColor(1, 1, 1)
-        love.graphics.print(string.format("%d / %d", player.health, player.maxHealth), barX + barWidth/2 - 25, barY + 3)
+        love.graphics.rectangle("line", healthBarX, healthBarY, healthBarWidth, healthBarHeight, 2, 2)
+        love.graphics.setLineWidth(1)
         
         love.graphics.setColor(1, 1, 1)
     end
