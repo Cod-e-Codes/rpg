@@ -1692,10 +1692,19 @@ function drawUI()
                     
                     -- Draw count if > 1
                     if count > 1 then
-                        love.graphics.setColor(1, 1, 1)
                         local countText = "x" .. count
                         local textWidth = love.graphics.getFont():getWidth(countText)
-                        love.graphics.print(countText, itemX + slotSize - textWidth - 4, itemY + slotSize - 16)
+                        local textHeight = love.graphics.getFont():getHeight()
+                        local textX = itemX + slotSize - textWidth - 4
+                        local textY = itemY + slotSize - 16
+                        
+                        -- Background for better visibility
+                        love.graphics.setColor(0, 0, 0, 0.7)
+                        love.graphics.rectangle("fill", textX - 2, textY - 1, textWidth + 4, textHeight + 2, 2, 2)
+                        
+                        -- Text
+                        love.graphics.setColor(1, 1, 1)
+                        love.graphics.print(countText, textX, textY)
                     end
                 end
                 
