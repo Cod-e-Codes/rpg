@@ -71,5 +71,5 @@ Save files are stored in your LOVE save directory:
 
 ## License
 
-Personal project - do whatever you want with it.
+MIT License - see LICENSE file for details.
 

@@ -507,7 +507,7 @@ function SpellSystem:drawSpellMenu()
     
     -- Close hint
     love.graphics.setColor(0.6, 0.55, 0.45)
-    love.graphics.print("[M] or [ESC] to close", panelX + 20, panelY + panelHeight - 22)
+    love.graphics.print("[B] or [ESC] to close", panelX + 20, panelY + panelHeight - 22)
     
     love.graphics.setColor(1, 1, 1)
 end
