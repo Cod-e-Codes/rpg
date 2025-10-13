@@ -1405,6 +1405,12 @@ function love.draw()
                 y = obj.y + 135,
                 draw = function() obj:draw("front_boulder") end
             })
+        elseif obj.type == "portal" and gameState.currentMap == "class_selection" then
+            -- Portal in class selection always renders behind player
+            table.insert(entities, {
+                y = -1000, -- Very low Y to always be behind
+                draw = function() obj:draw() end
+            })
         else
             -- Use bottom of object for sorting
             local sortY = obj.y + obj.height

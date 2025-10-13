@@ -80,10 +80,14 @@ function World:createExampleOverworld()
         collision[y][79] = 2
     end
     
-    -- Create opening in north wall for archway area (tiles 38-41 where archway is)
-    -- Player can walk up to interact with E, fade transition handles level change
+    -- Northern border at archway location (x=1230-1330, tiles 38-41)
+    -- Visible rocks before class selection, invisible barrier after
+    -- Row -1 allows player to walk up to y=0 before hitting barrier
+    collision[-1] = collision[-1] or {}
     for x = 38, 41 do
-        collision[0][x] = 0 -- Clear wall at archway location
+        collision[-1][x] = 2 -- Rocks that will be replaced with invisible barrier
+        -- Also clear row 0 rocks in this area - they'll be managed dynamically
+        collision[0][x] = 0 -- No collision at row 0 (will add back if no class)
     end
     
     -- Add some scattered rocks/obstacles
@@ -250,9 +254,9 @@ function World:createExampleOverworld()
     
     -- Add northern path entrance (appears after class selection)
     -- Ancient stone archway with magical barrier - aligned with vertical path
-    -- Position: left=1229, right=1332, bottom at y=10 (at top edge of map)
+    -- Position: 35% wider, centered at x=1280
     table.insert(self.interactables["overworld"],
-        Interactable:new(1229, -182, 103, 192, "ancient_path", {
+        Interactable:new(1211, -182, 139, 192, "ancient_path", {
             targetMap = "puzzle_level1",
             spawnX = 15*32,
             spawnY = 25*32,
@@ -684,6 +688,26 @@ end
 
 function World:loadMap(mapName)
     self.currentMap = self.maps[mapName]
+    
+    -- Update northern archway collision based on class selection
+    if mapName == "overworld" and self.currentMap and self.gameState then
+        local collision = self.currentMap.layers.collision
+        collision[-1] = collision[-1] or {} -- Ensure row -1 exists
+        if self.gameState.playerClass then
+            -- Player has class: invisible barrier at row -1, no rocks anywhere
+            for x = 38, 41 do
+                collision[-1][x] = 1 -- Invisible barrier
+                collision[0][x] = 0 -- No visible rocks
+            end
+        else
+            -- No class yet: visible rocks at both rows to block passage
+            for x = 38, 41 do
+                collision[-1][x] = 2 -- Visible rocks at barrier
+                collision[0][x] = 2 -- Visible rocks at ground level
+            end
+        end
+    end
+    
     return self.currentMap
 end
 

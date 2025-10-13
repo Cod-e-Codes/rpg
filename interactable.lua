@@ -26,8 +26,11 @@ function Interactable:new(x, y, width, height, type, data)
 end
 
 function Interactable:isPlayerNear(playerX, playerY, distance)
-    -- Doors, caves, portals, scrolls, class icons, and ancient paths have larger interaction radius
-    if self.type == "door" or self.type == "cave" or self.type == "cave_exit" or self.type == "portal" or self.type == "scroll" or self.type == "class_icon" or self.type == "ancient_path" then
+    -- Ancient path needs extra large radius due to vertical positioning
+    if self.type == "ancient_path" then
+        distance = distance or 128
+    -- Doors, caves, portals, scrolls, class icons have larger interaction radius
+    elseif self.type == "door" or self.type == "cave" or self.type == "cave_exit" or self.type == "portal" or self.type == "scroll" or self.type == "class_icon" then
         distance = distance or 64
     else
         distance = distance or 48
