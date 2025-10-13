@@ -185,6 +185,14 @@ function SaveManager:applySaveData(gameState, saveData)
     -- Apply loaded save data to game state
     if not saveData then return false end
     
+    -- Player info
+    gameState.playerName = saveData.playerName or "Hero"
+    gameState.playerClass = saveData.playerClass
+    gameState.playerElement = saveData.playerElement
+    gameState.playerHealth = saveData.playerHealth or 100
+    gameState.playerX = saveData.playerX or 400
+    gameState.playerY = saveData.playerY or 300
+    
     gameState.playerSpawn = {x = saveData.playerX or 400, y = saveData.playerY or 300}
     gameState.currentMap = saveData.currentMap or "overworld"
     gameState.questState = saveData.questState or "initial"
