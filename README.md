@@ -12,6 +12,7 @@ A simple action RPG with:
 - Dark caves with lighting effects
 - Save/load system
 - Toon-shaded art style
+- Footstep audio with randomization
 
 ## Requirements
 
@@ -44,7 +45,7 @@ love .
 - **6-0** - Use quick slot
 - **P** - Player profile
 - **ESC / P** - Pause
-- **F3** - Debug info
+- **F3** - Debug info (includes audio status)
 - **F12** - Dev mode
 
 ## Dev Mode
@@ -83,8 +84,9 @@ Save file: `savegame.sav`
 - [x] Defense trials with elemental hazards and resistance spells
 - [x] Healing strategy selection (Tank/Lifesteal/Soul Reaper)
 - [x] Skeleton spawn animations and combat arenas
+- [x] Footstep sound effects with randomization
 - [ ] More content and puzzles
-- [ ] Sound effects and music
+- [ ] Additional sound effects and music
 
 ## License
 
