@@ -14,6 +14,9 @@ local Projectile = require("projectile")
 -- Debug mode
 DEBUG_MODE = false
 
+-- UI Images
+local deathScreenImage = nil
+
 -- Game state
 local player = {
     x = 400,
@@ -129,6 +132,14 @@ function love.load()
     
     -- Enable text input for name entry
     love.keyboard.setTextInput(true)
+    
+    -- Load UI images
+    local success, image = pcall(love.graphics.newImage, "assets/ui/you-died.png")
+    if success then
+        deathScreenImage = image
+    else
+        print("Warning: Could not load death screen image")
+    end
     
     -- Initialize game systems
     gameState = GameState:new()
@@ -1689,12 +1700,24 @@ function drawUI()
         love.graphics.setColor(0, 0, 0, 0.8)
         love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
         
-        -- Death message
-        love.graphics.setColor(0.8, 0.1, 0.1)
-        local deathText = "YOU DIED"
+        -- Death message (image or fallback text)
+        love.graphics.setColor(1, 1, 1)
         local font = love.graphics.getFont()
-        local textWidth = font:getWidth(deathText)
-        love.graphics.print(deathText, screenWidth/2 - textWidth/2, screenHeight/2 - 40)
+        if deathScreenImage then
+            local imageWidth = deathScreenImage:getWidth()
+            local imageHeight = deathScreenImage:getHeight()
+            local scale = 1.5 -- Adjust scale as needed
+            love.graphics.draw(deathScreenImage, 
+                screenWidth/2 - (imageWidth * scale)/2, 
+                screenHeight/2 - 100, 
+                0, scale, scale)
+        else
+            -- Fallback text if image fails to load
+            love.graphics.setColor(0.8, 0.1, 0.1)
+            local deathText = "YOU DIED"
+            local textWidth = font:getWidth(deathText)
+            love.graphics.print(deathText, screenWidth/2 - textWidth/2, screenHeight/2 - 40)
+        end
         
         -- Respawn instruction
         love.graphics.setColor(1, 1, 1)
