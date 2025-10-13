@@ -276,6 +276,7 @@ function World:createExampleOverworld()
     }
     table.insert(self.enemies["overworld"],
         Enemy:new(10*32, 32*32, "skeleton", {
+            id = "overworld_skeleton_1",
             patrolRoute = skeleton1Patrol,
             aggroRange = 120,
             deaggroRange = 200
@@ -291,6 +292,7 @@ function World:createExampleOverworld()
     }
     table.insert(self.enemies["overworld"],
         Enemy:new(12*32, 14*32, "skeleton", {
+            id = "overworld_skeleton_2",
             patrolRoute = skeleton2Patrol,
             aggroRange = 100,
             deaggroRange = 180
@@ -465,6 +467,7 @@ function World:createCaveLevel1()
     }
     table.insert(self.enemies["cave_level1"],
         Enemy:new(12*32, 10*32, "skeleton", {
+            id = "cave_skeleton_1",
             patrolRoute = skeleton1Patrol,
             aggroRange = 100,
             deaggroRange = 180
@@ -662,6 +665,16 @@ end
 function World:getCurrentEnemies()
     for mapName, enemies in pairs(self.enemies) do
         if self.maps[mapName] == self.currentMap then
+            -- Filter out killed enemies if gameState is available
+            if self.gameState then
+                local aliveEnemies = {}
+                for _, enemy in ipairs(enemies) do
+                    if not self.gameState:isEnemyKilled(enemy.id) then
+                        table.insert(aliveEnemies, enemy)
+                    end
+                end
+                return aliveEnemies
+            end
             return enemies
         end
     end

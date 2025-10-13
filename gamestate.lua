@@ -4,6 +4,7 @@ local GameState = {}
 function GameState:new()
     local state = {
         openedChests = {},
+        killedEnemies = {}, -- Table: {enemyID = true} for tracking defeated enemies
         inventory = {}, -- Table: {["item_name"] = count}
         quickSlots = {nil, nil, nil, nil, nil}, -- Quick slots for keys 6,7,8,9,0
         currentMap = "overworld",
@@ -41,6 +42,14 @@ end
 
 function GameState:isChestOpened(chestId)
     return self.openedChests[chestId] or false
+end
+
+function GameState:killEnemy(enemyId)
+    self.killedEnemies[enemyId] = true
+end
+
+function GameState:isEnemyKilled(enemyId)
+    return self.killedEnemies[enemyId] or false
 end
 
 function GameState:addItem(item)

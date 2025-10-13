@@ -97,6 +97,7 @@ function SaveManager:save(gameState, playerX, playerY, playerHealth)
         inventory = gameState.inventory,
         quickSlots = gameState.quickSlots,
         openedChests = {}, -- Will populate below
+        killedEnemies = {}, -- Will populate below
         
         -- Spell system
         learnedSpells = gameState.learnedSpells,
@@ -116,6 +117,14 @@ function SaveManager:save(gameState, playerX, playerY, playerHealth)
     for chestId, opened in pairs(gameState.openedChests) do
         if opened then
             table.insert(saveData.openedChests, chestId)
+        end
+    end
+    
+    -- Convert killedEnemies table to array for saving
+    saveData.killedEnemies = {}
+    for enemyId, killed in pairs(gameState.killedEnemies) do
+        if killed then
+            table.insert(saveData.killedEnemies, enemyId)
         end
     end
     
@@ -165,6 +174,15 @@ function SaveManager:load()
     end
     saveData.openedChests = openedChests
     
+    -- Convert killedEnemies array back to table
+    local killedEnemies = {}
+    if saveData.killedEnemies then
+        for _, enemyId in ipairs(saveData.killedEnemies) do
+            killedEnemies[enemyId] = true
+        end
+    end
+    saveData.killedEnemies = killedEnemies
+    
     print("Game loaded successfully")
     return saveData, "Game loaded successfully"
 end
@@ -201,6 +219,7 @@ function SaveManager:applySaveData(gameState, saveData)
     gameState.inventory = saveData.inventory or {}
     gameState.quickSlots = saveData.quickSlots or {nil, nil, nil, nil, nil}
     gameState.openedChests = saveData.openedChests or {}
+    gameState.killedEnemies = saveData.killedEnemies or {}
     
     gameState.learnedSpells = saveData.learnedSpells or {}
     gameState.equippedSpells = saveData.equippedSpells or {nil, nil, nil, nil, nil}

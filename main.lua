@@ -725,6 +725,9 @@ function love.update(dt)
         if hitEnemy then
             local died = hitEnemy:takeDamage(proj.damage)
             if died then
+                -- Mark enemy as killed in gameState for persistence
+                gameState:killEnemy(hitEnemy.id)
+                
                 -- Remove dead enemy from world
                 for j, enemy in ipairs(enemies) do
                     if enemy == hitEnemy then

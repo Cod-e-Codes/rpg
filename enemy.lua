@@ -8,6 +8,7 @@ function Enemy:new(x, y, enemyType, data)
         width = 32,
         height = 32,
         enemyType = enemyType, -- "skeleton", etc.
+        id = data.id or string.format("%s_%d_%d", enemyType, x, y), -- Unique ID for tracking
         data = data or {},
         direction = "south", -- Current facing direction (north, south, east, west)
         animations = {walk = {}}, -- Loaded walk animations
