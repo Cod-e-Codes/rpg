@@ -1320,17 +1320,22 @@ function love.draw()
     -- Add interactables
     local interactables = world:getCurrentInteractables()
     for _, obj in ipairs(interactables) do
-        if obj.type == "cave" then
-            -- Cave has layered drawing: back boulder + opening (behind player), front boulder (in front of player)
-            -- Back layer: back boulder and cave opening (drawn earlier, player walks in front)
+        if obj.type == "cave" or obj.type == "cave_exit" then
+            -- Cave/cave_exit has three-layer drawing for proper depth sorting
+            -- Layer 1: Back boulder (furthest back, player walks in front)
             table.insert(entities, {
-                y = obj.y + 100,  -- Upper part of cave
-                draw = function() obj:draw("back_layer") end
+                y = obj.y + 50,
+                draw = function() obj:draw("back_boulder") end
             })
-            -- Front layer: front boulder (drawn later, player walks behind)
+            -- Layer 2: Cave opening (middle layer, player walks in front)
             table.insert(entities, {
-                y = obj.y + obj.height - 40,  -- Lower part of cave (front boulder position)
-                draw = function() obj:draw("front_layer") end
+                y = obj.y + 90,
+                draw = function() obj:draw("opening") end
+            })
+            -- Layer 3: Front boulder (closest, player walks behind)
+            table.insert(entities, {
+                y = obj.y + 135,
+                draw = function() obj:draw("front_boulder") end
             })
         else
             -- Use bottom of object for sorting

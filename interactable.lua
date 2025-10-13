@@ -452,14 +452,16 @@ function Interactable:draw(layer)
         end
         
         -- Draw based on layer (for proper Y-sorting with player)
-        if not layer or layer == "back_layer" then
-            -- Back boulder (upper left, behind entrance) - player walks IN FRONT of this
+        if not layer or layer == "back_boulder" then
+            -- Back boulder (upper left, furthest back) - player walks IN FRONT of this
             local backBoulderX = self.x + 45
             local backBoulderY = self.y + 50
             local backBoulderRadius = 55
             drawBoulder(backBoulderX, backBoulderY, backBoulderRadius, noiseSeed)
-            
-            -- Cave opening (between/behind boulders) - player walks IN FRONT of this
+        end
+        
+        if not layer or layer == "opening" then
+            -- Cave opening (middle layer) - player walks IN FRONT of this
             local openingX = self.x + 60
             local openingY = self.y + 90
             local openingRadiusX = 38
@@ -505,8 +507,8 @@ function Interactable:draw(layer)
             love.graphics.setLineWidth(1)
         end
         
-        if not layer or layer == "front_layer" then
-            -- Front boulder (lower right, player walks BEHIND this)
+        if not layer or layer == "front_boulder" then
+            -- Front boulder (lower right, closest to camera) - player walks BEHIND this
             local frontBoulderX = self.x + 85
             local frontBoulderY = self.y + 135
             local frontBoulderRadius = 60
@@ -575,97 +577,6 @@ function Interactable:draw(layer)
             local y2 = scrollY + math.sin(angle) * 25
             love.graphics.line(x1, y1, x2, y2)
         end
-        love.graphics.setLineWidth(1)
-        
-    elseif self.type == "cave_exit" then
-        -- Simple cave exit (interior)
-        local centerX = self.x + self.width/2
-        local centerY = self.y + self.height/2
-        local baseRadius = self.width * 0.45
-        
-        -- Create irregular rock shape with noise
-        local rockPoints = {}
-        local segments = 12
-        for i = 0, segments do
-            local angle = (i / segments) * math.pi * 2
-            -- Add noise to radius for irregular shape
-            local noiseOffset = math.sin(angle * 3) * 6 + math.cos(angle * 5) * 4
-            local r = baseRadius + noiseOffset
-            local px = centerX + math.cos(angle) * r
-            local py = centerY + math.sin(angle) * r * 0.9 -- Slightly oval
-            table.insert(rockPoints, px)
-            table.insert(rockPoints, py)
-        end
-        
-        -- Main rock body (medium brown) - toon base
-        love.graphics.setColor(0.42, 0.32, 0.22)
-        love.graphics.polygon("fill", rockPoints)
-        
-        -- Rock texture patches (darker brown)
-        love.graphics.setColor(0.32, 0.24, 0.16)
-        for i = 0, 4 do
-            local angle = (i / 5) * math.pi * 2 + 0.3
-            local r = baseRadius * 0.6
-            local px = centerX + math.cos(angle) * r
-            local py = centerY + math.sin(angle) * r * 0.9
-            love.graphics.circle("fill", px, py, baseRadius * 0.25)
-        end
-        
-        -- Toon highlights (lighter brown)
-        love.graphics.setColor(0.52, 0.42, 0.32)
-        for i = 0, 3 do
-            local angle = (i / 4) * math.pi * 2 + 1.2
-            local r = baseRadius * 0.7
-            local px = centerX + math.cos(angle) * r
-            local py = centerY + math.sin(angle) * r * 0.9
-            love.graphics.circle("fill", px, py, baseRadius * 0.15)
-        end
-        
-        -- Cave opening (irregular oval with noise)
-        local openingPoints = {}
-        local openingSegments = 10
-        local openingRadiusX = baseRadius * 0.4
-        local openingRadiusY = baseRadius * 0.5
-        for i = 0, openingSegments do
-            local angle = (i / openingSegments) * math.pi * 2
-            -- Add noise to opening edge
-            local noise = math.sin(angle * 4) * 2 + math.cos(angle * 6) * 1.5
-            local rx = (openingRadiusX + noise)
-            local ry = (openingRadiusY + noise)
-            local px = centerX + math.cos(angle) * rx
-            local py = centerY + math.sin(angle) * ry
-            table.insert(openingPoints, px)
-            table.insert(openingPoints, py)
-        end
-        
-        -- Black opening
-        love.graphics.setColor(0.02, 0.02, 0.02)
-        love.graphics.polygon("fill", openingPoints)
-        
-        -- Inner shadow (even darker)
-        love.graphics.setColor(0, 0, 0)
-        local innerPoints = {}
-        for i = 0, openingSegments do
-            local angle = (i / openingSegments) * math.pi * 2
-            local noise = math.sin(angle * 4) * 1.5
-            local rx = (openingRadiusX * 0.7 + noise)
-            local ry = (openingRadiusY * 0.7 + noise)
-            local px = centerX + math.cos(angle) * rx
-            local py = centerY + 2 + math.sin(angle) * ry
-            table.insert(innerPoints, px)
-            table.insert(innerPoints, py)
-        end
-        love.graphics.polygon("fill", innerPoints)
-        
-        -- Toon outline (dark brown, follows irregular shape)
-        love.graphics.setColor(0.18, 0.12, 0.08)
-        love.graphics.setLineWidth(3)
-        love.graphics.polygon("line", rockPoints)
-        
-        -- Opening outline (darker)
-        love.graphics.setColor(0.08, 0.05, 0.03)
-        love.graphics.setLineWidth(2)
-        love.graphics.polygon("line", openingPoints)
         love.graphics.setLineWidth(1)
         
     elseif self.type == "portal" then
