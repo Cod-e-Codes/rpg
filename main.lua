@@ -456,7 +456,7 @@ function love.load()
     if not audioSuccess then
         print("Warning: Could not load chest-creak.mp3: " .. tostring(audioError))
     else
-        print("[AUDIO] Loaded chest-creak.mp3 successfully")
+        print("[AUDIO] Loaded chest-creak.mp3 successfully (skips 0.2s initial delay)")
     end
     
     -- Load door creak sound effect
@@ -464,12 +464,12 @@ function love.load()
         ---@type any
         local door = love.audio.newSource("assets/sounds/door-creak.mp3", "static")
         audio.doorCreakSound = door
-        door:setVolume(0.6)
+        door:setVolume(0.45)  -- 25% quieter than 0.6
     end)
     if not audioSuccess then
         print("Warning: Could not load door-creak.mp3: " .. tostring(audioError))
     else
-        print("[AUDIO] Loaded door-creak.mp3 successfully")
+        print("[AUDIO] Loaded door-creak.mp3 successfully (volume: 0.45)")
     end
     
     -- Create example maps
@@ -580,7 +580,7 @@ function love.update(dt)
         local hasWater = world.currentMap:hasVisibleWater(camera)
         
         -- Set target volume based on whether water is visible
-        audio.riverTargetVolume = hasWater and 1.0 or 0  -- Max volume of 1.0 when visible
+        audio.riverTargetVolume = hasWater and 0.85 or 0  -- Max volume of 0.85 when visible
         
         -- Smoothly lerp current volume towards target
         if audio.riverCurrentVolume < audio.riverTargetVolume then
@@ -3385,9 +3385,10 @@ checkInteraction = function()
             ---@type any
             local chest = audio.chestCreakSound
             chest:stop() -- Stop any currently playing instance
-            chest:play() -- Play from the beginning
+            chest:seek(0.2) -- Skip 200ms initial delay
+            chest:play() -- Play from 0.2 seconds
             if DEBUG_MODE then
-                print("[AUDIO] Playing chest creak sound")
+                print("[AUDIO] Playing chest creak sound (from 0.2s)")
             end
         elseif obj.type == "door" and audio.doorCreakSound then
             ---@type any
