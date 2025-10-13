@@ -79,6 +79,11 @@ function Enemy:loadAnimations()
 end
 
 function Enemy:update(dt, playerX, playerY, gameTime, canHitPlayer)
+    -- Don't update behavior while spawning
+    if self.spawning then
+        return
+    end
+    
     -- Check distance to player
     local dx = playerX - self.x
     local dy = playerY - self.y
@@ -253,9 +258,14 @@ function Enemy:draw()
         local imageWidth = image:getWidth()
         local imageHeight = image:getHeight()
         
+        -- Apply spawn alpha if present (for spawn animation)
+        local alpha = self.spawnAlpha or 1
+        
         -- Tint red when chasing
         if self.isChasing then
-            love.graphics.setColor(1, 0.7, 0.7)
+            love.graphics.setColor(1, 0.7, 0.7, alpha)
+        else
+            love.graphics.setColor(1, 1, 1, alpha)
         end
         
         love.graphics.draw(

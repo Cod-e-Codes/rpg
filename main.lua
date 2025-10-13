@@ -595,26 +595,28 @@ function love.update(dt)
     -- Update skeleton spawn animation
     if skeletonSpawnState == "spawning" then
         skeletonSpawnTimer = skeletonSpawnTimer + dt
-        local spawnDuration = 1.0 -- Scale up over 1 second
+        local spawnDuration = 1.0 -- Fade in over 1 second
         local roarDuration = 0.5  -- Roar for 0.5 seconds
         
         if skeletonSpawnTimer < spawnDuration then
-            -- Scale up from 0 to 1
+            -- Fade in (alpha increases, scale stays at 2)
             local progress = skeletonSpawnTimer / spawnDuration
-            local easeOut = 1 - math.pow(1 - progress, 3) -- Cubic ease-out
             for _, skeleton in ipairs(spawnedSkeletons) do
-                skeleton.scale = easeOut
+                skeleton.scale = 2  -- Full size
+                skeleton.spawnAlpha = progress  -- Fade from 0 to 1
             end
         elseif skeletonSpawnTimer < spawnDuration + roarDuration then
-            -- Roar/pose animation (skeletons at full scale)
+            -- Roar/pose animation (full size, full alpha)
             for _, skeleton in ipairs(spawnedSkeletons) do
-                skeleton.scale = 1
+                skeleton.scale = 2
+                skeleton.spawnAlpha = 1
             end
         else
             -- Animation complete, enable AI
             skeletonSpawnState = "combat"
             for _, skeleton in ipairs(spawnedSkeletons) do
-                skeleton.scale = 1
+                skeleton.scale = 2
+                skeleton.spawnAlpha = 1
                 skeleton.spawning = false
             end
             currentMessage = "Defend yourself!"
@@ -971,7 +973,9 @@ function love.update(dt)
                 for _, spell in ipairs(spellSystem.learnedSpells) do
                     if spell.isActive and spell.damageReduction then
                         -- Check if resistance matches hazard type
-                        local hazardElement = hazard.type:match("(%w+)_")
+                        -- Extract element from hazard type (e.g., "lightning" from "lightning_trap")
+                        local hazardElement = hazard.type:match("^(%w+)_") or hazard.type:match("^(%w+)$")
+                        
                         if (hazardElement == "fire" and spell.name == "Fire Ward") or
                            (hazardElement == "ice" and spell.name == "Frost Barrier") or
                            (hazardElement == "lightning" and spell.name == "Storm Shield") or
@@ -1022,8 +1026,8 @@ function love.update(dt)
                         interactable.openProgress = 1
                         interactable.targetProgress = 1
                     else
-                        interactable.openProgress = 0
-                        interactable.targetProgress = 0
+                    interactable.openProgress = 0
+                    interactable.targetProgress = 0
                     end
                 end
                 -- Sync chest states
@@ -2821,23 +2825,23 @@ function drawUI()
             love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 4, 4)
             
             -- Border
-            love.graphics.setColor(0.75, 0.65, 0.25)
-            love.graphics.setLineWidth(3)
+        love.graphics.setColor(0.75, 0.65, 0.25)
+        love.graphics.setLineWidth(3)
             love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 4, 4)
-            love.graphics.setLineWidth(1)
-            
+        love.graphics.setLineWidth(1)
+        
             -- Header
-            love.graphics.setColor(1, 0.95, 0.7)
-            local headerText = "Inventory"
-            local textWidth = love.graphics.getFont():getWidth(headerText)
+        love.graphics.setColor(1, 0.95, 0.7)
+        local headerText = "Inventory"
+        local textWidth = love.graphics.getFont():getWidth(headerText)
             love.graphics.print(headerText, panelX + (panelWidth - textWidth) / 2, panelY + 8)
-            
+        
             -- Divider
-            love.graphics.setColor(0.65, 0.55, 0.20)
-            love.graphics.setLineWidth(2)
+        love.graphics.setColor(0.65, 0.55, 0.20)
+        love.graphics.setLineWidth(2)
             love.graphics.line(panelX + 8, panelY + 32, panelX + panelWidth - 8, panelY + 32)
-            love.graphics.setLineWidth(1)
-            
+        love.graphics.setLineWidth(1)
+        
             -- Scrollable inventory grid
             local contentY = panelY + 40
             local contentHeight = panelHeight - 48
@@ -2863,8 +2867,8 @@ function drawUI()
                     local isHovered = mouseX >= itemX and mouseX <= itemX + slotSize and
                                      mouseY >= itemY and mouseY <= itemY + slotSize and
                                      mouseY >= contentY and mouseY <= contentY + contentHeight
-                    
-                    if isHovered then
+            
+            if isHovered then
                         hoveredItem = itemName
                         hoveredItemName = itemName
                     end
@@ -2875,10 +2879,10 @@ function drawUI()
                     if isSelected then
                         love.graphics.setColor(0.35, 0.28, 0.18, 0.95) -- Selected color
                     elseif isHovered then
-                        love.graphics.setColor(0.25, 0.22, 0.18, 0.95)
-                    else
-                        love.graphics.setColor(0.15, 0.13, 0.11, 0.8)
-                    end
+                love.graphics.setColor(0.25, 0.22, 0.18, 0.95)
+            else
+                love.graphics.setColor(0.15, 0.13, 0.11, 0.8)
+            end
                     love.graphics.rectangle("fill", itemX, itemY, slotSize, slotSize, 3, 3)
                     
                     -- Border
@@ -2886,15 +2890,15 @@ function drawUI()
                         love.graphics.setColor(1, 0.9, 0.5) -- Bright selected border
                         love.graphics.setLineWidth(3)
                     elseif isHovered then
-                        love.graphics.setColor(0.9, 0.8, 0.4)
-                        love.graphics.setLineWidth(2)
-                    else
-                        love.graphics.setColor(0.35, 0.30, 0.20)
-                        love.graphics.setLineWidth(1)
-                    end
+                love.graphics.setColor(0.9, 0.8, 0.4)
+                love.graphics.setLineWidth(2)
+            else
+                love.graphics.setColor(0.35, 0.30, 0.20)
+                love.graphics.setLineWidth(1)
+            end
                     love.graphics.rectangle("line", itemX, itemY, slotSize, slotSize, 3, 3)
-                    love.graphics.setLineWidth(1)
-                    
+            love.graphics.setLineWidth(1)
+            
                     -- Draw item
                     drawItemIcon(itemName, itemX + 8, itemY + 8, 32, isHovered)
                     
@@ -2922,27 +2926,27 @@ function drawUI()
             love.graphics.setScissor()
             
             -- Tooltip
-            if hoveredItem then
-                local tooltipX = mouseX + 15
-                local tooltipY = mouseY
-                local tooltipText = hoveredItem
-                local tooltipWidth = love.graphics.getFont():getWidth(tooltipText) + 20
-                local tooltipHeight = 26
-                
-                if tooltipX + tooltipWidth > screenWidth then
-                    tooltipX = mouseX - tooltipWidth - 5
-                end
-                
-                love.graphics.setColor(0.12, 0.10, 0.08, 0.95)
-                love.graphics.rectangle("fill", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4, 4)
-                love.graphics.setColor(0.75, 0.65, 0.25)
-                love.graphics.setLineWidth(2)
-                love.graphics.rectangle("line", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4, 4)
-                love.graphics.setLineWidth(1)
-                love.graphics.setColor(1, 0.95, 0.7)
-                love.graphics.print(hoveredItem, tooltipX + 10, tooltipY + 5)
+        if hoveredItem then
+            local tooltipX = mouseX + 15
+            local tooltipY = mouseY
+            local tooltipText = hoveredItem
+            local tooltipWidth = love.graphics.getFont():getWidth(tooltipText) + 20
+            local tooltipHeight = 26
+            
+            if tooltipX + tooltipWidth > screenWidth then
+                tooltipX = mouseX - tooltipWidth - 5
             end
+            
+            love.graphics.setColor(0.12, 0.10, 0.08, 0.95)
+            love.graphics.rectangle("fill", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4, 4)
+                love.graphics.setColor(0.75, 0.65, 0.25)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("line", tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4, 4)
+            love.graphics.setLineWidth(1)
+            love.graphics.setColor(1, 0.95, 0.7)
+                love.graphics.print(hoveredItem, tooltipX + 10, tooltipY + 5)
         end
+    end
 end
 
 function drawMessage()
@@ -3200,21 +3204,24 @@ checkInteraction = function()
             skeletonSpawnTimer = 0
             spawnedSkeletons = {}
             
-            -- Spawn 2 skeletons at scale 0 (in north arena)
+            -- Spawn 2 skeletons at full size but transparent (in north arena)
             local Enemy = require("enemy")
             local spawn1 = Enemy:new(10*32, 6*32, "skeleton", {})
             local spawn2 = Enemy:new(18*32, 6*32, "skeleton", {})
-            spawn1.scale = 0
-            spawn2.scale = 0
+            spawn1.scale = 2
+            spawn2.scale = 2
+            spawn1.spawnAlpha = 0  -- Start transparent
+            spawn2.spawnAlpha = 0
             spawn1.id = "trial_skeleton_1"
             spawn2.id = "trial_skeleton_2"
+            spawn1.spawning = true  -- Mark as spawning
+            spawn2.spawning = true
             table.insert(spawnedSkeletons, spawn1)
             table.insert(spawnedSkeletons, spawn2)
             
-            -- Add to world enemies
-            local enemies = world:getCurrentEnemies()
-            table.insert(enemies, spawn1)
-            table.insert(enemies, spawn2)
+            -- Add to world enemies directly (not via getCurrentEnemies which returns a filtered copy)
+            table.insert(world.enemies[gameState.currentMap], spawn1)
+            table.insert(world.enemies[gameState.currentMap], spawn2)
             
             currentMessage = result.message
             messageTimer = 3
@@ -3238,10 +3245,10 @@ checkInteraction = function()
                 fadeSpawnY = result.spawnY
             else
                 -- Regular fade transition for caves
-                fadeState = "fade_out"
-                fadeTargetMap = result.targetMap
-                fadeSpawnX = result.spawnX
-                fadeSpawnY = result.spawnY
+            fadeState = "fade_out"
+            fadeTargetMap = result.targetMap
+            fadeSpawnX = result.spawnX
+            fadeSpawnY = result.spawnY
             end
             return
         end
@@ -3484,7 +3491,7 @@ function love.keypressed(key)
             pauseMenuState = "main"
             pauseMenuTargetHeight = 250
         elseif key == "q" then
-            love.event.quit()
+        love.event.quit()
         end
         return
     end
