@@ -205,6 +205,15 @@ local fadeTargetMap = nil
 local fadeSpawnX = nil
 local fadeSpawnY = nil
 
+-- Portal animation state
+local portalAnimState = "none" -- "none", "shrinking", "growing", "walking_out"
+local portalAnimTimer = 0
+local portalAnimDuration = 0.8 -- Duration for shrink/grow
+local portalWalkDuration = 0.5 -- Duration for walking out
+local playerScale = 1
+local tempPortal = nil -- Temporary portal object for arrival animation
+local portalDespawnTimer = 0
+
 -- Camera pan cutscene state
 local cameraPanState = "none" -- "none", "pan_to_target", "pause", "pan_back"
 local cameraPanTarget = {x = 0, y = 0}
@@ -464,6 +473,82 @@ function love.update(dt)
             fadeAlpha = 0
             fadeState = "none"
             fadeTargetMap = nil
+        end
+    end
+    
+    -- Update portal animations
+    if portalAnimState == "shrinking" then
+        portalAnimTimer = portalAnimTimer + dt
+        local progress = math.min(portalAnimTimer / portalAnimDuration, 1)
+        playerScale = 1 - progress -- Shrink from 1 to 0
+        
+        if progress >= 1 then
+            -- Transition to new map
+            if fadeTargetMap then
+                gameState:changeMap(fadeTargetMap, fadeSpawnX, fadeSpawnY)
+                world:loadMap(gameState.currentMap)
+                player.x = gameState.playerSpawn.x
+                player.y = gameState.playerSpawn.y
+                
+                -- Create temporary portal at spawn location
+                tempPortal = {
+                    x = player.x - 32,
+                    y = player.y - 32,
+                    width = 64,
+                    height = 64,
+                    type = "portal",
+                    swirlTime = 0
+                }
+                portalDespawnTimer = 2.0 -- Portal lasts 2 seconds after player exits
+            end
+            
+            -- Start growing animation
+            portalAnimState = "growing"
+            portalAnimTimer = 0
+            playerScale = 0
+        end
+    elseif portalAnimState == "growing" then
+        portalAnimTimer = portalAnimTimer + dt
+        local progress = math.min(portalAnimTimer / portalAnimDuration, 1)
+        playerScale = progress -- Grow from 0 to 1
+        
+        if progress >= 1 then
+            playerScale = 1
+            portalAnimState = "walking_out"
+            portalAnimTimer = 0
+            -- Store original position
+            player.wasX = player.x
+            player.wasY = player.y
+        end
+    elseif portalAnimState == "walking_out" then
+        portalAnimTimer = portalAnimTimer + dt
+        local progress = math.min(portalAnimTimer / portalWalkDuration, 1)
+        
+        -- Move player forward a bit (based on their spawn direction)
+        local moveDistance = 48 * progress
+        if player.direction == "north" then
+            player.y = player.wasY - moveDistance
+        elseif player.direction == "south" then
+            player.y = player.wasY + moveDistance
+        elseif player.direction == "east" then
+            player.x = player.wasX + moveDistance
+        elseif player.direction == "west" then
+            player.x = player.wasX - moveDistance
+        end
+        
+        if progress >= 1 then
+            portalAnimState = "none"
+            fadeTargetMap = nil
+        end
+    end
+    
+    -- Update temp portal
+    if tempPortal then
+        tempPortal.swirlTime = tempPortal.swirlTime + dt
+        portalDespawnTimer = portalDespawnTimer - dt
+        
+        if portalDespawnTimer <= 0 then
+            tempPortal = nil
         end
     end
     
@@ -796,8 +881,8 @@ function love.update(dt)
             player.isMoving = true
         end
     else
-        -- Normal player input (only when not in cutscene and alive)
-        if not inCutscene and not player.isDead then
+        -- Normal player input (only when not in cutscene, alive, and not in portal animation)
+        if not inCutscene and not player.isDead and portalAnimState == "none" then
             if love.keyboard.isDown("w") or love.keyboard.isDown("up") then
                 dy = dy - 1
             end
@@ -1186,6 +1271,50 @@ function love.draw()
                 end
             end
         end
+    end
+    
+    -- Add temporary portal if it exists
+    if tempPortal then
+        local sortY = tempPortal.y + tempPortal.height
+        table.insert(entities, {
+            y = sortY,
+            draw = function()
+                -- Draw portal using interactable portal draw code
+                local obj = tempPortal
+                local centerX = obj.x + obj.width/2
+                local centerY = obj.y + obj.height/2
+                local baseRadius = math.min(obj.width, obj.height) * 0.45
+                
+                -- Portal swirl animation
+                local swirls = 3
+                for j = 1, swirls do
+                    local swirlSegments = 24
+                    local swirlPhase = (obj.swirlTime * 0.8 + (j / swirls) * math.pi * 2) % (math.pi * 2)
+                    
+                    for i = 0, swirlSegments - 1 do
+                        local t1 = i / swirlSegments
+                        local t2 = (i + 1) / swirlSegments
+                        local angle1 = t1 * math.pi * 2 + swirlPhase
+                        local angle2 = t2 * math.pi * 2 + swirlPhase
+                        
+                        local radius1 = baseRadius * (0.3 + t1 * 0.7)
+                        local radius2 = baseRadius * (0.3 + t2 * 0.7)
+                        
+                        local x1 = centerX + math.cos(angle1) * radius1
+                        local y1 = centerY + math.sin(angle1) * radius1
+                        local x2 = centerX + math.cos(angle2) * radius2
+                        local y2 = centerY + math.sin(angle2) * radius2
+                        
+                        local alpha = 1 - (portalDespawnTimer > 1.0 and 0 or (1 - portalDespawnTimer))
+                        love.graphics.setColor(0.6 + j * 0.1, 0.3 + j * 0.2, 0.9, 0.6 * alpha)
+                        love.graphics.setLineWidth(3)
+                        love.graphics.line(x1, y1, x2, y2)
+                    end
+                end
+                love.graphics.setLineWidth(1)
+                love.graphics.setColor(1, 1, 1)
+            end
+        })
     end
     
     -- Add interactables
@@ -1667,8 +1796,8 @@ function drawPlayer()
             player.x,
             player.y,
             0,
-            player.scale,
-            player.scale,
+            player.scale * playerScale,
+            player.scale * playerScale,
             imageWidth / 2,
             imageHeight / 2
         )
@@ -2528,12 +2657,26 @@ checkInteraction = function()
             return
         end
         
-        -- Handle fade transitions (caves)
+        -- Handle fade transitions (caves and portals)
         if type(result) == "table" and result.type == "fade_transition" then
-            fadeState = "fade_out"
-            fadeTargetMap = result.targetMap
-            fadeSpawnX = result.spawnX
-            fadeSpawnY = result.spawnY
+            -- Check if this is a portal transition
+            local isPortalTransition = (obj and obj.type == "portal")
+            
+            if isPortalTransition then
+                -- Start portal shrinking animation
+                portalAnimState = "shrinking"
+                portalAnimTimer = 0
+                playerScale = 1
+                fadeTargetMap = result.targetMap
+                fadeSpawnX = result.spawnX
+                fadeSpawnY = result.spawnY
+            else
+                -- Regular fade transition for caves
+                fadeState = "fade_out"
+                fadeTargetMap = result.targetMap
+                fadeSpawnX = result.spawnX
+                fadeSpawnY = result.spawnY
+            end
             return
         end
         
