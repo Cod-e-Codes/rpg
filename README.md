@@ -66,11 +66,13 @@ Files are named: `save_slot_1.sav`, `save_slot_2.sav`, etc.
 
 - [x] Overworld with village
 - [x] Basic combat with knockback
-- [x] Inventory system
+- [x] Inventory system with quick slots and stacking
 - [x] Quest progression
-- [x] Cave dungeon with lighting
+- [x] Cave dungeon with dynamic lighting
 - [x] Spell system (Illumination spell)
-- [x] Save/load functionality
+- [x] Save/load with position preservation
+- [x] Portal system with animations
+- [x] Directional signage
 - [ ] More spells
 - [ ] More levels
 - [ ] Sound effects and music
