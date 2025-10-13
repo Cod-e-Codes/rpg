@@ -81,6 +81,28 @@ function TileMap:getTile(x, y, layer)
     return self.layers[layer][y][x] or 0
 end
 
+function TileMap:hasVisibleWater(camera)
+    -- Check if there are any water tiles visible in the current camera view
+    local screenWidth = love.graphics.getWidth()
+    local screenHeight = love.graphics.getHeight()
+    local startX = math.max(0, math.floor(camera.x / self.tileSize) - 1)
+    local endX = math.min(self.width - 1, math.ceil((camera.x + screenWidth) / self.tileSize) + 1)
+    local startY = math.max(0, math.floor(camera.y / self.tileSize) - 1)
+    local endY = math.min(self.height - 1, math.ceil((camera.y + screenHeight) / self.tileSize) + 1)
+    
+    -- Check for water tiles (type 1) in the visible range
+    for y = startY, endY do
+        for x = startX, endX do
+            local waterType = self:getTile(x, y, "water")
+            if waterType == 1 then
+                return true
+            end
+        end
+    end
+    
+    return false
+end
+
 function TileMap:draw(camera, gameTime)
     gameTime = gameTime or 0
     

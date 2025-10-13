@@ -235,6 +235,11 @@ local saveManager
 
 -- Audio
 local footstepSound = nil
+local riverSound = nil
+local riverTargetVolume = 0  -- Target volume for smooth fading
+local riverCurrentVolume = 0  -- Current volume
+local riverFadeSpeed = 0.5  -- How fast to fade in/out
+local riverPreviousTargetVolume = 0  -- Track previous target for logging
 local devMode
 local currentMessage = nil
 local currentMessageItem = nil  -- Store item for message icon
@@ -395,6 +400,23 @@ function love.load()
         end
     end
     
+    -- Load river sound
+    audioSuccess, audioError = pcall(function()
+        riverSound = love.audio.newSource("assets/sounds/river.mp3", "stream")
+        riverSound:setLooping(true)
+        riverSound:setVolume(0)  -- Start at 0, will fade in when visible
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load river.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded river.mp3 successfully. Looping: true, Max Volume: 1.0")
+        if riverSound then
+            print("[AUDIO] River duration: " .. string.format("%.2f", riverSound:getDuration()) .. "s")
+            riverSound:play()  -- Start playing but at 0 volume
+            print("[AUDIO] River playback started (will fade in when water visible)")
+        end
+    end
+    
     -- Create example maps
     world:createExampleOverworld()
     world:createHouseInterior()
@@ -482,6 +504,33 @@ function love.update(dt)
     
     -- Update play time
     gameState.playTime = gameState.playTime + dt
+    
+    -- Update river sound volume based on visibility
+    if riverSound and gameStarted and world.currentMap then
+        local hasWater = world.currentMap:hasVisibleWater(camera)
+        
+        -- Set target volume based on whether water is visible
+        riverTargetVolume = hasWater and 1.0 or 0  -- Max volume of 1.0 when visible
+        
+        -- Smoothly lerp current volume towards target
+        if riverCurrentVolume < riverTargetVolume then
+            riverCurrentVolume = math.min(riverTargetVolume, riverCurrentVolume + riverFadeSpeed * dt)
+        elseif riverCurrentVolume > riverTargetVolume then
+            riverCurrentVolume = math.max(riverTargetVolume, riverCurrentVolume - riverFadeSpeed * dt)
+        end
+        
+        -- Apply the current volume
+        riverSound:setVolume(riverCurrentVolume)
+        
+        -- Debug logging for visibility changes
+        if DEBUG_MODE and riverTargetVolume ~= riverPreviousTargetVolume then
+            print(string.format("[AUDIO] River visibility: %s (target: %.0f%%, current: %.0f%%)", 
+                hasWater and "VISIBLE" or "HIDDEN", 
+                riverTargetVolume * 100, 
+                riverCurrentVolume * 100))
+            riverPreviousTargetVolume = riverTargetVolume
+        end
+    end
     
     -- Update dev mode
     if devMode then
@@ -2727,7 +2776,7 @@ function drawUI()
     if showDebugPanel then
         local screenWidth = love.graphics.getWidth()
         local panelWidth = 320
-        local panelHeight = 280  -- Increased for audio info
+        local panelHeight = 300  -- Increased for audio info
         local panelX = screenWidth - panelWidth - 115  -- Moved further left to avoid inventory
         local panelY = 15
         local headerHeight = 28
@@ -2812,12 +2861,22 @@ function drawUI()
             local volume = footstepSound:getVolume()
             local pitch = footstepSound:getPitch()
             local position = footstepSound:tell()
-            love.graphics.print(string.format("Audio: %s", isPlaying and "PLAYING" or "STOPPED"), panelX + padding + 8, yPos)
+            love.graphics.print(string.format("Footsteps: %s", isPlaying and "PLAYING" or "STOPPED"), panelX + padding + 8, yPos)
             yPos = yPos + lineHeight
             love.graphics.print(string.format("Vol: %.0f%%  Pitch: %.1fx  Pos: %.1fs", volume * 100, pitch, position), panelX + padding + 8, yPos)
             yPos = yPos + lineHeight
         else
-            love.graphics.print("Audio: NOT LOADED", panelX + padding + 8, yPos)
+            love.graphics.print("Footsteps: NOT LOADED", panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+        end
+        
+        if riverSound then
+            local isPlaying = riverSound:isPlaying()
+            local volume = riverSound:getVolume()
+            love.graphics.print(string.format("River: %s (%.0f%% -> %.0f%%)", isPlaying and "PLAYING" or "STOPPED", volume * 100, riverTargetVolume * 100), panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+        else
+            love.graphics.print("River: NOT LOADED", panelX + padding + 8, yPos)
             yPos = yPos + lineHeight
         end
         
