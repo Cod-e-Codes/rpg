@@ -259,7 +259,7 @@ function World:createExampleOverworld()
         Interactable:new(1211, -182, 139, 192, "ancient_path", {
             targetMap = "defense_trials",
             spawnX = 14*32,
-            spawnY = 37*32,
+            spawnY = 35*32,
             questMinimum = "has_class" -- Custom quest check for having chosen a class
         })
     )
@@ -637,39 +637,32 @@ function World:createDefenseTrials()
         end
     end
     
-    -- Puzzle section (North, y=0-19)
-    -- Create winding path with side rooms
-    for y = 2, 17 do
-        for x = 2, 27 do
-            -- Main corridor
-            if x >= 12 and x <= 17 then
-                collision[y][x] = 0
-            -- Side room for scroll (left)
-            elseif y >= 5 and y <= 10 and x >= 4 and x <= 9 then
-                collision[y][x] = 0
-            -- Side room (right)
-            elseif y >= 12 and y <= 16 and x >= 20 and x <= 25 then
-                collision[y][x] = 0
-            else
-                collision[y][x] = 2
-            end
-        end
-    end
-    
-    -- Door to scroll room (requires switch)
-    collision[7][10] = 2
-    
-    -- Transition hallway (y=18-21)
-    for y = 18, 21 do
+    -- Entrance hallway (South, y=35-38)
+    for y = 35, 38 do
         for x = 12, 17 do
             collision[y][x] = 0
         end
     end
     
-    -- Combat Arena (South, y=22-37)
-    -- Large open chamber
-    for y = 23, 36 do
+    -- Puzzle maze section (Middle, y=10-34)
+    -- Main path with hazard zones
+    for y = 10, 34 do
         for x = 8, 21 do
+            collision[y][x] = 0
+        end
+    end
+    
+    -- Scroll room (left branch at y=15-20)
+    for y = 15, 20 do
+        for x = 4, 7 do
+            collision[y][x] = 0
+        end
+    end
+    
+    -- Combat Arena (North, y=2-9)
+    -- Large chamber for skeleton fight
+    for y = 2, 9 do
+        for x = 6, 23 do
             collision[y][x] = 0
         end
     end
@@ -678,20 +671,21 @@ function World:createDefenseTrials()
     local hazards = {}
     
     -- Fire hazards (damage zones in puzzle section)
-    table.insert(hazards, {type="fire_zone", x=13*32, y=3*32, width=3*32, height=2*32, damage=5})
-    table.insert(hazards, {type="fire_zone", x=14*32, y=8*32, width=2*32, height=3*32, damage=5})
+    table.insert(hazards, {type="fire_zone", x=12*32, y=28*32, width=4*32, height=2*32, damage=5})
+    table.insert(hazards, {type="fire_zone", x=14*32, y=20*32, width=3*32, height=2*32, damage=5})
     
     -- Ice hazards (slowing fields)
-    table.insert(hazards, {type="ice_zone", x=13*32, y=12*32, width=4*32, height=2*32, damage=3})
-    table.insert(hazards, {type="ice_zone", x=14*32, y=16*32, width=2*32, height=2*32, damage=3})
+    table.insert(hazards, {type="ice_zone", x=10*32, y=24*32, width=5*32, height=2*32, damage=3})
+    table.insert(hazards, {type="ice_zone", x=15*32, y=16*32, width=4*32, height=2*32, damage=3})
     
     -- Lightning traps (periodic damage)
-    table.insert(hazards, {type="lightning_trap", x=15*32, y=6*32, interval=2, damage=10})
-    table.insert(hazards, {type="lightning_trap", x=14*32, y=14*32, interval=2, damage=10})
+    table.insert(hazards, {type="lightning_trap", x=14*32, y=26*32, interval=2, damage=10})
+    table.insert(hazards, {type="lightning_trap", x=12*32, y=18*32, interval=2, damage=10})
+    table.insert(hazards, {type="lightning_trap", x=17*32, y=22*32, interval=2, damage=10})
     
     -- Earth hazards (rock fall zones)
-    table.insert(hazards, {type="earth_zone", x=13*32, y=10*32, width=4*32, height=2*32, damage=4})
-    table.insert(hazards, {type="earth_zone", x=14*32, y=15*32, width=2*32, height=2*32, damage=4})
+    table.insert(hazards, {type="earth_zone", x=11*32, y=30*32, width=6*32, height=2*32, damage=4})
+    table.insert(hazards, {type="earth_zone", x=13*32, y=14*32, width=4*32, height=2*32, damage=4})
     
     map:loadFromData({ground = ground, collision = collision, hazards = hazards})
     self.maps["defense_trials"] = map
@@ -710,37 +704,36 @@ function World:createDefenseTrials()
     
     -- Entrance sign
     table.insert(self.interactables["defense_trials"],
-        Interactable:new(15*32, 35*32, 32, 32, "sign", {
-            message = "Turn back now, or face the trials ahead..."
+        Interactable:new(13*32, 36*32, 32, 32, "sign", {
+            message = "Face the elemental trials ahead...\nFind the resistance scroll to survive!"
         })
     )
     
-    -- Resistance spell scroll (in locked side room)
+    -- Resistance spell scroll (left branch)
     table.insert(self.interactables["defense_trials"],
-        Interactable:new(6*32, 7*32, 32, 32, "scroll", {
+        Interactable:new(5*32, 17*32, 32, 32, "scroll", {
             spell = "resistance", -- Will be element-specific
             questRequired = "none" -- Always available
         })
     )
     
-    -- Switch/pressure plate to unlock scroll room
+    -- Scroll room sign
     table.insert(self.interactables["defense_trials"],
-        Interactable:new(22*32, 14*32, 32, 32, "sign", {
-            message = "[Pressure Plate] - The door to the scroll room opens...",
-            triggersScrollDoor = true
+        Interactable:new(7*32, 17*32, 32, 32, "sign", {
+            message = "← Resistance Scroll"
         })
     )
     
-    -- Transition sign
+    -- Arena entrance sign
     table.insert(self.interactables["defense_trials"],
-        Interactable:new(14*32, 20*32, 32, 32, "sign", {
-            message = "Face your trial ahead..."
+        Interactable:new(14*32, 11*32, 32, 32, "sign", {
+            message = "Prepare yourself... The trial begins ahead."
         })
     )
     
     -- Combat trigger chest (center of arena)
     table.insert(self.interactables["defense_trials"],
-        Interactable:new(14*32, 29*32, 32, 32, "chest", {
+        Interactable:new(14*32, 5*32, 32, 32, "chest", {
             id = "trial_chest",
             item = "Health Potion",
             triggersSkeletons = true
@@ -750,7 +743,7 @@ function World:createDefenseTrials()
     -- Strategy Selection Icons (appear after combat)
     -- Tank (Armor)
     table.insert(self.interactables["defense_trials"],
-        Interactable:new(10*32, 29*32, 64, 64, "strategy_icon", {
+        Interactable:new(9*32, 5*32, 64, 64, "strategy_icon", {
             strategy = "armor",
             strategyName = "Tank",
             description = "Fortify your defenses",
@@ -760,7 +753,7 @@ function World:createDefenseTrials()
     
     -- Lifesteal (Drain)
     table.insert(self.interactables["defense_trials"],
-        Interactable:new(14*32, 29*32, 64, 64, "strategy_icon", {
+        Interactable:new(14*32, 5*32, 64, 64, "strategy_icon", {
             strategy = "drain",
             strategyName = "Lifesteal",
             description = "Drain life from your foes",
@@ -770,7 +763,7 @@ function World:createDefenseTrials()
     
     -- Necromancer
     table.insert(self.interactables["defense_trials"],
-        Interactable:new(18*32, 29*32, 64, 64, "strategy_icon", {
+        Interactable:new(19*32, 5*32, 64, 64, "strategy_icon", {
             strategy = "necromancer",
             strategyName = "Soul Reaper",
             description = "Harvest souls for power",
@@ -780,7 +773,7 @@ function World:createDefenseTrials()
     
     -- Exit portal (appears after strategy selection)
     table.insert(self.interactables["defense_trials"],
-        Interactable:new(14*32, 34*32, 64, 64, "portal", {
+        Interactable:new(14*32, 3*32, 64, 64, "portal", {
             destination = "overworld",
             spawnX = 40*32,
             spawnY = 8*32,

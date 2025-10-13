@@ -1017,8 +1017,14 @@ function love.update(dt)
             local newInteractables = world:getCurrentInteractables()
             for _, interactable in ipairs(newInteractables) do
                 if interactable.type == "door" then
-                    interactable.openProgress = 0
-                    interactable.targetProgress = 0
+                    -- For defense_trials entrance, start door opened
+                    if gameState.currentMap == "defense_trials" and interactable.data.destination == "overworld" then
+                        interactable.openProgress = 1
+                        interactable.targetProgress = 1
+                    else
+                        interactable.openProgress = 0
+                        interactable.targetProgress = 0
+                    end
                 end
                 -- Sync chest states
                 interactable:syncWithGameState(gameState)
@@ -3194,10 +3200,10 @@ checkInteraction = function()
             skeletonSpawnTimer = 0
             spawnedSkeletons = {}
             
-            -- Spawn 2 skeletons at scale 0
+            -- Spawn 2 skeletons at scale 0 (in north arena)
             local Enemy = require("enemy")
-            local spawn1 = Enemy:new(11*32, 30*32, "skeleton", {})
-            local spawn2 = Enemy:new(18*32, 30*32, "skeleton", {})
+            local spawn1 = Enemy:new(10*32, 6*32, "skeleton", {})
+            local spawn2 = Enemy:new(18*32, 6*32, "skeleton", {})
             spawn1.scale = 0
             spawn2.scale = 0
             spawn1.id = "trial_skeleton_1"

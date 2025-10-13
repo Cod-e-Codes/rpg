@@ -12,7 +12,7 @@ function DevMode:new()
             {name = "house_interior", display = "House Interior", spawnX = 7*32, spawnY = 9*32},
             {name = "cave_level1", display = "Cave Level 1", spawnX = 3*32, spawnY = 12*32},
             {name = "class_selection", display = "Class Selection", spawnX = 3*32, spawnY = 15*32},
-            {name = "defense_trials", display = "Defense Trials", spawnX = 14*32, spawnY = 37*32}
+            {name = "defense_trials", display = "Defense Trials", spawnX = 14*32, spawnY = 35*32}
         },
         
         selectedLevelIndex = 1,
