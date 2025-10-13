@@ -84,7 +84,7 @@ function Interactable:interact(gameState)
             return {
                 type = "spell_learned",
                 spell = self.data.spell,
-                message = string.format("You learned %s!\n\nPress M to open spell menu, then equip it to a slot.\nPress 1-5 to cast equipped spells.", self.data.spell)
+                message = string.format("You learned %s!\n\nPress B to open spell menu, then equip it to a slot.\nPress 1-5 to cast equipped spells.", self.data.spell)
             }
         else
             return "The scroll's magic has faded..."
