@@ -54,6 +54,12 @@ function DevMode:jumpToLevel(gameState, world, player, levelName, spawnX, spawnY
     player.x = spawnX
     player.y = spawnY
     
+    -- Sync interactables with game state (important for chest states, etc.)
+    local interactables = world:getCurrentInteractables()
+    for _, obj in ipairs(interactables) do
+        obj:syncWithGameState(gameState)
+    end
+    
     print("Jumped to level: " .. levelName)
     return true, "Jumped to " .. levelName
 end
@@ -115,6 +121,31 @@ function DevMode:giveAllItems(gameState)
     return true, "All items granted"
 end
 
+function DevMode:resetProgress(gameState, world)
+    if not self.enabled then
+        return false, "Dev mode not enabled"
+    end
+    
+    -- Clear chest states
+    gameState.openedChests = {}
+    
+    -- Clear killed enemies
+    gameState.killedEnemies = {}
+    
+    -- Sync current interactables to reflect reset
+    local interactables = world:getCurrentInteractables()
+    for _, obj in ipairs(interactables) do
+        if obj.type == "chest" then
+            obj.isOpen = false
+            obj.openProgress = 0
+            obj.targetProgress = 0
+        end
+    end
+    
+    print("Reset chests and enemy states")
+    return true, "Progress reset"
+end
+
 function DevMode:toggleSpeed()
     if not self.enabled then return end
     
@@ -138,11 +169,24 @@ function DevMode:draw()
     
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
+    local font = love.graphics.getFont()
     
     local panelWidth = 300
-    local panelHeight = 350
     local panelX = screenWidth - panelWidth - 15
     local panelY = 15
+    local padding = 12
+    local buttonHeight = 30
+    local buttonSpacing = 8
+    
+    -- Calculate dynamic panel height based on content
+    -- Header (32) + Level selector (20 + 25 + 30) + Prev/Next buttons (25 + 35)
+    -- + Action buttons (6 * (30 + 8)) + Bottom padding (15) + Shortcuts text (20)
+    local numButtons = 6 -- jump, spells, items, reset, speed, unlock
+    local panelHeight = 42 + -- Header and initial spacing
+                        20 + 25 + 30 + -- Level selector
+                        25 + 35 + -- Prev/Next buttons
+                        (buttonHeight + buttonSpacing) * numButtons + -- Action buttons
+                        15 + 20 -- Bottom padding and shortcuts
     
     -- Panel background (yellow tint to indicate dev mode)
     love.graphics.setColor(0.15, 0.13, 0.05, 0.95)
@@ -159,7 +203,6 @@ function DevMode:draw()
     love.graphics.rectangle("fill", panelX + 2, panelY + 2, panelWidth - 4, 26, 3, 3)
     
     love.graphics.setColor(0.9, 0.9, 0.3)
-    local font = love.graphics.getFont()
     local headerText = "DEV MODE"
     local textWidth = font:getWidth(headerText)
     love.graphics.print(headerText, panelX + (panelWidth - textWidth) / 2, panelY + 8)
@@ -171,9 +214,6 @@ function DevMode:draw()
     love.graphics.setLineWidth(1)
     
     local yPos = panelY + 42
-    local padding = 12
-    local buttonHeight = 30
-    local buttonSpacing = 8
     
     -- Get mouse position
     local mouseX, mouseY = love.mouse.getPosition()
@@ -255,8 +295,9 @@ function DevMode:draw()
         {id = "jump", text = "Jump to Level", yOffset = 0},
         {id = "spells", text = "Give All Spells", yOffset = buttonHeight + buttonSpacing},
         {id = "items", text = "Give All Items", yOffset = (buttonHeight + buttonSpacing) * 2},
-        {id = "speed", text = "Speed x" .. self.speedMultiplier, yOffset = (buttonHeight + buttonSpacing) * 3},
-        {id = "unlock", text = "Unlock All", yOffset = (buttonHeight + buttonSpacing) * 4}
+        {id = "reset", text = "Reset Progress", yOffset = (buttonHeight + buttonSpacing) * 3},
+        {id = "speed", text = "Speed x" .. self.speedMultiplier, yOffset = (buttonHeight + buttonSpacing) * 4},
+        {id = "unlock", text = "Unlock All", yOffset = (buttonHeight + buttonSpacing) * 5}
     }
     
     for _, btn in ipairs(buttons) do
@@ -314,6 +355,8 @@ function DevMode:handleClick(mouseX, mouseY, gameState, world, player, spellSyst
         self:giveAllSpells(gameState, spellSystem, Spell)
     elseif self.hoveredButton == "items" then
         self:giveAllItems(gameState)
+    elseif self.hoveredButton == "reset" then
+        self:resetProgress(gameState, world)
     elseif self.hoveredButton == "speed" then
         self:toggleSpeed()
     elseif self.hoveredButton == "unlock" then
