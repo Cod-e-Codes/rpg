@@ -1608,6 +1608,103 @@ function love.draw()
     -- Draw world (ground, water, walls)
     world:draw(camera, gameTime)
     
+    -- Draw environmental hazards with particle effects
+    local hazards = world:getCurrentHazards()
+    for _, hazard in ipairs(hazards) do
+        if hazard.type == "fire_zone" then
+            -- Fire zone with flickering flames
+            local flicker = (math.sin(gameTime * 8 + hazard.x) + 1) / 2
+            love.graphics.setColor(1, 0.3 + flicker * 0.3, 0, 0.4 + flicker * 0.2)
+            love.graphics.rectangle("fill", hazard.x, hazard.y, hazard.width, hazard.height)
+            
+            -- Fire particles
+            local particleCount = math.floor(hazard.width / 32) * math.floor(hazard.height / 32) * 2
+            for i = 1, particleCount do
+                local seed = (i * 17 + math.floor(gameTime * 5) * 13) % 1000
+                local px = hazard.x + (seed % hazard.width)
+                local py = hazard.y + ((seed * 7) % hazard.height)
+                local rise = ((gameTime * 60 + i * 11) % 40) - 20
+                local flameSize = 3 + math.sin(gameTime * 3 + i) * 2
+                
+                love.graphics.setColor(1, 0.5 + math.sin(i) * 0.3, 0, 0.7)
+                love.graphics.circle("fill", px, py - rise, flameSize)
+            end
+            
+        elseif hazard.type == "ice_zone" then
+            -- Ice zone with frost effect
+            local pulse = (math.sin(gameTime * 2 + hazard.x) + 1) / 2
+            love.graphics.setColor(0.3, 0.5 + pulse * 0.3, 1, 0.3 + pulse * 0.1)
+            love.graphics.rectangle("fill", hazard.x, hazard.y, hazard.width, hazard.height)
+            
+            -- Ice crystals
+            local crystalCount = math.floor(hazard.width / 32) * math.floor(hazard.height / 32)
+            for i = 1, crystalCount do
+                local seed = (i * 23) % 1000
+                local cx = hazard.x + (seed % hazard.width)
+                local cy = hazard.y + ((seed * 11) % hazard.height)
+                local rotation = gameTime * 0.5 + i
+                local size = 4 + math.sin(gameTime + i) * 2
+                
+                love.graphics.setColor(0.7, 0.9, 1, 0.8)
+                -- Draw diamond shape for crystals
+                love.graphics.push()
+                love.graphics.translate(cx, cy)
+                love.graphics.rotate(rotation)
+                love.graphics.rectangle("fill", -size/2, -size/2, size, size)
+                love.graphics.pop()
+            end
+            
+        elseif hazard.type == "earth_zone" then
+            -- Earth zone with debris
+            love.graphics.setColor(0.4, 0.3, 0.1, 0.35)
+            love.graphics.rectangle("fill", hazard.x, hazard.y, hazard.width, hazard.height)
+            
+            -- Floating rocks
+            local rockCount = math.floor(hazard.width / 32) * math.floor(hazard.height / 32)
+            for i = 1, rockCount do
+                local seed = (i * 19) % 1000
+                local rx = hazard.x + (seed % hazard.width)
+                local ry = hazard.y + ((seed * 13) % hazard.height)
+                local bob = math.sin(gameTime * 1.5 + i) * 3
+                local rockSize = 4 + (i % 3)
+                
+                love.graphics.setColor(0.35, 0.25, 0.15, 0.8)
+                love.graphics.rectangle("fill", rx - rockSize/2, ry + bob - rockSize/2, rockSize, rockSize)
+                
+                -- Rock outline
+                love.graphics.setColor(0.2, 0.15, 0.1, 0.9)
+                love.graphics.setLineWidth(1)
+                love.graphics.rectangle("line", rx - rockSize/2, ry + bob - rockSize/2, rockSize, rockSize)
+            end
+            
+        elseif hazard.type == "lightning_trap" then
+            -- Lightning trap with electric sparks
+            local pulse = (math.sin(gameTime * 10 + hazard.x) + 1) / 2
+            local radius = 20
+            
+            -- Electric field
+            love.graphics.setColor(1, 1, 0.3, 0.2 + pulse * 0.2)
+            love.graphics.circle("fill", hazard.x, hazard.y, radius)
+            
+            -- Lightning bolts
+            if pulse > 0.7 then
+                love.graphics.setColor(1, 1, 0.8, 0.9)
+                love.graphics.setLineWidth(2)
+                for i = 1, 4 do
+                    local angle = (i / 4) * math.pi * 2 + gameTime * 2
+                    local ex = hazard.x + math.cos(angle) * radius
+                    local ey = hazard.y + math.sin(angle) * radius
+                    love.graphics.line(hazard.x, hazard.y, ex, ey)
+                end
+            end
+            
+            -- Core spark
+            love.graphics.setColor(1, 1, 1, 0.8 + pulse * 0.2)
+            love.graphics.circle("fill", hazard.x, hazard.y, 3 + pulse * 2)
+        end
+    end
+    love.graphics.setLineWidth(1)
+    
     -- Y-sort all entities (player, decorations, interactables)
     local entities = {}
     
