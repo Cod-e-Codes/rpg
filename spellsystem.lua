@@ -47,6 +47,10 @@ function SpellSystem:update(dt, playerX, playerY, camera)
     for _, spell in ipairs(self.learnedSpells) do
         spell:update(dt)
         
+        -- Sync spell progress to game state
+        self.gameState:setSpellLevel(spell.name, spell.level)
+        self.gameState:setSpellExperience(spell.name, spell.experience)
+        
         -- Check for level up messages
         if spell:addExperience(0) then -- Will return true if leveled up this frame
             -- Note: addExperience is called in spell:update, so we just check
