@@ -244,6 +244,8 @@ local saveManager
 ---@field riverCurrentVolume number
 ---@field riverFadeSpeed number
 ---@field riverPreviousTargetVolume number
+---@field chestCreakSound any
+---@field doorCreakSound any
 local audio = {
     footstepSound = nil,
     footstepTargetVolume = 0,
@@ -253,7 +255,9 @@ local audio = {
     riverTargetVolume = 0,
     riverCurrentVolume = 0,
     riverFadeSpeed = 0.5,
-    riverPreviousTargetVolume = 0
+    riverPreviousTargetVolume = 0,
+    chestCreakSound = nil,
+    doorCreakSound = nil
 }
 local devMode
 local currentMessage = nil
@@ -440,6 +444,32 @@ function love.load()
             rs:play()  -- Start playing but at 0 volume
             print("[AUDIO] River playback started (will fade in when water visible)")
         end
+    end
+    
+    -- Load chest creak sound effect
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local chest = love.audio.newSource("assets/sounds/chest-creak.mp3", "static")
+        audio.chestCreakSound = chest
+        chest:setVolume(0.6)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load chest-creak.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded chest-creak.mp3 successfully")
+    end
+    
+    -- Load door creak sound effect
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local door = love.audio.newSource("assets/sounds/door-creak.mp3", "static")
+        audio.doorCreakSound = door
+        door:setVolume(0.6)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load door-creak.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded door-creak.mp3 successfully")
     end
     
     -- Create example maps
@@ -3349,6 +3379,25 @@ checkInteraction = function()
     local obj = getNearestInteractable()
     if obj then
         local result = obj:interact(gameState)
+        
+        -- Play sound effects for chest and door interactions
+        if obj.type == "chest" and obj.isOpen and audio.chestCreakSound then
+            ---@type any
+            local chest = audio.chestCreakSound
+            chest:stop() -- Stop any currently playing instance
+            chest:play() -- Play from the beginning
+            if DEBUG_MODE then
+                print("[AUDIO] Playing chest creak sound")
+            end
+        elseif obj.type == "door" and audio.doorCreakSound then
+            ---@type any
+            local door = audio.doorCreakSound
+            door:stop() -- Stop any currently playing instance
+            door:play() -- Play from the beginning
+            if DEBUG_MODE then
+                print("[AUDIO] Playing door creak sound")
+            end
+        end
         
         -- Handle class icon interaction (show detailed UI)
         if type(result) == "table" and result.type == "class_icon_interact" then
