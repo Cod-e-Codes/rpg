@@ -119,7 +119,7 @@ function Interactable:interact(gameState)
             if self.data.triggersSkeletons then
                 return {
                     type = "trigger_skeletons",
-                    message = self.data.item and string.format("Found: %s!", self.data.item) or "The chest opens..."
+                    message = "The chest opens... Something stirs in the shadows!"
                 }
             end
             

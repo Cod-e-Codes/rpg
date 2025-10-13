@@ -652,16 +652,21 @@ function World:createDefenseTrials()
         end
     end
     
-    -- Scroll room (left branch at y=15-20)
+    -- Scroll room connection (left branch at y=15-20)
     for y = 15, 20 do
-        for x = 4, 7 do
+        for x = 4, 8 do  -- Extended to x=8 to connect with main path
             collision[y][x] = 0
         end
     end
     
+    -- Connection to arena (y=9)
+    for x = 8, 21 do
+        collision[9][x] = 0
+    end
+    
     -- Combat Arena (North, y=2-9)
     -- Large chamber for skeleton fight
-    for y = 2, 9 do
+    for y = 2, 8 do
         for x = 6, 23 do
             collision[y][x] = 0
         end
@@ -712,8 +717,8 @@ function World:createDefenseTrials()
     -- Resistance spell scroll (left branch)
     table.insert(self.interactables["defense_trials"],
         Interactable:new(5*32, 17*32, 32, 32, "scroll", {
-            spell = "resistance", -- Will be element-specific
-            questRequired = "none" -- Always available
+            spell = "resistance" -- Will be element-specific
+            -- No questRequired - always visible
         })
     )
     
@@ -731,12 +736,12 @@ function World:createDefenseTrials()
         })
     )
     
-    -- Combat trigger chest (center of arena)
+    -- Combat trigger chest (center of arena) - no item, just triggers fight
     table.insert(self.interactables["defense_trials"],
         Interactable:new(14*32, 5*32, 32, 32, "chest", {
             id = "trial_chest",
-            item = "Health Potion",
             triggersSkeletons = true
+            -- No item - just triggers skeleton spawn
         })
     )
     
