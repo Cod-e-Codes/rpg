@@ -258,6 +258,7 @@ local saveManager
 ---@field pauseMenuOpenSound any
 ---@field panelSwipeSound any
 ---@field skeletonChaseSound any
+---@field npcTalkingSound any
 local audio = {
     footstepSound = nil,
     footstepTargetVolume = 0,
@@ -281,7 +282,11 @@ local audio = {
     unlockingDoorSound = nil,
     pauseMenuOpenSound = nil,
     panelSwipeSound = nil,
-    skeletonChaseSound = nil
+    skeletonChaseSound = nil,
+    npcTalkingSound = nil,
+    npcTalkingTargetVolume = 0,
+    npcTalkingCurrentVolume = 0,
+    npcTalkingFadeSpeed = 2.0
 }
 local devMode
 local currentMessage = nil
@@ -590,6 +595,20 @@ function love.load()
         print("Warning: Could not load skeleton-chase.mp3: " .. tostring(audioError))
     else
         print("[AUDIO] Loaded skeleton-chase.mp3 successfully. Volume: 0.6")
+    end
+    
+    -- Load NPC talking sound effect
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local npcTalk = love.audio.newSource("assets/sounds/npc-talking.mp3", "static")
+        audio.npcTalkingSound = npcTalk
+        npcTalk:setVolume(0)  -- Start at 0, will fade in/out
+        npcTalk:setLooping(true)  -- Loop so it can play for duration of message
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load npc-talking.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded npc-talking.mp3 successfully. Looping: true, Volume: 0-0.625")
     end
     
     -- Create example maps
@@ -1256,6 +1275,14 @@ function love.update(dt)
                             local chase = audio.skeletonChaseSound
                             chase:stop()
                         end
+                        -- Stop NPC talking sound on death
+                        if audio.npcTalkingSound then
+                            ---@type any
+                            local npcTalk = audio.npcTalkingSound
+                            npcTalk:stop()
+                            audio.npcTalkingTargetVolume = 0
+                            audio.npcTalkingCurrentVolume = 0
+                        end
                     end
                 end
             end
@@ -1358,6 +1385,14 @@ function love.update(dt)
                     ---@type any
                     local chase = audio.skeletonChaseSound
                     chase:stop()
+                end
+                -- Stop NPC talking sound on death
+                if audio.npcTalkingSound then
+                    ---@type any
+                    local npcTalk = audio.npcTalkingSound
+                    npcTalk:stop()
+                    audio.npcTalkingTargetVolume = 0
+                    audio.npcTalkingCurrentVolume = 0
                 end
             end
             
@@ -1752,9 +1787,43 @@ function love.update(dt)
     -- Update message timer
     if currentMessage and messageTimer > 0 then
         messageTimer = messageTimer - dt
+        
+        -- Fade out NPC talking sound as message timer runs down (last 1 second)
+        if audio.npcTalkingSound and messageTimer <= 1.0 then
+            audio.npcTalkingTargetVolume = math.max(0, messageTimer * 0.625) -- Fade to 0 over last second
+        end
+        
         if messageTimer <= 0 then
             currentMessage = nil
             currentMessageItem = nil
+            -- Ensure NPC talking sound fades out
+            audio.npcTalkingTargetVolume = 0
+        end
+    else
+        -- No message active, ensure sound is faded out
+        if audio.npcTalkingSound then
+            audio.npcTalkingTargetVolume = 0
+        end
+    end
+    
+    -- Update NPC talking sound volume (smooth fade)
+    if audio.npcTalkingSound and not isPaused then
+        if audio.npcTalkingCurrentVolume < audio.npcTalkingTargetVolume then
+            audio.npcTalkingCurrentVolume = math.min(audio.npcTalkingTargetVolume, audio.npcTalkingCurrentVolume + audio.npcTalkingFadeSpeed * dt)
+        elseif audio.npcTalkingCurrentVolume > audio.npcTalkingTargetVolume then
+            audio.npcTalkingCurrentVolume = math.max(audio.npcTalkingTargetVolume, audio.npcTalkingCurrentVolume - audio.npcTalkingFadeSpeed * dt)
+        end
+        
+        ---@type any
+        local npcTalk = audio.npcTalkingSound
+        npcTalk:setVolume(audio.npcTalkingCurrentVolume)
+        
+        -- Stop playing when fully faded out
+        if audio.npcTalkingCurrentVolume <= 0 and npcTalk:isPlaying() then
+            npcTalk:stop()
+            if DEBUG_MODE then
+                print("[AUDIO] Stopped NPC talking sound (faded out)")
+            end
         end
     end
 end
@@ -3641,6 +3710,19 @@ checkInteraction = function()
             currentMessage = result
             messageTimer = messageDuration
             currentMessageItem = nil
+            
+            -- Start NPC talking sound with fade in
+            if audio.npcTalkingSound then
+                ---@type any
+                local npcTalk = audio.npcTalkingSound
+                if not npcTalk:isPlaying() then
+                    npcTalk:play()
+                end
+                audio.npcTalkingTargetVolume = 0.625  -- 25% louder than 0.5
+                if DEBUG_MODE then
+                    print("[AUDIO] Starting NPC talking sound (fade in)")
+                end
+            end
         end
         return
     end
@@ -4085,6 +4167,15 @@ function love.keypressed(key)
                 ---@type any
                 local chase = audio.skeletonChaseSound
                 chase:stop()
+            end
+            
+            -- Stop NPC talking sound if playing
+            if audio.npcTalkingSound then
+                ---@type any
+                local npcTalk = audio.npcTalkingSound
+                npcTalk:stop()
+                audio.npcTalkingTargetVolume = 0
+                audio.npcTalkingCurrentVolume = 0
             end
         else
             -- Resume all ambient sounds
