@@ -217,11 +217,15 @@ local animations = {
     walk = {},
     idle = {}
 }
-local currentFrame = 1
-local frameTimer = 0
-local walkFrameDelay = 0.1
-local idleFrameDelay = 0.15
-local gameTime = 0  -- For water animation
+
+-- Animation state (grouped to reduce upvalue count)
+local animState = {
+    currentFrame = 1,
+    frameTimer = 0,
+    walkFrameDelay = 0.1,
+    idleFrameDelay = 0.15,
+    gameTime = 0  -- For water animation
+}
 
 local camera = {
     x = 0,
@@ -314,88 +318,109 @@ local audio = {
     fightSongFadeSpeed = 0.5
 }
 local devMode
-local currentMessage = nil
-local currentMessageItem = nil  -- Store item for message icon
-local messageTimer = 0
-local messageDuration = 5  -- Increased from 3 to give more time to read
 
--- UI state
-local showFullInventory = false
-local inventoryWidth = 0 -- Current animated width
-local inventoryTargetWidth = 0 -- Target width to lerp to
-local inventoryScrollOffset = 0
-local selectedInventoryItem = nil -- Currently selected item for equipping
-local showHelp = false
-local showDebugPanel = false
-local isPaused = false
-local pauseMenuState = "main" -- "main", "controls", "settings", or "save_confirm"
-local pauseMenuHeight = 280 -- Current animated height
-local pauseMenuTargetHeight = 280 -- Target height to lerp to
+-- Message state (grouped to reduce upvalue count)
+local messageState = {
+    currentMessage = nil,
+    currentMessageItem = nil,  -- Store item for message icon
+    messageTimer = 0,
+    messageDuration = 5  -- Increased from 3 to give more time to read
+}
 
--- Settings slider state
-local draggingMusicSlider = false
-local draggingSFXSlider = false
+-- UI state (grouped to reduce upvalue count)
+local uiState = {
+    showFullInventory = false,
+    inventoryWidth = 0, -- Current animated width
+    inventoryTargetWidth = 0, -- Target width to lerp to
+    inventoryScrollOffset = 0,
+    selectedInventoryItem = nil, -- Currently selected item for equipping
+    showHelp = false,
+    showDebugPanel = false,
+    isPaused = false,
+    pauseMenuState = "main", -- "main", "controls", "settings", or "save_confirm"
+    pauseMenuHeight = 280, -- Current animated height
+    pauseMenuTargetHeight = 280, -- Target height to lerp to
+    -- Settings slider state
+    draggingMusicSlider = false,
+    draggingSFXSlider = false
+}
 
--- Cutscene state
-local inCutscene = false
-local cutsceneWalkTarget = nil
-local cutsceneOnComplete = nil
-local cutsceneDelayTimer = 0
-local cutsceneDelayCallback = nil
+-- Cutscene state (grouped to reduce upvalue count)
+local cutsceneState = {
+    inCutscene = false,
+    cutsceneWalkTarget = nil,
+    cutsceneOnComplete = nil,
+    cutsceneDelayTimer = 0,
+    cutsceneDelayCallback = nil
+}
 
--- Start screen state
-local gameStarted = false
-local playerNameInput = ""
-local showProfileMenu = false
-local startScreenState = "menu" -- "menu", "new_game", "loading"
-local startMenuSelection = 1 -- 1 = New Game, 2 = Load Game, 3 = Quit
-local cursorBlinkTimer = 0
-local cursorVisible = true
+-- Start screen state (grouped to reduce upvalue count)
+local startScreen = {
+    gameStarted = false,
+    playerNameInput = "",
+    showProfileMenu = false,
+    state = "menu", -- "menu", "new_game", "loading"
+    menuSelection = 1, -- 1 = New Game, 2 = Load Game, 3 = Quit
+    cursorBlinkTimer = 0,
+    cursorVisible = true
+}
 
--- Class selection UI state
-local showClassSelection = false
-local selectedClassIcon = nil
-local classSelectionScrollOffset = 0
-local classSelectionConfirmation = false
+-- Class selection UI state (grouped to reduce upvalue count)
+local classSelection = {
+    show = false,
+    selectedIcon = nil,
+    scrollOffset = 0,
+    confirmation = false
+}
 
--- Strategy selection UI state
-local showStrategySelection = false
-local selectedStrategyIcon = nil
-local strategySelectionScrollOffset = 0
-local strategySelectionConfirmation = false
+-- Strategy selection UI state (grouped to reduce upvalue count)
+local strategySelection = {
+    show = false,
+    selectedIcon = nil,
+    scrollOffset = 0,
+    confirmation = false
+}
 
--- Skeleton spawn animation state
-local skeletonSpawnState = "none" -- none, spawning, combat
-local skeletonSpawnTimer = 0
-local spawnedSkeletons = {}
+-- Skeleton spawn animation state (grouped to reduce upvalue count)
+local skeletonSpawn = {
+    state = "none", -- none, spawning, combat
+    timer = 0,
+    skeletons = {}
+}
 
--- Fade transition state
-local fadeState = "none" -- "none", "fade_out", "fade_in"
-local fadeAlpha = 0
-local fadeSpeed = 2 -- How fast to fade (alpha per second)
-local fadeTargetMap = nil
-local fadeSpawnX = nil
-local fadeSpawnY = nil
+-- Fade transition state (grouped to reduce upvalue count)
+local fade = {
+    state = "none", -- "none", "fade_out", "fade_in"
+    alpha = 0,
+    speed = 2, -- How fast to fade (alpha per second)
+    targetMap = nil,
+    spawnX = nil,
+    spawnY = nil
+}
 
--- Portal animation state
-local portalAnimState = "none" -- "none", "shrinking", "growing", "walking_out"
-local portalAnimTimer = 0
-local portalAnimDuration = 0.8 -- Duration for shrink/grow
-local portalWalkDuration = 0.5 -- Duration for walking out
-local playerScale = 1
-local tempPortal = nil -- Temporary portal object for arrival animation
-local portalDespawnTimer = 0
-local portalSourceMap = nil -- Track where portal came from
+-- Portal animation state (grouped to reduce upvalue count)
+local portal = {
+    animState = "none", -- "none", "shrinking", "growing", "walking_out"
+    animTimer = 0,
+    animDuration = 0.8, -- Duration for shrink/grow
+    walkDuration = 0.5, -- Duration for walking out
+    playerScale = 1,
+    temp = nil, -- Temporary portal object for arrival animation
+    despawnTimer = 0,
+    sourceMap = nil -- Track where portal came from
+}
 
--- Camera pan cutscene state
-local cameraPanState = "none" -- "none", "pan_to_target", "pause", "pan_back"
-local cameraPanTarget = {x = 0, y = 0}
-local cameraPanSpeed = 300 -- Pixels per second
-local cameraPanPauseTimer = 0
-local cameraPanPauseDuration = 2 -- Seconds to pause at target
-local cameraPanOriginal = {x = 0, y = 0}
-local cameraPanCutsceneShown = false -- Track if we've shown the cave cutscene
-local northPathCutsceneShown = false -- Track if we've shown the northern path cutscene
+-- Camera pan cutscene state (grouped to reduce upvalue count)
+local cameraPan = {
+    state = "none", -- "none", "pan_to_target", "pause", "pan_back"
+    target = {x = 0, y = 0},
+    speed = 300, -- Pixels per second
+    pauseTimer = 0,
+    pauseDuration = 2, -- Seconds to pause at target
+    original = {x = 0, y = 0},
+    caveCutsceneShown = false, -- Track if we've shown the cave cutscene
+    northPathCutsceneShown = false -- Track if we've shown the northern path cutscene
+}
 
 -- Direction mappings
 local directions = {
@@ -750,7 +775,7 @@ function love.load()
     -- Set initial position (center of map)
     player.x = 40 * 32  -- Center of 80-tile wide map
     player.y = 30 * 32  -- Center of 60-tile tall map
-    currentFrame = 1
+    animState.currentFrame = 1
 end
 
 function loadAnimations()
@@ -792,10 +817,10 @@ end
 
 function love.update(dt)
     -- Update background music (works on start screen and in-game)
-    if audio.magicalVoyageMusic and not isPaused then
-        local onStartScreen = not gameStarted
-        local inMusicMap = gameStarted and gameState and (gameState.currentMap == "class_selection" or gameState.currentMap == "defense_trials")
-        local inCombat = (skeletonSpawnState == "spawning" or skeletonSpawnState == "combat")
+    if audio.magicalVoyageMusic and not uiState.isPaused then
+        local onStartScreen = not startScreen.gameStarted
+        local inMusicMap = startScreen.gameStarted and gameState and (gameState.currentMap == "class_selection" or gameState.currentMap == "defense_trials")
+        local inCombat = (skeletonSpawn.state == "spawning" or skeletonSpawn.state == "combat")
         
         -- Set target volume for magical voyage (play on start screen, in music maps when not in combat, but not when dead)
         if not player.isDead and (onStartScreen or (inMusicMap and not inCombat)) then
@@ -830,9 +855,9 @@ function love.update(dt)
     end
     
     -- Update fight song music (for death screen and combat)
-    if audio.fightSongMusic and not isPaused then
+    if audio.fightSongMusic and not uiState.isPaused then
         -- Set target volume based on death or combat state
-        if player.isDead or (gameStarted and (skeletonSpawnState == "spawning" or skeletonSpawnState == "combat")) then
+        if player.isDead or (startScreen.gameStarted and (skeletonSpawn.state == "spawning" or skeletonSpawn.state == "combat")) then
             audio.fightSongTargetVolume = 0.4
         else
             audio.fightSongTargetVolume = 0
@@ -864,42 +889,42 @@ function love.update(dt)
     end
     
     -- Don't update game if not started (but update cursor blink)
-    if not gameStarted then
+    if not startScreen.gameStarted then
         -- Update cursor blink timer for name input
-        if startScreenState == "new_game" then
-            cursorBlinkTimer = cursorBlinkTimer + dt
-            if cursorBlinkTimer >= 0.5 then
-                cursorVisible = not cursorVisible
-                cursorBlinkTimer = 0
+        if startScreen.state == "new_game" then
+            startScreen.cursorBlinkTimer = startScreen.cursorBlinkTimer + dt
+            if startScreen.cursorBlinkTimer >= 0.5 then
+                startScreen.cursorVisible = not startScreen.cursorVisible
+                startScreen.cursorBlinkTimer = 0
             end
         end
         return
     end
     
     -- Always update UI animations even when paused
-    if isPaused then
+    if uiState.isPaused then
         -- Lerp pause menu height
         local lerpSpeed = 12
-        pauseMenuHeight = pauseMenuHeight + (pauseMenuTargetHeight - pauseMenuHeight) * lerpSpeed * dt
+        uiState.pauseMenuHeight = uiState.pauseMenuHeight + (uiState.pauseMenuTargetHeight - uiState.pauseMenuHeight) * lerpSpeed * dt
         return
     end
     
     -- Lerp inventory width animation
     local lerpSpeed = 12
-    inventoryWidth = inventoryWidth + (inventoryTargetWidth - inventoryWidth) * lerpSpeed * dt
+    uiState.inventoryWidth = uiState.inventoryWidth + (uiState.inventoryTargetWidth - uiState.inventoryWidth) * lerpSpeed * dt
     
     -- Apply dev mode speed multiplier
     if devMode and devMode.enabled and devMode.speedMultiplier > 1 then
         dt = dt * devMode.speedMultiplier
     end
     
-    gameTime = gameTime + dt
+    animState.gameTime = animState.gameTime + dt
     
     -- Update play time
     gameState.playTime = gameState.playTime + dt
     
     -- Update footstep sound volume with smooth fading
-    if audio.footstepSound and gameStarted and not isPaused then
+    if audio.footstepSound and startScreen.gameStarted and not uiState.isPaused then
         -- Smoothly lerp current volume towards target
         if audio.footstepCurrentVolume < audio.footstepTargetVolume then
             audio.footstepCurrentVolume = math.min(audio.footstepTargetVolume, audio.footstepCurrentVolume + audio.footstepFadeSpeed * dt)
@@ -914,7 +939,7 @@ function love.update(dt)
     end
     
     -- Update river sound volume based on visibility
-    if audio.riverSound and gameStarted and world.currentMap and not isPaused then
+    if audio.riverSound and startScreen.gameStarted and world.currentMap and not uiState.isPaused then
         local hasWater = world.currentMap:hasVisibleWater(camera)
         
         -- Set target volume based on whether water is visible
@@ -943,7 +968,7 @@ function love.update(dt)
     end
     
     -- Update cave sound volume based on current map
-    if audio.caveSound and gameStarted and gameState and not isPaused then
+    if audio.caveSound and startScreen.gameStarted and gameState and not uiState.isPaused then
         local inCave = gameState.currentMap == "cave_level1"
         
         -- Set target volume based on whether player is in cave
@@ -974,7 +999,7 @@ function love.update(dt)
     end
     
     -- Update overworld sound volume based on current map
-    if audio.overworldSound and gameStarted and gameState and not isPaused then
+    if audio.overworldSound and startScreen.gameStarted and gameState and not uiState.isPaused then
         local inOverworld = gameState.currentMap == "overworld"
         
         -- Set target volume based on whether player is in overworld
@@ -1166,36 +1191,36 @@ function love.update(dt)
     end
     
     -- Update fade transitions
-    if fadeState == "fade_out" then
-        fadeAlpha = fadeAlpha + fadeSpeed * dt
-        if fadeAlpha >= 1 then
-            fadeAlpha = 1
+    if fade.state == "fade_out" then
+        fade.alpha = fade.alpha + fade.speed * dt
+        if fade.alpha >= 1 then
+            fade.alpha = 1
             -- Transition to new map
-            if fadeTargetMap then
-                gameState:changeMap(fadeTargetMap, fadeSpawnX, fadeSpawnY)
+            if fade.targetMap then
+                gameState:changeMap(fade.targetMap, fade.spawnX, fade.spawnY)
                 world:loadMap(gameState.currentMap)
                 player.x = gameState.playerSpawn.x
                 player.y = gameState.playerSpawn.y
             end
-            fadeState = "fade_in"
+            fade.state = "fade_in"
         end
-    elseif fadeState == "fade_in" then
-        fadeAlpha = fadeAlpha - fadeSpeed * dt
-        if fadeAlpha <= 0 then
-            fadeAlpha = 0
-            fadeState = "none"
+    elseif fade.state == "fade_in" then
+        fade.alpha = fade.alpha - fade.speed * dt
+        if fade.alpha <= 0 then
+            fade.alpha = 0
+            fade.state = "none"
             
             -- Check if returning to overworld from class selection via cave (not portal)
-            if fadeTargetMap == "overworld" and 
+            if fade.targetMap == "overworld" and 
                gameState.currentMap == "overworld" and
                gameState.playerClass and
-               not northPathCutsceneShown and
+               not cameraPan.northPathCutsceneShown and
                not gameState.mysteriousCaveHidden then -- Only if cave not already hidden
-                northPathCutsceneShown = true
+                cameraPan.northPathCutsceneShown = true
                 gameState.mysteriousCaveHidden = true -- Hide the mysterious cave
                 
                 -- Start camera pan cutscene
-                inCutscene = true
+                cutsceneState.inCutscene = true
                 local screenWidth = love.graphics.getWidth()
                 local screenHeight = love.graphics.getHeight()
                 
@@ -1203,55 +1228,55 @@ function love.update(dt)
                 local northPathX = 1280
                 local northPathY = 5 * 32
                 
-                cameraPanOriginal.x = player.x - screenWidth / 2
-                cameraPanOriginal.y = player.y - screenHeight / 2
-                cameraPanTarget.x = northPathX - screenWidth / 2
-                cameraPanTarget.y = northPathY - screenHeight / 2
-                cameraPanState = "pan_to_target"
+                cameraPan.original.x = player.x - screenWidth / 2
+                cameraPan.original.y = player.y - screenHeight / 2
+                cameraPan.target.x = northPathX - screenWidth / 2
+                cameraPan.target.y = northPathY - screenHeight / 2
+                cameraPan.state = "pan_to_target"
                 
-                currentMessage = "An ancient path to the north has revealed itself!"
-                currentMessageItem = nil
-                messageTimer = 5
+                messageState.currentMessage = "An ancient path to the north has revealed itself!"
+                messageState.currentMessageItem = nil
+                messageState.messageTimer = 5
             end
             
-            fadeTargetMap = nil
+            fade.targetMap = nil
         end
     end
     
     -- Update skeleton spawn animation
-    if skeletonSpawnState == "spawning" then
-        skeletonSpawnTimer = skeletonSpawnTimer + dt
+    if skeletonSpawn.state == "spawning" then
+        skeletonSpawn.timer = skeletonSpawn.timer + dt
         local spawnDuration = 1.0 -- Fade in over 1 second
         local roarDuration = 0.5  -- Roar for 0.5 seconds
         
-        if skeletonSpawnTimer < spawnDuration then
+        if skeletonSpawn.timer < spawnDuration then
             -- Fade in (alpha increases, scale stays at 2)
-            local progress = skeletonSpawnTimer / spawnDuration
-            for _, skeleton in ipairs(spawnedSkeletons) do
+            local progress = skeletonSpawn.timer / spawnDuration
+            for _, skeleton in ipairs(skeletonSpawn.skeletons) do
                 skeleton.scale = 2  -- Full size
                 skeleton.spawnAlpha = progress  -- Fade from 0 to 1
             end
-        elseif skeletonSpawnTimer < spawnDuration + roarDuration then
+        elseif skeletonSpawn.timer < spawnDuration + roarDuration then
             -- Roar/pose animation (full size, full alpha)
-            for _, skeleton in ipairs(spawnedSkeletons) do
+            for _, skeleton in ipairs(skeletonSpawn.skeletons) do
                 skeleton.scale = 2
                 skeleton.spawnAlpha = 1
             end
         else
             -- Animation complete, enable AI
-            skeletonSpawnState = "combat"
-            for _, skeleton in ipairs(spawnedSkeletons) do
+            skeletonSpawn.state = "combat"
+            for _, skeleton in ipairs(skeletonSpawn.skeletons) do
                 skeleton.scale = 2
                 skeleton.spawnAlpha = 1
                 skeleton.spawning = false
             end
-            currentMessage = "Defend yourself!"
-            messageTimer = 3
+            messageState.currentMessage = "Defend yourself!"
+            messageState.messageTimer = 3
         end
-    elseif skeletonSpawnState == "combat" then
+    elseif skeletonSpawn.state == "combat" then
         -- Check if all skeletons defeated
         local allDefeated = true
-        for _, skeleton in ipairs(spawnedSkeletons) do
+        for _, skeleton in ipairs(skeletonSpawn.skeletons) do
             if not gameState:isEnemyKilled(skeleton.id) then
                 allDefeated = false
                 break
@@ -1259,10 +1284,10 @@ function love.update(dt)
         end
         
         if allDefeated and not gameState.healingStrategy then
-            skeletonSpawnState = "none"
+            skeletonSpawn.state = "none"
             gameState.questState = "skeletons_defeated"
-            currentMessage = "Victory! Choose your path forward..."
-            messageTimer = 5
+            messageState.currentMessage = "Victory! Choose your path forward..."
+            messageState.messageTimer = 5
             
             -- Music transition: fade out fight song, fade in magical voyage
             if audio.fightSongMusic then
@@ -1278,21 +1303,21 @@ function love.update(dt)
     end
     
     -- Update portal animations
-    if portalAnimState == "shrinking" then
-        portalAnimTimer = portalAnimTimer + dt
-        local progress = math.min(portalAnimTimer / portalAnimDuration, 1)
-        playerScale = 1 - progress -- Shrink from 1 to 0
+    if portal.animState == "shrinking" then
+        portal.animTimer = portal.animTimer + dt
+        local progress = math.min(portal.animTimer / portal.animDuration, 1)
+        portal.playerScale = 1 - progress -- Shrink from 1 to 0
         
         if progress >= 1 then
             -- Transition to new map
-            if fadeTargetMap then
-                gameState:changeMap(fadeTargetMap, fadeSpawnX, fadeSpawnY)
+            if fade.targetMap then
+                gameState:changeMap(fade.targetMap, fade.spawnX, fade.spawnY)
                 world:loadMap(gameState.currentMap)
                 player.x = gameState.playerSpawn.x
                 player.y = gameState.playerSpawn.y
                 
                 -- Create temporary portal at spawn location
-                tempPortal = {
+                portal.temp = {
                     x = player.x - 32,
                     y = player.y - 32,
                     width = 64,
@@ -1300,30 +1325,30 @@ function love.update(dt)
                     type = "portal",
                     swirlTime = 0
                 }
-                portalDespawnTimer = 2.0 -- Portal lasts 2 seconds after player exits
+                portal.despawnTimer = 2.0 -- Portal lasts 2 seconds after player exits
             end
             
             -- Start growing animation
-            portalAnimState = "growing"
-            portalAnimTimer = 0
-            playerScale = 0
+            portal.animState = "growing"
+            portal.animTimer = 0
+            portal.playerScale = 0
         end
-    elseif portalAnimState == "growing" then
-        portalAnimTimer = portalAnimTimer + dt
-        local progress = math.min(portalAnimTimer / portalAnimDuration, 1)
-        playerScale = progress -- Grow from 0 to 1
+    elseif portal.animState == "growing" then
+        portal.animTimer = portal.animTimer + dt
+        local progress = math.min(portal.animTimer / portal.animDuration, 1)
+        portal.playerScale = progress -- Grow from 0 to 1
         
         if progress >= 1 then
-            playerScale = 1
-            portalAnimState = "walking_out"
-            portalAnimTimer = 0
+            portal.playerScale = 1
+            portal.animState = "walking_out"
+            portal.animTimer = 0
             -- Store original position
             player.wasX = player.x
             player.wasY = player.y
         end
-    elseif portalAnimState == "walking_out" then
-        portalAnimTimer = portalAnimTimer + dt
-        local progress = math.min(portalAnimTimer / portalWalkDuration, 1)
+    elseif portal.animState == "walking_out" then
+        portal.animTimer = portal.animTimer + dt
+        local progress = math.min(portal.animTimer / portal.walkDuration, 1)
         
         -- Move player forward a bit (based on their spawn direction)
         local moveDistance = 48 * progress
@@ -1338,20 +1363,20 @@ function love.update(dt)
         end
         
         if progress >= 1 then
-            portalAnimState = "none"
-            fadeTargetMap = nil
+            portal.animState = "none"
+            fade.targetMap = nil
             
             -- Trigger north path cutscene if returning from class selection to overworld
-            if portalSourceMap == "class_selection" and 
+            if portal.sourceMap == "class_selection" and 
                gameState.currentMap == "overworld" and 
-               not northPathCutsceneShown and
+               not cameraPan.northPathCutsceneShown and
                gameState.playerClass and -- Only if they actually chose a class
                not gameState.mysteriousCaveHidden then -- Only if cave not already hidden
-                northPathCutsceneShown = true
+                cameraPan.northPathCutsceneShown = true
                 gameState.mysteriousCaveHidden = true -- Hide the mysterious cave
                 
                 -- Start camera pan cutscene
-                inCutscene = true
+                cutsceneState.inCutscene = true
                 local screenWidth = love.graphics.getWidth()
                 local screenHeight = love.graphics.getHeight()
                 
@@ -1359,28 +1384,28 @@ function love.update(dt)
                 local northPathX = 1280
                 local northPathY = 5 * 32
                 
-                cameraPanOriginal.x = player.x - screenWidth / 2
-                cameraPanOriginal.y = player.y - screenHeight / 2
-                cameraPanTarget.x = northPathX - screenWidth / 2
-                cameraPanTarget.y = northPathY - screenHeight / 2
-                cameraPanState = "pan_to_target"
+                cameraPan.original.x = player.x - screenWidth / 2
+                cameraPan.original.y = player.y - screenHeight / 2
+                cameraPan.target.x = northPathX - screenWidth / 2
+                cameraPan.target.y = northPathY - screenHeight / 2
+                cameraPan.state = "pan_to_target"
                 
-                currentMessage = "An ancient path to the north has revealed itself!"
-                currentMessageItem = nil
-                messageTimer = 5
+                messageState.currentMessage = "An ancient path to the north has revealed itself!"
+                messageState.currentMessageItem = nil
+                messageState.messageTimer = 5
             end
             
-            portalSourceMap = nil -- Clear source tracking
+            portal.sourceMap = nil -- Clear source tracking
         end
     end
     
     -- Update temp portal
-    if tempPortal then
-        tempPortal.swirlTime = tempPortal.swirlTime + dt
-        portalDespawnTimer = portalDespawnTimer - dt
+    if portal.temp then
+        portal.temp.swirlTime = portal.temp.swirlTime + dt
+        portal.despawnTimer = portal.despawnTimer - dt
         
-        if portalDespawnTimer <= 0 then
-            tempPortal = nil
+        if portal.despawnTimer <= 0 then
+            portal.temp = nil
         end
     end
     
@@ -1390,7 +1415,7 @@ function love.update(dt)
     end
     
     -- Failsafe: Check if player is stuck in water/collision and teleport to safety
-    if world.currentMap and not inCutscene then
+    if world.currentMap and not cutsceneState.inCutscene then
         local boxLeft = player.x + player.collisionLeft
         local boxTop = player.y + player.collisionTop
         local boxWidth = player.collisionRight - player.collisionLeft
@@ -1474,32 +1499,32 @@ function love.update(dt)
         local npcResult = npc:update(dt, player.x, player.y)
         
         -- Handle NPC-triggered events
-        if npcResult == "enter_house" and not inCutscene and cutsceneDelayTimer <= 0 then
+        if npcResult == "enter_house" and not cutsceneState.inCutscene and cutsceneState.cutsceneDelayTimer <= 0 then
             -- Start cutscene after a delay to let door unlock sound play
-            cutsceneDelayTimer = 2.5 -- 2.5 second delay
-            cutsceneDelayCallback = function()
-            inCutscene = true
-            cutsceneWalkTarget = {x = 55 * 32, y = 19 * 32} -- Door position
-            cutsceneOnComplete = function()
+            cutsceneState.cutsceneDelayTimer = 2.5 -- 2.5 second delay
+            cutsceneState.cutsceneDelayCallback = function()
+            cutsceneState.inCutscene = true
+            cutsceneState.cutsceneWalkTarget = {x = 55 * 32, y = 19 * 32} -- Door position
+            cutsceneState.cutsceneOnComplete = function()
                 -- Transition to house interior
                 gameState:changeMap("house_interior", 7*32, 9*32)
                 world:loadMap(gameState.currentMap)
                 player.x = gameState.playerSpawn.x
                 player.y = gameState.playerSpawn.y
                 
-                currentMessage = "Inside the merchant's house..."
-                currentMessageItem = nil
-                messageTimer = 2
+                messageState.currentMessage = "Inside the merchant's house..."
+                messageState.currentMessageItem = nil
+                messageState.messageTimer = 2
                 
-                inCutscene = false
-                cutsceneWalkTarget = nil
-                cutsceneOnComplete = nil
+                cutsceneState.inCutscene = false
+                cutsceneState.cutsceneWalkTarget = nil
+                cutsceneState.cutsceneOnComplete = nil
                 end
             end
             
-            currentMessage = "Following the merchant inside..."
-            currentMessageItem = nil
-            messageTimer = 2
+            messageState.currentMessage = "Following the merchant inside..."
+            messageState.currentMessageItem = nil
+            messageState.messageTimer = 2
         end
     end
     
@@ -1525,7 +1550,7 @@ function love.update(dt)
         
         -- Only check for hits if player doesn't have immunity
         local canBeHit = (player.immunityTimer <= 0)
-        local enemyResult = enemy:update(dt, player.x, player.y, gameTime, canBeHit)
+        local enemyResult = enemy:update(dt, player.x, player.y, animState.gameTime, canBeHit)
         
         -- Play chase sound when enemy starts chasing
         if not wasChasing and enemy.isChasing and audio.skeletonChaseSound then
@@ -1816,19 +1841,19 @@ function love.update(dt)
             local triggerCaveCutscene = false
             if gameState.currentMap == "overworld" and 
                gameState.questState == "sword_collected" and 
-               not cameraPanCutsceneShown and
+               not cameraPan.caveCutsceneShown and
                not gameState.mysteriousCaveHidden then -- Don't trigger if cave already hidden
-                cameraPanCutsceneShown = true
+                cameraPan.caveCutsceneShown = true
                 triggerCaveCutscene = true
                 
                 -- Start a walking cutscene first (player walks out)
-                inCutscene = true
+                cutsceneState.inCutscene = true
                 player.isMoving = false -- Stop any current movement
-                cutsceneWalkTarget = {x = player.x, y = player.y + 64} -- Walk south a bit
-                cutsceneOnComplete = function()
+                cutsceneState.cutsceneWalkTarget = {x = player.x, y = player.y + 64} -- Walk south a bit
+                cutsceneState.cutsceneOnComplete = function()
                     -- After walking out, clear cutscene walk state
-                    cutsceneWalkTarget = nil
-                    cutsceneOnComplete = nil
+                    cutsceneState.cutsceneWalkTarget = nil
+                    cutsceneState.cutsceneOnComplete = nil
                     
                     -- Start camera pan
                     local screenWidth = love.graphics.getWidth()
@@ -1836,29 +1861,29 @@ function love.update(dt)
                     local caveX = 80  -- Cave center (new large entrance at x=0, width=160)
                     local caveY = 26*32 + 96  -- Cave center (y=26*32, height=192)
                     
-                    cameraPanOriginal.x = player.x - screenWidth / 2
-                    cameraPanOriginal.y = player.y - screenHeight / 2
-                    cameraPanTarget.x = caveX - screenWidth / 2
-                    cameraPanTarget.y = caveY - screenHeight / 2
-                    cameraPanState = "pan_to_target"
+                    cameraPan.original.x = player.x - screenWidth / 2
+                    cameraPan.original.y = player.y - screenHeight / 2
+                    cameraPan.target.x = caveX - screenWidth / 2
+                    cameraPan.target.y = caveY - screenHeight / 2
+                    cameraPan.state = "pan_to_target"
                     
-                    currentMessage = "A mysterious cave has appeared to the west!"
-                    currentMessageItem = nil -- Clear any item icon
-                    messageTimer = 999 -- Keep message until cutscene ends
+                    messageState.currentMessage = "A mysterious cave has appeared to the west!"
+                    messageState.currentMessageItem = nil -- Clear any item icon
+                    messageState.messageTimer = 999 -- Keep message until cutscene ends
                 end
             end
             
             -- Better dialogue based on where we're going (skip if cave cutscene)
             if not triggerCaveCutscene then
                 if gameState.currentMap == "overworld" then
-                    currentMessage = "Back outside..."
+                    messageState.currentMessage = "Back outside..."
                 elseif gameState.currentMap == "house_interior" then
-                    currentMessage = "Inside the house"
+                    messageState.currentMessage = "Inside the house"
                 else
-                    currentMessage = gameState.currentMap
+                    messageState.currentMessage = gameState.currentMap
                 end
-                currentMessageItem = nil  -- Clear item icon for door transitions
-                messageTimer = 2
+                messageState.currentMessageItem = nil  -- Clear item icon for door transitions
+                messageState.messageTimer = 2
             end
         end
     end
@@ -1901,40 +1926,40 @@ function love.update(dt)
     end
     
     -- Handle cutscene delay timer
-    if cutsceneDelayTimer > 0 then
-        cutsceneDelayTimer = cutsceneDelayTimer - dt
-        if cutsceneDelayTimer <= 0 then
-            cutsceneDelayTimer = 0
-            if cutsceneDelayCallback then
-                cutsceneDelayCallback()
-                cutsceneDelayCallback = nil
+    if cutsceneState.cutsceneDelayTimer > 0 then
+        cutsceneState.cutsceneDelayTimer = cutsceneState.cutsceneDelayTimer - dt
+        if cutsceneState.cutsceneDelayTimer <= 0 then
+            cutsceneState.cutsceneDelayTimer = 0
+            if cutsceneState.cutsceneDelayCallback then
+                cutsceneState.cutsceneDelayCallback()
+                cutsceneState.cutsceneDelayCallback = nil
             end
         end
     end
     
     -- Handle cutscene movement
-    if inCutscene and cutsceneWalkTarget then
+    if cutsceneState.inCutscene and cutsceneState.cutsceneWalkTarget then
         -- Calculate direction to target
-        local targetDx = cutsceneWalkTarget.x - player.x
-        local targetDy = cutsceneWalkTarget.y - player.y
+        local targetDx = cutsceneState.cutsceneWalkTarget.x - player.x
+        local targetDy = cutsceneState.cutsceneWalkTarget.y - player.y
         local distance = math.sqrt(targetDx * targetDx + targetDy * targetDy)
         
         if DEBUG_MODE then
             print(string.format("Cutscene: Distance to door = %.2f, Target = (%.0f, %.0f), Player = (%.0f, %.0f)", 
-                distance, cutsceneWalkTarget.x, cutsceneWalkTarget.y, player.x, player.y))
+                distance, cutsceneState.cutsceneWalkTarget.x, cutsceneState.cutsceneWalkTarget.y, player.x, player.y))
         end
         
         if distance < 20 then -- Increased threshold from 10 to 20
             -- Reached target, complete cutscene
-            player.x = cutsceneWalkTarget.x
-            player.y = cutsceneWalkTarget.y
+            player.x = cutsceneState.cutsceneWalkTarget.x
+            player.y = cutsceneState.cutsceneWalkTarget.y
             player.isMoving = false
-            if cutsceneOnComplete then
-                cutsceneOnComplete()
+            if cutsceneState.cutsceneOnComplete then
+                cutsceneState.cutsceneOnComplete()
             else
                 -- No follow-up action, end cutscene
-                inCutscene = false
-                cutsceneWalkTarget = nil
+                cutsceneState.inCutscene = false
+                cutsceneState.cutsceneWalkTarget = nil
             end
         else
             -- Move towards target
@@ -1944,7 +1969,7 @@ function love.update(dt)
         end
     else
         -- Normal player input (only when not in cutscene, alive, and not in portal animation)
-        if not inCutscene and not player.isDead and portalAnimState == "none" then
+        if not cutsceneState.inCutscene and not player.isDead and portal.animState == "none" then
             if love.keyboard.isDown("w") or love.keyboard.isDown("up") then
                 dy = dy - 1
             end
@@ -1965,11 +1990,11 @@ function love.update(dt)
     
     -- Reset animation frame when transitioning between states
     if player.isMoving ~= player.wasMoving then
-        currentFrame = 1
-        frameTimer = 0
+        animState.currentFrame = 1
+        animState.frameTimer = 0
         
         -- Handle footstep audio - just set target volume, don't play/stop
-        if audio.footstepSound and gameStarted then
+        if audio.footstepSound and startScreen.gameStarted then
             -- Set target volume based on movement
             local newTargetVolume = player.isMoving and 0.5 or 0
             
@@ -2004,7 +2029,7 @@ function love.update(dt)
         -- Helper function to check if position has collision
         local function checkCollision(testX, testY)
             -- Disable collision during cutscenes
-            if inCutscene then
+            if cutsceneState.inCutscene then
                 return false
             end
             
@@ -2082,87 +2107,87 @@ function love.update(dt)
         player.direction = getDirection(dx, dy)
         
         -- Update walk animation frame
-        frameTimer = frameTimer + dt
-        if frameTimer >= walkFrameDelay then
-            frameTimer = frameTimer - walkFrameDelay
-            currentFrame = currentFrame + 1
-            if currentFrame > #animations.walk[player.direction] then
-                currentFrame = 1
+        animState.frameTimer = animState.frameTimer + dt
+        if animState.frameTimer >= animState.walkFrameDelay then
+            animState.frameTimer = animState.frameTimer - animState.walkFrameDelay
+            animState.currentFrame = animState.currentFrame + 1
+            if animState.currentFrame > #animations.walk[player.direction] then
+                animState.currentFrame = 1
             end
         end
     else
         -- Update breathing idle animation
-        frameTimer = frameTimer + dt
-        if frameTimer >= idleFrameDelay then
-            frameTimer = frameTimer - idleFrameDelay
-            currentFrame = currentFrame + 1
-            if currentFrame > #animations.idle[player.direction] then
-                currentFrame = 1
+        animState.frameTimer = animState.frameTimer + dt
+        if animState.frameTimer >= animState.idleFrameDelay then
+            animState.frameTimer = animState.frameTimer - animState.idleFrameDelay
+            animState.currentFrame = animState.currentFrame + 1
+            if animState.currentFrame > #animations.idle[player.direction] then
+                animState.currentFrame = 1
             end
         end
     end
     
     -- Update camera pan cutscene
-    if cameraPanState == "pan_to_target" then
-        local dx = cameraPanTarget.x - camera.x
-        local dy = cameraPanTarget.y - camera.y
+    if cameraPan.state == "pan_to_target" then
+        local dx = cameraPan.target.x - camera.x
+        local dy = cameraPan.target.y - camera.y
         local distance = math.sqrt(dx * dx + dy * dy)
         
         if distance < 10 then
             -- Reached target
-            camera.x = cameraPanTarget.x
-            camera.y = cameraPanTarget.y
-            cameraPanState = "pause"
-            cameraPanPauseTimer = cameraPanPauseDuration
+            camera.x = cameraPan.target.x
+            camera.y = cameraPan.target.y
+            cameraPan.state = "pause"
+            cameraPan.pauseTimer = cameraPan.pauseDuration
             
             if DEBUG_MODE then
                 print("Camera reached cave, pausing...")
             end
         else
             -- Move towards target
-            local moveX = (dx / distance) * cameraPanSpeed * dt
-            local moveY = (dy / distance) * cameraPanSpeed * dt
+            local moveX = (dx / distance) * cameraPan.speed * dt
+            local moveY = (dy / distance) * cameraPan.speed * dt
             camera.x = camera.x + moveX
             camera.y = camera.y + moveY
         end
-    elseif cameraPanState == "pause" then
-        cameraPanPauseTimer = cameraPanPauseTimer - dt
-        if cameraPanPauseTimer <= 0 then
-            cameraPanState = "pan_back"
+    elseif cameraPan.state == "pause" then
+        cameraPan.pauseTimer = cameraPan.pauseTimer - dt
+        if cameraPan.pauseTimer <= 0 then
+            cameraPan.state = "pan_back"
             
             if DEBUG_MODE then
                 print("Panning back to player...")
             end
         end
-    elseif cameraPanState == "pan_back" then
-        local dx = cameraPanOriginal.x - camera.x
-        local dy = cameraPanOriginal.y - camera.y
+    elseif cameraPan.state == "pan_back" then
+        local dx = cameraPan.original.x - camera.x
+        local dy = cameraPan.original.y - camera.y
         local distance = math.sqrt(dx * dx + dy * dy)
         
         if distance < 10 then
             -- Back to player
-            camera.x = cameraPanOriginal.x
-            camera.y = cameraPanOriginal.y
-            cameraPanState = "none"
-            inCutscene = false
+            camera.x = cameraPan.original.x
+            camera.y = cameraPan.original.y
+            cameraPan.state = "none"
+            cutsceneState.inCutscene = false
             player.isMoving = false -- Ensure player stops
-            currentMessage = nil
-            messageTimer = 0
+            messageState.currentMessage = nil
+            messageState.messageTimer = 0
             
             if DEBUG_MODE then
                 print("Cave cutscene completed")
             end
         else
             -- Move back to player
-            local moveX = (dx / distance) * cameraPanSpeed * dt
-            local moveY = (dy / distance) * cameraPanSpeed * dt
+            local moveX = (dx / distance) * cameraPan.speed * dt
+            local moveY = (dy / distance) * cameraPan.speed * dt
             camera.x = camera.x + moveX
             camera.y = camera.y + moveY
         end
     end
     
     -- Update camera to follow player (only when not in camera pan cutscene)
-    if cameraPanState == "none" then
+    if cameraPan.state == "none" then
         local screenWidth = love.graphics.getWidth()
         local screenHeight = love.graphics.getHeight()
         camera.x = player.x - screenWidth / 2
@@ -2170,17 +2195,17 @@ function love.update(dt)
     end
     
     -- Update message timer
-    if currentMessage and messageTimer > 0 then
-        messageTimer = messageTimer - dt
+    if messageState.currentMessage and messageState.messageTimer > 0 then
+        messageState.messageTimer = messageState.messageTimer - dt
         
         -- Fade out NPC talking sound as message timer runs down (last 1 second)
-        if audio.npcTalkingSound and messageTimer <= 1.0 then
-            audio.npcTalkingTargetVolume = math.max(0, messageTimer * 1.0) -- Fade to 0 over last second
+        if audio.npcTalkingSound and messageState.messageTimer <= 1.0 then
+            audio.npcTalkingTargetVolume = math.max(0, messageState.messageTimer * 1.0) -- Fade to 0 over last second
         end
         
-        if messageTimer <= 0 then
-            currentMessage = nil
-            currentMessageItem = nil
+        if messageState.messageTimer <= 0 then
+            messageState.currentMessage = nil
+            messageState.currentMessageItem = nil
             -- Ensure NPC talking sound fades out
             audio.npcTalkingTargetVolume = 0
         end
@@ -2192,7 +2217,7 @@ function love.update(dt)
     end
     
     -- Update NPC talking sound volume (smooth fade)
-    if audio.npcTalkingSound and not isPaused then
+    if audio.npcTalkingSound and not uiState.isPaused then
         if audio.npcTalkingCurrentVolume < audio.npcTalkingTargetVolume then
             audio.npcTalkingCurrentVolume = math.min(audio.npcTalkingTargetVolume, audio.npcTalkingCurrentVolume + audio.npcTalkingFadeSpeed * dt)
         elseif audio.npcTalkingCurrentVolume > audio.npcTalkingTargetVolume then
@@ -2214,6 +2239,7 @@ function love.update(dt)
 end
 
 function getDirection(dx, dy)
+---@diagnostic disable-next-line: deprecated
     local angle = math.atan2(dy, dx)
     local degrees = angle * (180 / math.pi)
     
@@ -2244,7 +2270,7 @@ end
 
 function love.draw()
     -- Draw start screen if game hasn't started
-    if not gameStarted then
+    if not startScreen.gameStarted then
         local screenWidth = love.graphics.getWidth()
         local screenHeight = love.graphics.getHeight()
         local font = love.graphics.getFont()
@@ -2271,14 +2297,14 @@ function love.draw()
             love.graphics.print(titleText, screenWidth/2 - titleWidth/2, 80)
         end
         
-        if startScreenState == "menu" then
+        if startScreen.state == "menu" then
             -- Main menu
             local menuY = screenHeight/2 - 60
             local lineHeight = 40
             local hasSaveFile = saveManager:saveExists()
             
             -- New Game option
-            if startMenuSelection == 1 then
+            if startScreen.menuSelection == 1 then
                 love.graphics.setColor(1, 0.9, 0.6)
                 love.graphics.print("> New Game <", screenWidth/2 - font:getWidth("> New Game <")/2, menuY)
             else
@@ -2289,7 +2315,7 @@ function love.draw()
             -- Load Game option (only if save exists)
             menuY = menuY + lineHeight
             if hasSaveFile then
-                if startMenuSelection == 2 then
+                if startScreen.menuSelection == 2 then
                     love.graphics.setColor(1, 0.9, 0.6)
                     love.graphics.print("> Load Game <", screenWidth/2 - font:getWidth("> Load Game <")/2, menuY)
                 else
@@ -2301,7 +2327,7 @@ function love.draw()
             
             -- Quit option
             local quitSelection = hasSaveFile and 3 or 2
-            if startMenuSelection == quitSelection then
+            if startScreen.menuSelection == quitSelection then
                 love.graphics.setColor(1, 0.9, 0.6)
                 love.graphics.print("> Quit <", screenWidth/2 - font:getWidth("> Quit <")/2, menuY)
             else
@@ -2314,7 +2340,7 @@ function love.draw()
             love.graphics.print("W/S or Up/Down - Navigate", screenWidth/2 - font:getWidth("W/S or Up/Down - Navigate")/2, screenHeight - 80)
             love.graphics.print("ENTER - Select  |  ESC - Quit", screenWidth/2 - font:getWidth("ENTER - Select  |  ESC - Quit")/2, screenHeight - 50)
             
-        elseif startScreenState == "new_game" then
+        elseif startScreen.state == "new_game" then
             -- Name entry screen
             love.graphics.setColor(1, 1, 1)
             local promptText = "Enter your name:"
@@ -2331,11 +2357,11 @@ function love.draw()
             
             -- Player name input
             love.graphics.setColor(1, 1, 1)
-            love.graphics.print(playerNameInput, screenWidth/2 - 95, screenHeight/2 + 7)
+            love.graphics.print(startScreen.playerNameInput, screenWidth/2 - 95, screenHeight/2 + 7)
             
             -- Blinking cursor
-            if cursorVisible then
-                local textWidth = font:getWidth(playerNameInput)
+            if startScreen.cursorVisible then
+                local textWidth = font:getWidth(startScreen.playerNameInput)
                 love.graphics.setColor(1, 1, 1)
                 love.graphics.rectangle("fill", screenWidth/2 - 95 + textWidth + 2, screenHeight/2 + 7, 2, 16)
             end
@@ -2354,25 +2380,25 @@ function love.draw()
     love.graphics.translate(-camera.x, -camera.y)
     
     -- Draw world (ground, water, walls)
-    world:draw(camera, gameTime)
+    world:draw(camera, animState.gameTime)
     
     -- Draw environmental hazards with particle effects
     local hazards = world:getCurrentHazards()
     for _, hazard in ipairs(hazards) do
         if hazard.type == "fire_zone" then
             -- Fire zone with flickering flames
-            local flicker = (math.sin(gameTime * 8 + hazard.x) + 1) / 2
+            local flicker = (math.sin(animState.gameTime * 8 + hazard.x) + 1) / 2
             love.graphics.setColor(1, 0.3 + flicker * 0.3, 0, 0.4 + flicker * 0.2)
             love.graphics.rectangle("fill", hazard.x, hazard.y, hazard.width, hazard.height)
             
             -- Fire particles
             local particleCount = math.floor(hazard.width / 32) * math.floor(hazard.height / 32) * 2
             for i = 1, particleCount do
-                local seed = (i * 17 + math.floor(gameTime * 5) * 13) % 1000
+                local seed = (i * 17 + math.floor(animState.gameTime * 5) * 13) % 1000
                 local px = hazard.x + (seed % hazard.width)
                 local py = hazard.y + ((seed * 7) % hazard.height)
-                local rise = ((gameTime * 60 + i * 11) % 40) - 20
-                local flameSize = 3 + math.sin(gameTime * 3 + i) * 2
+                local rise = ((animState.gameTime * 60 + i * 11) % 40) - 20
+                local flameSize = 3 + math.sin(animState.gameTime * 3 + i) * 2
                 
                 love.graphics.setColor(1, 0.5 + math.sin(i) * 0.3, 0, 0.7)
                 love.graphics.circle("fill", px, py - rise, flameSize)
@@ -2380,7 +2406,7 @@ function love.draw()
             
         elseif hazard.type == "ice_zone" then
             -- Ice zone with frost effect
-            local pulse = (math.sin(gameTime * 2 + hazard.x) + 1) / 2
+            local pulse = (math.sin(animState.gameTime * 2 + hazard.x) + 1) / 2
             love.graphics.setColor(0.3, 0.5 + pulse * 0.3, 1, 0.3 + pulse * 0.1)
             love.graphics.rectangle("fill", hazard.x, hazard.y, hazard.width, hazard.height)
             
@@ -2390,8 +2416,8 @@ function love.draw()
                 local seed = (i * 23) % 1000
                 local cx = hazard.x + (seed % hazard.width)
                 local cy = hazard.y + ((seed * 11) % hazard.height)
-                local rotation = gameTime * 0.5 + i
-                local size = 4 + math.sin(gameTime + i) * 2
+                local rotation = animState.gameTime * 0.5 + i
+                local size = 4 + math.sin(animState.gameTime + i) * 2
                 
                 love.graphics.setColor(0.7, 0.9, 1, 0.8)
                 -- Draw diamond shape for crystals
@@ -2413,7 +2439,7 @@ function love.draw()
                 local seed = (i * 19) % 1000
                 local rx = hazard.x + (seed % hazard.width)
                 local ry = hazard.y + ((seed * 13) % hazard.height)
-                local bob = math.sin(gameTime * 1.5 + i) * 3
+                local bob = math.sin(animState.gameTime * 1.5 + i) * 3
                 local rockSize = 4 + (i % 3)
                 
                 love.graphics.setColor(0.35, 0.25, 0.15, 0.8)
@@ -2427,7 +2453,7 @@ function love.draw()
             
         elseif hazard.type == "lightning_trap" then
             -- Lightning trap with electric sparks
-            local pulse = (math.sin(gameTime * 10 + hazard.x) + 1) / 2
+            local pulse = (math.sin(animState.gameTime * 10 + hazard.x) + 1) / 2
             local radius = 20
             
             -- Electric field
@@ -2439,7 +2465,7 @@ function love.draw()
                 love.graphics.setColor(1, 1, 0.8, 0.9)
                 love.graphics.setLineWidth(2)
                 for i = 1, 4 do
-                    local angle = (i / 4) * math.pi * 2 + gameTime * 2
+                    local angle = (i / 4) * math.pi * 2 + animState.gameTime * 2
                     local ex = hazard.x + math.cos(angle) * radius
                     local ey = hazard.y + math.sin(angle) * radius
                     love.graphics.line(hazard.x, hazard.y, ex, ey)
@@ -2494,13 +2520,14 @@ function love.draw()
     end
     
     -- Add temporary portal if it exists
-    if tempPortal then
-        local sortY = tempPortal.y + tempPortal.height
+    if portal.temp then
+        local sortY = portal.temp.y + portal.temp.height
         table.insert(entities, {
             y = sortY,
             draw = function()
                 -- Draw portal using interactable portal draw code
-                local obj = tempPortal
+                local obj = portal.temp
+                if not obj then return end -- Safety check for linter
                 local centerX = obj.x + obj.width/2
                 local centerY = obj.y + obj.height/2
                 local baseRadius = math.min(obj.width, obj.height) * 0.45
@@ -2525,7 +2552,7 @@ function love.draw()
                         local x2 = centerX + math.cos(angle2) * radius2
                         local y2 = centerY + math.sin(angle2) * radius2
                         
-                        local alpha = 1 - (portalDespawnTimer > 1.0 and 0 or (1 - portalDespawnTimer))
+                        local alpha = 1 - (portal.despawnTimer > 1.0 and 0 or (1 - portal.despawnTimer))
                         love.graphics.setColor(0.6 + j * 0.1, 0.3 + j * 0.2, 0.9, 0.6 * alpha)
                         love.graphics.setLineWidth(3)
                         love.graphics.line(x1, y1, x2, y2)
@@ -2742,22 +2769,22 @@ function love.draw()
     end
     
     -- Draw pause menu
-    if isPaused then
+    if uiState.isPaused then
         drawPauseMenu()
     end
     
     -- Draw class selection UI
-    if showClassSelection then
+    if classSelection.show then
         drawClassSelection()
     end
     
     -- Draw strategy selection UI
-    if showStrategySelection then
+    if strategySelection.show then
         drawStrategySelection()
     end
     
     -- Draw profile menu
-    if showProfileMenu and gameState.playerClass then
+    if startScreen.showProfileMenu and gameState.playerClass then
         local screenWidth = love.graphics.getWidth()
         local screenHeight = love.graphics.getHeight()
         local panelWidth = 400
@@ -2866,8 +2893,8 @@ function love.draw()
     end
     
     -- Draw fade overlay (for cave transitions)
-    if fadeAlpha > 0 then
-        love.graphics.setColor(0, 0, 0, fadeAlpha)
+    if fade.alpha > 0 then
+        love.graphics.setColor(0, 0, 0, fade.alpha)
         love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
         love.graphics.setColor(1, 1, 1, 1)
     end
@@ -2883,7 +2910,7 @@ function drawPauseMenu()
     
     -- Pause menu panel (animated height)
     local panelWidth = 300
-    local panelHeight = math.floor(pauseMenuHeight) -- Use animated height
+    local panelHeight = math.floor(uiState.pauseMenuHeight) -- Use animated height
     local panelX = (screenWidth - panelWidth) / 2
     local panelY = (screenHeight - panelHeight) / 2
     
@@ -2904,11 +2931,11 @@ function drawPauseMenu()
     love.graphics.setColor(1, 0.95, 0.7)
     local font = love.graphics.getFont()
     local titleText = "PAUSED"
-    if pauseMenuState == "controls" then
+    if uiState.pauseMenuState == "controls" then
         titleText = "CONTROLS"
-    elseif pauseMenuState == "settings" then
+    elseif uiState.pauseMenuState == "settings" then
         titleText = "SETTINGS"
-    elseif pauseMenuState == "save_confirm" then
+    elseif uiState.pauseMenuState == "save_confirm" then
         titleText = "CONFIRM OVERWRITE"
     end
     local titleWidth = font:getWidth(titleText)
@@ -2925,7 +2952,7 @@ function drawPauseMenu()
     local padding = 12
     local options = {}
     
-    if pauseMenuState == "main" then
+    if uiState.pauseMenuState == "main" then
         options = {
             "Resume (ESC)",
             "Save Game (S)",
@@ -2934,31 +2961,31 @@ function drawPauseMenu()
             "Controls (C)",
             "Quit Game (Q)"
         }
-        pauseMenuTargetHeight = 280
-    elseif pauseMenuState == "save_confirm" then
+        uiState.pauseMenuTargetHeight = 280
+    elseif uiState.pauseMenuState == "save_confirm" then
         -- Save confirmation - will be drawn differently below
         options = {}
-        pauseMenuTargetHeight = 200
-    elseif pauseMenuState == "controls" then
+        uiState.pauseMenuTargetHeight = 200
+    elseif uiState.pauseMenuState == "controls" then
         -- Controls screen - will be drawn differently below
         options = {"Back (ESC)"}
-        pauseMenuTargetHeight = 380 -- Taller for controls list
-    elseif pauseMenuState == "settings" then
+        uiState.pauseMenuTargetHeight = 380 -- Taller for controls list
+    elseif uiState.pauseMenuState == "settings" then
         -- Settings screen - will be drawn differently below
         options = {"Back (ESC)"}
-        pauseMenuTargetHeight = 280
+        uiState.pauseMenuTargetHeight = 280
     end
     
     love.graphics.setColor(1, 0.95, 0.8)
     
-    if pauseMenuState == "main" then
+    if uiState.pauseMenuState == "main" then
         -- Main pause menu
         for i, option in ipairs(options) do
             local optionWidth = font:getWidth(option)
             love.graphics.print(option, panelX + (panelWidth - optionWidth) / 2, yPos)
             yPos = yPos + 30
         end
-    elseif pauseMenuState == "save_confirm" then
+    elseif uiState.pauseMenuState == "save_confirm" then
         -- Save confirmation dialog
         love.graphics.setColor(0.9, 0.85, 0.7)
         local msg1 = "A save file already exists."
@@ -2975,7 +3002,7 @@ function drawPauseMenu()
             love.graphics.print(option, panelX + (panelWidth - optionWidth) / 2, yPos)
             yPos = yPos + 30
         end
-    elseif pauseMenuState == "controls" then
+    elseif uiState.pauseMenuState == "controls" then
         -- Controls screen
         local controlsList = {
             {"WASD / Arrow Keys", "Move"},
@@ -3003,7 +3030,7 @@ function drawPauseMenu()
         local backText = "Press ESC to return"
         local backWidth = font:getWidth(backText)
         love.graphics.print(backText, panelX + (panelWidth - backWidth) / 2, yPos)
-    elseif pauseMenuState == "settings" then
+    elseif uiState.pauseMenuState == "settings" then
         -- Settings screen with sliders
         yPos = yPos + 10
         
@@ -3088,7 +3115,7 @@ function drawPauseMenu()
     end
     
     -- Footer hint (only in main menu, controls has its own "return" hint)
-    if pauseMenuState == "main" then
+    if uiState.pauseMenuState == "main" then
         love.graphics.setColor(0.6, 0.55, 0.45)
         local hintText = "Press ESC to resume"
         local hintWidth = font:getWidth(hintText)
@@ -3101,7 +3128,7 @@ end
 function drawPlayer()
     local animationType = player.isMoving and "walk" or "idle"
     if animations[animationType][player.direction] and #animations[animationType][player.direction] > 0 then
-        local image = animations[animationType][player.direction][currentFrame]
+        local image = animations[animationType][player.direction][animState.currentFrame]
         local imageWidth = image:getWidth()
         local imageHeight = image:getHeight()
         
@@ -3109,7 +3136,7 @@ function drawPlayer()
         if player.immunityTimer > 0 then
             -- Flash effect: alternate between visible and transparent
             local flashRate = 8 -- Flashes per second
-            local flashCycle = (gameTime * flashRate) % 1
+            local flashCycle = (animState.gameTime * flashRate) % 1
             if flashCycle < 0.5 then
                 love.graphics.setColor(1, 1, 1, 0.4) -- Semi-transparent
             else
@@ -3122,8 +3149,8 @@ function drawPlayer()
             player.x,
             player.y,
             0,
-            player.scale * playerScale,
-            player.scale * playerScale,
+            player.scale * portal.playerScale,
+            player.scale * portal.playerScale,
             imageWidth / 2,
             imageHeight / 2
         )
@@ -3261,7 +3288,7 @@ local function drawItemIcon(itemName, x, y, size, isHovered)
 end
 
 drawClassSelection = function()
-    if not selectedClassIcon then return end
+    if not classSelection.selectedIcon then return end
     
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
@@ -3290,7 +3317,7 @@ drawClassSelection = function()
     -- Header image (Class-specific)
     love.graphics.setColor(1, 1, 1)
     local headerY = panelY + 20
-    local classImage = classImages[selectedClassIcon.className]
+    local classImage = classImages[classSelection.selectedIcon.className]
     if classImage then
         local imageWidth = classImage:getWidth()
         local imageHeight = classImage:getHeight()
@@ -3303,7 +3330,7 @@ drawClassSelection = function()
     else
         -- Fallback text
         love.graphics.setColor(1, 0.9, 0.6)
-        local headerText = selectedClassIcon.className
+        local headerText = classSelection.selectedIcon.className
         local textWidth = font:getWidth(headerText)
         love.graphics.print(headerText, panelX + (panelWidth - textWidth) / 2, headerY, 0, 1.5, 1.5)
         headerY = headerY + 40
@@ -3322,13 +3349,13 @@ drawClassSelection = function()
     local lineHeight = 18
     
     -- Get class info
-    local info = classInfo[selectedClassIcon.className]
+    local info = classInfo[classSelection.selectedIcon.className]
     if not info then return end
     
     -- Set scissor for scrolling
     love.graphics.setScissor(panelX, contentY, panelWidth, contentHeight)
     
-    local yPos = contentY - classSelectionScrollOffset + 10
+    local yPos = contentY - classSelection.scrollOffset + 10
     local contentX = panelX + padding
     local contentWidth = panelWidth - padding * 2
     
@@ -3392,11 +3419,11 @@ drawClassSelection = function()
     love.graphics.setScissor()
     
     -- Scroll indicator if needed
-    local totalContentHeight = yPos - (contentY - classSelectionScrollOffset)
+    local totalContentHeight = yPos - (contentY - classSelection.scrollOffset)
     if totalContentHeight > contentHeight then
         love.graphics.setColor(0.5, 0.5, 0.5, 0.5)
         local scrollBarHeight = contentHeight * (contentHeight / totalContentHeight)
-        local scrollBarY = contentY + (classSelectionScrollOffset / totalContentHeight) * contentHeight
+        local scrollBarY = contentY + (classSelection.scrollOffset / totalContentHeight) * contentHeight
         love.graphics.rectangle("fill", panelX + panelWidth - 10, scrollBarY, 6, scrollBarHeight, 3, 3)
     end
     
@@ -3407,7 +3434,7 @@ drawClassSelection = function()
     love.graphics.line(panelX + 20, buttonY - 10, panelX + panelWidth - 20, buttonY - 10)
     love.graphics.setLineWidth(1)
     
-    if classSelectionConfirmation then
+    if classSelection.confirmation then
         -- Confirmation prompt
         love.graphics.setColor(1, 0.9, 0.6)
         local confirmText = "Are you sure? This choice is permanent!"
@@ -3431,7 +3458,7 @@ drawClassSelection = function()
 end
 
 drawStrategySelection = function()
-    if not selectedStrategyIcon then return end
+    if not strategySelection.selectedIcon then return end
     
     local screenWidth = love.graphics.getWidth()
     local screenHeight = love.graphics.getHeight()
@@ -3459,7 +3486,7 @@ drawStrategySelection = function()
     
     -- Header
     love.graphics.setColor(1, 0.9, 0.6)
-    local headerText = selectedStrategyIcon.strategyName
+    local headerText = strategySelection.selectedIcon.strategyName
     local textWidth = font:getWidth(headerText)
     local headerY = panelY + 30
     love.graphics.print(headerText, panelX + (panelWidth - textWidth) / 2, headerY, 0, 1.5, 1.5)
@@ -3478,13 +3505,13 @@ drawStrategySelection = function()
     local lineHeight = 18
     
     -- Get strategy info
-    local info = strategyInfo[selectedStrategyIcon.strategyName]
+    local info = strategyInfo[strategySelection.selectedIcon.strategyName]
     if not info then return end
     
     -- Set scissor for scrolling
     love.graphics.setScissor(panelX, contentY, panelWidth, contentHeight)
     
-    local yPos = contentY - strategySelectionScrollOffset + 10
+    local yPos = contentY - strategySelection.scrollOffset + 10
     local contentX = panelX + padding
     local contentWidth = panelWidth - padding * 2
     
@@ -3548,11 +3575,11 @@ drawStrategySelection = function()
     love.graphics.setScissor()
     
     -- Scroll indicator if needed
-    local totalContentHeight = yPos - (contentY - strategySelectionScrollOffset)
+    local totalContentHeight = yPos - (contentY - strategySelection.scrollOffset)
     if totalContentHeight > contentHeight then
         love.graphics.setColor(0.5, 0.5, 0.5, 0.5)
         local scrollBarHeight = contentHeight * (contentHeight / totalContentHeight)
-        local scrollBarY = contentY + (strategySelectionScrollOffset / totalContentHeight) * contentHeight
+        local scrollBarY = contentY + (strategySelection.scrollOffset / totalContentHeight) * contentHeight
         love.graphics.rectangle("fill", panelX + panelWidth - 10, scrollBarY, 6, scrollBarHeight, 3, 3)
     end
     
@@ -3563,7 +3590,7 @@ drawStrategySelection = function()
     love.graphics.line(panelX + 20, buttonY - 10, panelX + panelWidth - 20, buttonY - 10)
     love.graphics.setLineWidth(1)
     
-    if strategySelectionConfirmation then
+    if strategySelection.confirmation then
         -- Confirmation prompt
         love.graphics.setColor(1, 0.9, 0.6)
         local confirmText = "Are you sure? This choice is permanent!"
@@ -3685,7 +3712,7 @@ function drawUI()
     end
     
     -- Draw help panel
-    if showHelp then
+    if uiState.showHelp then
         local screenWidth = love.graphics.getWidth()
         local panelWidth = 320
         local panelHeight = 210
@@ -3740,7 +3767,7 @@ function drawUI()
     end
     
     -- Draw debug panel
-    if showDebugPanel then
+    if uiState.showDebugPanel then
         local screenWidth = love.graphics.getWidth()
         local panelWidth = 320
         local panelHeight = 340  -- Increased for audio info (footsteps, river, cave, overworld)
@@ -3808,7 +3835,7 @@ function drawUI()
         yPos = yPos + lineHeight
         
         -- Cutscene state
-        love.graphics.print(string.format("In Cutscene: %s", tostring(inCutscene)), panelX + padding + 8, yPos)
+        love.graphics.print(string.format("In Cutscene: %s", tostring(cutsceneState.inCutscene)), panelX + padding + 8, yPos)
         yPos = yPos + lineHeight
         
         -- NPC count
@@ -3937,8 +3964,8 @@ function drawUI()
         end
         
         -- Draw full inventory panel (slides from right)
-        if inventoryWidth > 5 then
-            local panelWidth = math.floor(inventoryWidth)
+        if uiState.inventoryWidth > 5 then
+            local panelWidth = math.floor(uiState.inventoryWidth)
             local panelHeight = slotSize * 5 + slotSpacing * 4 + 40 -- 5 rows + header
             local panelX = startX - panelWidth - 10
             local panelY = startY - 20
@@ -3983,7 +4010,7 @@ function drawUI()
                 local col = i % columns
                 local row = math.floor(i / columns)
                 local itemX = panelX + 8 + col * (slotSize + 4)
-                local itemY = contentY + row * (slotSize + 4) - inventoryScrollOffset
+                local itemY = contentY + row * (slotSize + 4) - uiState.inventoryScrollOffset
                 
                 -- Only draw if visible
                 if itemY + slotSize >= contentY and itemY <= contentY + contentHeight then
@@ -3996,7 +4023,7 @@ function drawUI()
                         hoveredItemName = itemName
                     end
                     
-                    local isSelected = (selectedInventoryItem == itemName)
+                    local isSelected = (uiState.selectedInventoryItem == itemName)
                     
                     -- Background
                     if isSelected then
@@ -4073,7 +4100,7 @@ function drawUI()
 end
 
 function drawMessage()
-    if currentMessage then
+    if messageState.currentMessage then
         local screenWidth = love.graphics.getWidth()
         local screenHeight = love.graphics.getHeight()
         
@@ -4083,8 +4110,8 @@ function drawMessage()
         local panelY = screenHeight - panelHeight - 20
         
         -- Calculate panel width based on content
-        local textWidth = love.graphics.getFont():getWidth(currentMessage) + padding * 2
-        local panelWidth = textWidth + (currentMessageItem and (iconSize + padding * 2) or 0) + padding * 2
+        local textWidth = love.graphics.getFont():getWidth(messageState.currentMessage) + padding * 2
+        local panelWidth = textWidth + (messageState.currentMessageItem and (iconSize + padding * 2) or 0) + padding * 2
         panelWidth = math.max(panelWidth, 300) -- Minimum width
         panelWidth = math.min(panelWidth, screenWidth - 100) -- Maximum width
         local panelX = (screenWidth - panelWidth) / 2
@@ -4108,17 +4135,17 @@ function drawMessage()
         -- Message text (centered vertically and accounting for line wrapping)
         love.graphics.setColor(1, 0.95, 0.8)
         local textX = panelX + padding + 8
-        local maxTextWidth = panelWidth - padding * 3 - (currentMessageItem and (iconSize + padding) or 0) - 16
+        local maxTextWidth = panelWidth - padding * 3 - (messageState.currentMessageItem and (iconSize + padding) or 0) - 16
         
         -- Calculate actual text height with wrapping
-        local _, wrappedText = love.graphics.getFont():getWrap(currentMessage, maxTextWidth)
+        local _, wrappedText = love.graphics.getFont():getWrap(messageState.currentMessage, maxTextWidth)
         local textHeight = #wrappedText * love.graphics.getFont():getHeight()
         local textY = panelY + (panelHeight - textHeight) / 2
         
-        love.graphics.printf(currentMessage, textX, textY, maxTextWidth, "left")
+        love.graphics.printf(messageState.currentMessage, textX, textY, maxTextWidth, "left")
         
         -- If there's an item, draw its icon on the right
-        if currentMessageItem then
+        if messageState.currentMessageItem then
             local iconX = panelX + panelWidth - iconSize - padding - 8
             local iconY = panelY + (panelHeight - iconSize) / 2
             
@@ -4127,7 +4154,7 @@ function drawMessage()
             love.graphics.rectangle("fill", iconX, iconY, iconSize, iconSize, 3, 3)
             
             -- Draw item icon
-            drawItemIcon(currentMessageItem, iconX + 4, iconY + 4, 32, false)
+            drawItemIcon(messageState.currentMessageItem, iconX + 4, iconY + 4, 32, false)
             
             -- Add border around icon
             love.graphics.setColor(0.9, 0.8, 0.4)
@@ -4163,8 +4190,8 @@ useItem = function(itemName)
     
     -- Check if player has the item
     if not gameState:hasItem(itemName) then
-        currentMessage = "You don't have that item!"
-        messageTimer = 2
+        messageState.currentMessage = "You don't have that item!"
+        messageState.messageTimer = 2
         return false
     end
     
@@ -4172,8 +4199,8 @@ useItem = function(itemName)
     if itemName == "Health Potion" then
         -- Heal the player
         if player.health >= player.maxHealth then
-            currentMessage = "Health is already full!"
-            messageTimer = 2
+            messageState.currentMessage = "Health is already full!"
+            messageState.messageTimer = 2
             return false
         end
         
@@ -4185,13 +4212,13 @@ useItem = function(itemName)
         -- Remove item from inventory
         gameState:removeItem(itemName, 1)
         
-        currentMessage = string.format("Healed %d HP!", actualHeal)
-        messageTimer = 2
+        messageState.currentMessage = string.format("Healed %d HP!", actualHeal)
+        messageState.messageTimer = 2
         return true
     else
         -- Other items don't have use functionality yet
-        currentMessage = string.format("%s cannot be used", itemName)
-        messageTimer = 2
+        messageState.currentMessage = string.format("%s cannot be used", itemName)
+        messageState.messageTimer = 2
         return false
     end
 end
@@ -4214,9 +4241,9 @@ checkInteraction = function()
         
         local result = npc:interact(gameState)
         if result then
-            currentMessage = result
-            messageTimer = messageDuration
-            currentMessageItem = nil
+            messageState.currentMessage = result
+            messageState.messageTimer = messageState.messageDuration
+            messageState.currentMessageItem = nil
             
             -- Start NPC talking sound with fade in
             if audio.npcTalkingSound then
@@ -4265,10 +4292,10 @@ checkInteraction = function()
         
         -- Handle class icon interaction (show detailed UI)
         if type(result) == "table" and result.type == "class_icon_interact" then
-            selectedClassIcon = result
-            showClassSelection = true
-            classSelectionScrollOffset = 0
-            classSelectionConfirmation = false
+            classSelection.selectedIcon = result
+            classSelection.show = true
+            classSelection.scrollOffset = 0
+            classSelection.confirmation = false
             return
         end
         
@@ -4292,9 +4319,9 @@ checkInteraction = function()
                 end
             end
             
-            currentMessage = result.message
-            messageTimer = 5 -- Longer duration for class selection message
-            currentMessageItem = nil
+            messageState.currentMessage = result.message
+            messageState.messageTimer = 5 -- Longer duration for class selection message
+            messageState.currentMessageItem = nil
             return
         end
         
@@ -4320,25 +4347,25 @@ checkInteraction = function()
                 if spell then
                     spellSystem:learnSpell(spell)
                     gameState.resistanceSpellLearned = true
-                    currentMessage = string.format("You learned %s!\n\nThis spell protects you from elemental hazards.", spell.name)
-                    messageTimer = 5
-                    currentMessageItem = nil
+                    messageState.currentMessage = string.format("You learned %s!\n\nThis spell protects you from elemental hazards.", spell.name)
+                    messageState.messageTimer = 5
+                    messageState.currentMessageItem = nil
                     return
                 end
             end
             
-            currentMessage = result.message
-            messageTimer = 5 -- Longer duration for tutorial message
-            currentMessageItem = nil
+            messageState.currentMessage = result.message
+            messageState.messageTimer = 5 -- Longer duration for tutorial message
+            messageState.currentMessageItem = nil
             return
         end
         
         -- Handle strategy icon interaction (show detailed UI)
         if type(result) == "table" and result.type == "strategy_icon_interact" then
-            selectedStrategyIcon = result
-            showStrategySelection = true
-            strategySelectionScrollOffset = 0
-            strategySelectionConfirmation = false
+            strategySelection.selectedIcon = result
+            strategySelection.show = true
+            strategySelection.scrollOffset = 0
+            strategySelection.confirmation = false
             return
         end
         
@@ -4374,18 +4401,18 @@ checkInteraction = function()
                 end
             end
             
-            currentMessage = result.message
-            messageTimer = 5
-            currentMessageItem = nil
+            messageState.currentMessage = result.message
+            messageState.messageTimer = 5
+            messageState.currentMessageItem = nil
             return
         end
         
         -- Handle skeleton spawn trigger
         if type(result) == "table" and result.type == "trigger_skeletons" then
             -- Start skeleton spawn animation
-            skeletonSpawnState = "spawning"
-            skeletonSpawnTimer = 0
-            spawnedSkeletons = {}
+            skeletonSpawn.state = "spawning"
+            skeletonSpawn.timer = 0
+            skeletonSpawn.skeletons = {}
             
             -- Music transition: stop magical voyage, play trials spawn, then start fight song
             if audio.magicalVoyageMusic then
@@ -4420,16 +4447,16 @@ checkInteraction = function()
             spawn2.id = "trial_skeleton_2"
             spawn1.spawning = true  -- Mark as spawning
             spawn2.spawning = true
-            table.insert(spawnedSkeletons, spawn1)
-            table.insert(spawnedSkeletons, spawn2)
+            table.insert(skeletonSpawn.skeletons, spawn1)
+            table.insert(skeletonSpawn.skeletons, spawn2)
             
             -- Add to world enemies directly (not via getCurrentEnemies which returns a filtered copy)
             table.insert(world.enemies[gameState.currentMap], spawn1)
             table.insert(world.enemies[gameState.currentMap], spawn2)
             
-            currentMessage = result.message
-            messageTimer = 3
-            currentMessageItem = nil
+            messageState.currentMessage = result.message
+            messageState.messageTimer = 3
+            messageState.currentMessageItem = nil
             return
         end
         
@@ -4440,34 +4467,34 @@ checkInteraction = function()
             
             if isPortalTransition then
                 -- Start portal shrinking animation
-                portalAnimState = "shrinking"
-                portalAnimTimer = 0
-                playerScale = 1
-                portalSourceMap = gameState.currentMap -- Track where we're coming from
-                fadeTargetMap = result.targetMap
-                fadeSpawnX = result.spawnX
-                fadeSpawnY = result.spawnY
+                portal.animState = "shrinking"
+                portal.animTimer = 0
+                portal.playerScale = 1
+                portal.sourceMap = gameState.currentMap -- Track where we're coming from
+                fade.targetMap = result.targetMap
+                fade.spawnX = result.spawnX
+                fade.spawnY = result.spawnY
             else
                 -- Regular fade transition for caves
-            fadeState = "fade_out"
-            fadeTargetMap = result.targetMap
-            fadeSpawnX = result.spawnX
-            fadeSpawnY = result.spawnY
+            fade.state = "fade_out"
+            fade.targetMap = result.targetMap
+            fade.spawnX = result.spawnX
+            fade.spawnY = result.spawnY
             end
             return
         end
         
         -- Door transitions are now handled in update loop after animation
         if result then
-            currentMessage = result
-            messageTimer = messageDuration
+            messageState.currentMessage = result
+            messageState.messageTimer = messageState.messageDuration
             
             -- If it's a chest with an item being collected, store the item for icon display
             -- Only show icon if the message says "Found:" (i.e., actually collecting the item)
             if obj.type == "chest" and obj.data and obj.data.item and result:find("Found:") then
-                currentMessageItem = obj.data.item
+                messageState.currentMessageItem = obj.data.item
             else
-                currentMessageItem = nil
+                messageState.currentMessageItem = nil
             end
         end
     end
@@ -4475,25 +4502,25 @@ end
 
 function love.keypressed(key)
     -- Start screen handling
-    if not gameStarted then
-        if startScreenState == "menu" then
+    if not startScreen.gameStarted then
+        if startScreen.state == "menu" then
             local hasSaveFile = saveManager:saveExists()
             local maxSelection = hasSaveFile and 3 or 2
             
             if key == "w" or key == "up" then
-                startMenuSelection = startMenuSelection - 1
-                if startMenuSelection < 1 then startMenuSelection = maxSelection end
+                startScreen.menuSelection = startScreen.menuSelection - 1
+                if startScreen.menuSelection < 1 then startScreen.menuSelection = maxSelection end
             elseif key == "s" or key == "down" then
-                startMenuSelection = startMenuSelection + 1
-                if startMenuSelection > maxSelection then startMenuSelection = 1 end
+                startScreen.menuSelection = startScreen.menuSelection + 1
+                if startScreen.menuSelection > maxSelection then startScreen.menuSelection = 1 end
             elseif key == "return" or key == "kpenter" then
-                if startMenuSelection == 1 then
+                if startScreen.menuSelection == 1 then
                     -- New Game
-                    startScreenState = "new_game"
-                    playerNameInput = ""
-                    cursorBlinkTimer = 0
-                    cursorVisible = true
-                elseif startMenuSelection == 2 and hasSaveFile then
+                    startScreen.state = "new_game"
+                    startScreen.playerNameInput = ""
+                    startScreen.cursorBlinkTimer = 0
+                    startScreen.cursorVisible = true
+                elseif startScreen.menuSelection == 2 and hasSaveFile then
                     -- Load Game
                     local loadedState, err = saveManager:load()
                     if loadedState then
@@ -4533,31 +4560,31 @@ function love.keypressed(key)
                             obj:syncWithGameState(gameState)
                         end
                         
-                        gameStarted = true
+                        startScreen.gameStarted = true
                     end
-                elseif (startMenuSelection == 2 and not hasSaveFile) or (startMenuSelection == 3 and hasSaveFile) then
+                elseif (startScreen.menuSelection == 2 and not hasSaveFile) or (startScreen.menuSelection == 3 and hasSaveFile) then
                     -- Quit
                     love.event.quit()
                 end
             elseif key == "escape" then
                 love.event.quit()
             end
-        elseif startScreenState == "new_game" then
+        elseif startScreen.state == "new_game" then
             if key == "return" or key == "kpenter" then
-                if #playerNameInput > 0 then
-                    gameState.playerName = playerNameInput
+                if #startScreen.playerNameInput > 0 then
+                    gameState.playerName = startScreen.playerNameInput
                 else
                     gameState.playerName = "Hero"
                 end
-                gameStarted = true
+                startScreen.gameStarted = true
             elseif key == "backspace" then
-                playerNameInput = string.sub(playerNameInput, 1, -2)
+                startScreen.playerNameInput = string.sub(startScreen.playerNameInput, 1, -2)
                 -- Reset cursor to visible when deleting
-                cursorBlinkTimer = 0
-                cursorVisible = true
+                startScreen.cursorBlinkTimer = 0
+                startScreen.cursorVisible = true
             elseif key == "escape" then
-                startScreenState = "menu"
-                playerNameInput = ""
+                startScreen.state = "menu"
+                startScreen.playerNameInput = ""
             end
         end
         return
@@ -4583,32 +4610,32 @@ function love.keypressed(key)
     -- Pause handling
     if key == "escape" then
         -- Close class selection if open
-        if showClassSelection then
-            if classSelectionConfirmation then
-                classSelectionConfirmation = false
+        if classSelection.show then
+            if classSelection.confirmation then
+                classSelection.confirmation = false
             else
-                showClassSelection = false
-                selectedClassIcon = nil
-                classSelectionScrollOffset = 0
+                classSelection.show = false
+                classSelection.selectedIcon = nil
+                classSelection.scrollOffset = 0
             end
             return
         end
         
         -- Close strategy selection if open
-        if showStrategySelection then
-            if strategySelectionConfirmation then
-                strategySelectionConfirmation = false
+        if strategySelection.show then
+            if strategySelection.confirmation then
+                strategySelection.confirmation = false
             else
-                showStrategySelection = false
-                selectedStrategyIcon = nil
-                strategySelectionScrollOffset = 0
+                strategySelection.show = false
+                strategySelection.selectedIcon = nil
+                strategySelection.scrollOffset = 0
             end
             return
         end
         
         -- Close profile menu if open
-        if showProfileMenu then
-            showProfileMenu = false
+        if startScreen.showProfileMenu then
+            startScreen.showProfileMenu = false
             return
         end
         
@@ -4636,11 +4663,11 @@ function love.keypressed(key)
         end
         
         -- Close full inventory if open
-        if showFullInventory then
-            showFullInventory = false
-            inventoryTargetWidth = 0
-            inventoryScrollOffset = 0
-            selectedInventoryItem = nil -- Clear selection
+        if uiState.showFullInventory then
+            uiState.showFullInventory = false
+            uiState.inventoryTargetWidth = 0
+            uiState.inventoryScrollOffset = 0
+            uiState.selectedInventoryItem = nil -- Clear selection
             
             -- Play panel swipe sound
             if audio.panelSwipeSound then
@@ -4656,29 +4683,29 @@ function love.keypressed(key)
         end
         
         -- Handle pause menu navigation
-        if isPaused and pauseMenuState == "controls" then
+        if uiState.isPaused and uiState.pauseMenuState == "controls" then
             -- Return to main pause menu
-            pauseMenuState = "main"
-            pauseMenuTargetHeight = 280
+            uiState.pauseMenuState = "main"
+            uiState.pauseMenuTargetHeight = 280
             return
-        elseif isPaused and pauseMenuState == "settings" then
+        elseif uiState.isPaused and uiState.pauseMenuState == "settings" then
             -- Return to main pause menu
-            pauseMenuState = "main"
-            pauseMenuTargetHeight = 280
+            uiState.pauseMenuState = "main"
+            uiState.pauseMenuTargetHeight = 280
             return
-        elseif isPaused and pauseMenuState == "save_confirm" then
+        elseif uiState.isPaused and uiState.pauseMenuState == "save_confirm" then
             -- Cancel save confirmation
-            pauseMenuState = "main"
-            pauseMenuTargetHeight = 280
+            uiState.pauseMenuState = "main"
+            uiState.pauseMenuTargetHeight = 280
             return
         end
         
         -- Toggle pause
-        isPaused = not isPaused
-        if isPaused then
-            pauseMenuState = "main" -- Reset to main menu when pausing
-            pauseMenuTargetHeight = 280
-            pauseMenuHeight = 280 -- Reset animation
+        uiState.isPaused = not uiState.isPaused
+        if uiState.isPaused then
+            uiState.pauseMenuState = "main" -- Reset to main menu when pausing
+            uiState.pauseMenuTargetHeight = 280
+            uiState.pauseMenuHeight = 280 -- Reset animation
             
             -- Play pause menu open sound
             if audio.pauseMenuOpenSound then
@@ -4787,19 +4814,19 @@ function love.keypressed(key)
     end
     
     -- Pause menu shortcuts
-    if isPaused then
+    if uiState.isPaused then
         if key == "s" then
             -- Quick save - check if save exists first
             local saveExists = saveManager:saveExists()
             if saveExists then
                 -- Show confirmation dialog
-                pauseMenuState = "save_confirm"
-                pauseMenuTargetHeight = 200
+                uiState.pauseMenuState = "save_confirm"
+                uiState.pauseMenuTargetHeight = 200
             else
                 -- No existing save, just save
                 local success, msg = saveManager:save(gameState, player.x, player.y, player.health)
-                currentMessage = msg or "Game saved"
-                messageTimer = 3
+                messageState.currentMessage = msg or "Game saved"
+                messageState.messageTimer = 3
             end
         elseif key == "l" then
             -- Quick load
@@ -4821,7 +4848,7 @@ function love.keypressed(key)
                     obj:syncWithGameState(gameState)
                 end
                 
-                isPaused = false
+                uiState.isPaused = false
                 
                 -- Resume all ambient sounds
                 if audio.footstepSound then
@@ -4845,32 +4872,32 @@ function love.keypressed(key)
                     ow:play()
                 end
                 
-                currentMessage = "Game loaded"
-                messageTimer = 3
+                messageState.currentMessage = "Game loaded"
+                messageState.messageTimer = 3
             else
-                currentMessage = err or "Failed to load game"
-                messageTimer = 3
+                messageState.currentMessage = err or "Failed to load game"
+                messageState.messageTimer = 3
                 print("Load error: " .. tostring(err))
             end
         elseif key == "t" then
             -- Show settings submenu
-            pauseMenuState = "settings"
-            pauseMenuTargetHeight = 280
+            uiState.pauseMenuState = "settings"
+            uiState.pauseMenuTargetHeight = 280
         elseif key == "c" then
             -- Show controls submenu
-            pauseMenuState = "controls"
-            pauseMenuTargetHeight = 380
-        elseif key == "y" and pauseMenuState == "save_confirm" then
+            uiState.pauseMenuState = "controls"
+            uiState.pauseMenuTargetHeight = 380
+        elseif key == "y" and uiState.pauseMenuState == "save_confirm" then
             -- Confirm overwrite
             local success, msg = saveManager:save(gameState, player.x, player.y, player.health)
-            currentMessage = msg or "Game saved"
-            messageTimer = 3
-            pauseMenuState = "main"
-            pauseMenuTargetHeight = 280
-        elseif key == "n" and pauseMenuState == "save_confirm" then
+            messageState.currentMessage = msg or "Game saved"
+            messageState.messageTimer = 3
+            uiState.pauseMenuState = "main"
+            uiState.pauseMenuTargetHeight = 280
+        elseif key == "n" and uiState.pauseMenuState == "save_confirm" then
             -- Cancel save
-            pauseMenuState = "main"
-            pauseMenuTargetHeight = 280
+            uiState.pauseMenuState = "main"
+            uiState.pauseMenuTargetHeight = 280
         elseif key == "q" then
         love.event.quit()
         end
@@ -4878,24 +4905,24 @@ function love.keypressed(key)
     end
     
     -- Class selection UI controls
-    if showClassSelection then
-        if classSelectionConfirmation then
+    if classSelection.show then
+        if classSelection.confirmation then
             if key == "y" then
                 -- Confirm class selection
-                if selectedClassIcon then
-                    gameState.playerClass = selectedClassIcon.className
-                    gameState.playerElement = selectedClassIcon.element
+                if classSelection.selectedIcon then
+                    gameState.playerClass = classSelection.selectedIcon.className
+                    gameState.playerElement = classSelection.selectedIcon.element
                     
                     -- Give the player their starter attack spell based on element
-                    if spellSystem and selectedClassIcon.element then
+                    if spellSystem and classSelection.selectedIcon.element then
                         local spell = nil
-                        if selectedClassIcon.element == "fire" then
+                        if classSelection.selectedIcon.element == "fire" then
                             spell = Spell.createFireball()
-                        elseif selectedClassIcon.element == "ice" then
+                        elseif classSelection.selectedIcon.element == "ice" then
                             spell = Spell.createIceShard()
-                        elseif selectedClassIcon.element == "lightning" then
+                        elseif classSelection.selectedIcon.element == "lightning" then
                             spell = Spell.createLightningBolt()
-                        elseif selectedClassIcon.element == "earth" then
+                        elseif classSelection.selectedIcon.element == "earth" then
                             spell = Spell.createStoneSpike()
                         end
                         
@@ -4904,34 +4931,34 @@ function love.keypressed(key)
                         end
                     end
                     
-                    currentMessage = string.format("You have chosen to become a %s!\n\nYou've learned your first attack spell!", selectedClassIcon.className)
-                    messageTimer = 5
-                    currentMessageItem = nil
+                    messageState.currentMessage = string.format("You have chosen to become a %s!\n\nYou've learned your first attack spell!", classSelection.selectedIcon.className)
+                    messageState.messageTimer = 5
+                    messageState.currentMessageItem = nil
                     
-                    showClassSelection = false
-                    selectedClassIcon = nil
-                    classSelectionConfirmation = false
+                    classSelection.show = false
+                    classSelection.selectedIcon = nil
+                    classSelection.confirmation = false
                 end
             elseif key == "n" then
                 -- Go back to class details
-                classSelectionConfirmation = false
+                classSelection.confirmation = false
             end
         else
             if key == "e" then
                 -- Show confirmation
-                classSelectionConfirmation = true
+                classSelection.confirmation = true
             end
         end
         return
     end
     
     -- Strategy selection UI controls
-    if showStrategySelection then
-        if strategySelectionConfirmation then
+    if strategySelection.show then
+        if strategySelection.confirmation then
             if key == "y" then
                 -- Confirm strategy selection
-                if selectedStrategyIcon then
-                    local info = strategyInfo[selectedStrategyIcon.strategyName]
+                if strategySelection.selectedIcon then
+                    local info = strategyInfo[strategySelection.selectedIcon.strategyName]
                     if info then
                         gameState.healingStrategy = info.strategy
                         gameState.defenseTrialsCompleted = true
@@ -4953,43 +4980,43 @@ function love.keypressed(key)
                             end
                         end
                         
-                        currentMessage = string.format("You have chosen the path of %s!\n\nYour healing strategy is now active.", selectedStrategyIcon.strategyName)
-                        messageTimer = 5
-                        currentMessageItem = nil
+                        messageState.currentMessage = string.format("You have chosen the path of %s!\n\nYour healing strategy is now active.", strategySelection.selectedIcon.strategyName)
+                        messageState.messageTimer = 5
+                        messageState.currentMessageItem = nil
                         
-                        showStrategySelection = false
-                        selectedStrategyIcon = nil
-                        strategySelectionConfirmation = false
+                        strategySelection.show = false
+                        strategySelection.selectedIcon = nil
+                        strategySelection.confirmation = false
                     end
                 end
             elseif key == "n" then
                 -- Go back to strategy details
-                strategySelectionConfirmation = false
+                strategySelection.confirmation = false
             end
         else
             if key == "e" then
                 -- Show confirmation
-                strategySelectionConfirmation = true
+                strategySelection.confirmation = true
             end
         end
         return
     end
     
     -- Normal game controls (not paused)
-    if key == "e" and not inCutscene then
+    if key == "e" and not cutsceneState.inCutscene then
         checkInteraction()
     elseif key == "f3" then
-        showDebugPanel = not showDebugPanel
-        DEBUG_MODE = showDebugPanel -- Also toggle hitboxes when debug panel is shown
-    elseif key == "i" and not inCutscene then
+        uiState.showDebugPanel = not uiState.showDebugPanel
+        DEBUG_MODE = uiState.showDebugPanel -- Also toggle hitboxes when debug panel is shown
+    elseif key == "i" and not cutsceneState.inCutscene then
         -- Toggle full inventory (like spell book)
-        showFullInventory = not showFullInventory
-        if showFullInventory then
-            inventoryTargetWidth = 300
+        uiState.showFullInventory = not uiState.showFullInventory
+        if uiState.showFullInventory then
+            uiState.inventoryTargetWidth = 300
         else
-            inventoryTargetWidth = 0
-            inventoryScrollOffset = 0
-            selectedInventoryItem = nil -- Clear selection when closing
+            uiState.inventoryTargetWidth = 0
+            uiState.inventoryScrollOffset = 0
+            uiState.selectedInventoryItem = nil -- Clear selection when closing
         end
         
         -- Play panel swipe sound
@@ -5002,9 +5029,9 @@ function love.keypressed(key)
                 print("[AUDIO] Playing panel swipe sound (inventory)")
             end
         end
-    elseif key == "h" and not inCutscene then
-        showHelp = not showHelp
-    elseif key == "b" and not inCutscene then
+    elseif key == "h" and not cutsceneState.inCutscene then
+        uiState.showHelp = not uiState.showHelp
+    elseif key == "b" and not cutsceneState.inCutscene then
         -- Toggle spell menu (only if spells learned)
         if spellSystem then
             if #gameState.learnedSpells > 0 then
@@ -5021,11 +5048,11 @@ function love.keypressed(key)
                     end
                 end
             else
-                currentMessage = "You haven't learned any spells yet..."
-                messageTimer = 2
+                messageState.currentMessage = "You haven't learned any spells yet..."
+                messageState.messageTimer = 2
             end
         end
-    elseif key == "1" and not inCutscene and spellSystem then
+    elseif key == "1" and not cutsceneState.inCutscene and spellSystem then
         local success, spell = spellSystem:activateSlot(1)
         if success and spell then
             -- Play spell casting sound
@@ -5052,7 +5079,7 @@ function love.keypressed(key)
                 table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
             end
         end
-    elseif key == "2" and not inCutscene and spellSystem then
+    elseif key == "2" and not cutsceneState.inCutscene and spellSystem then
         local success, spell = spellSystem:activateSlot(2)
         if success and spell then
             -- Play spell casting sound
@@ -5078,7 +5105,7 @@ function love.keypressed(key)
                 table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
             end
         end
-    elseif key == "3" and not inCutscene and spellSystem then
+    elseif key == "3" and not cutsceneState.inCutscene and spellSystem then
         local success, spell = spellSystem:activateSlot(3)
         if success and spell then
             -- Play spell casting sound
@@ -5104,7 +5131,7 @@ function love.keypressed(key)
                 table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
             end
         end
-    elseif key == "4" and not inCutscene and spellSystem then
+    elseif key == "4" and not cutsceneState.inCutscene and spellSystem then
         local success, spell = spellSystem:activateSlot(4)
         if success and spell then
             -- Play spell casting sound
@@ -5130,7 +5157,7 @@ function love.keypressed(key)
                 table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
             end
         end
-    elseif key == "5" and not inCutscene and spellSystem then
+    elseif key == "5" and not cutsceneState.inCutscene and spellSystem then
         local success, spell = spellSystem:activateSlot(5)
         if success and spell then
             -- Play spell casting sound
@@ -5156,38 +5183,38 @@ function love.keypressed(key)
                 table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
             end
         end
-    elseif key == "6" and not inCutscene then
+    elseif key == "6" and not cutsceneState.inCutscene then
         -- Use quick slot 1
         if gameState.quickSlots[1] then
             useItem(gameState.quickSlots[1])
         end
-    elseif key == "7" and not inCutscene then
+    elseif key == "7" and not cutsceneState.inCutscene then
         -- Use quick slot 2
         if gameState.quickSlots[2] then
             useItem(gameState.quickSlots[2])
         end
-    elseif key == "8" and not inCutscene then
+    elseif key == "8" and not cutsceneState.inCutscene then
         -- Use quick slot 3
         if gameState.quickSlots[3] then
             useItem(gameState.quickSlots[3])
         end
-    elseif key == "9" and not inCutscene then
+    elseif key == "9" and not cutsceneState.inCutscene then
         -- Use quick slot 4
         if gameState.quickSlots[4] then
             useItem(gameState.quickSlots[4])
         end
-    elseif key == "0" and not inCutscene then
+    elseif key == "0" and not cutsceneState.inCutscene then
         -- Use quick slot 5
         if gameState.quickSlots[5] then
             useItem(gameState.quickSlots[5])
         end
-    elseif key == "p" and not inCutscene then
+    elseif key == "p" and not cutsceneState.inCutscene then
         -- Profile menu (only available after selecting class)
         if gameState.playerClass then
-            showProfileMenu = not showProfileMenu
+            startScreen.showProfileMenu = not startScreen.showProfileMenu
         else
-            currentMessage = "Complete class selection first..."
-            messageTimer = 2
+            messageState.currentMessage = "Complete class selection first..."
+            messageState.messageTimer = 2
         end
     end
 end
@@ -5195,11 +5222,11 @@ end
 function love.mousepressed(x, y, button)
     if button == 1 then -- Left click
         -- Settings menu slider clicks
-        if isPaused and pauseMenuState == "settings" then
+        if uiState.isPaused and uiState.pauseMenuState == "settings" then
             local screenWidth = love.graphics.getWidth()
             local screenHeight = love.graphics.getHeight()
             local panelWidth = 350
-            local panelHeight = math.floor(pauseMenuHeight)
+            local panelHeight = math.floor(uiState.pauseMenuHeight)
             local panelX = (screenWidth - panelWidth) / 2
             local panelY = (screenHeight - panelHeight) / 2
             local padding = 12
@@ -5213,7 +5240,7 @@ function love.mousepressed(x, y, button)
             
             if x >= sliderX and x <= sliderX + sliderWidth and
                y >= musicSliderY - 10 and y <= musicSliderY + sliderHeight + 10 then
-                draggingMusicSlider = true
+                uiState.draggingMusicSlider = true
                 local newVolume = math.max(0, math.min(1, (x - sliderX) / sliderWidth))
                 gameState.musicVolume = newVolume
                 return
@@ -5223,7 +5250,7 @@ function love.mousepressed(x, y, button)
             local sfxSliderY = musicSliderY + 65
             if x >= sliderX and x <= sliderX + sliderWidth and
                y >= sfxSliderY - 10 and y <= sfxSliderY + sliderHeight + 10 then
-                draggingSFXSlider = true
+                uiState.draggingSFXSlider = true
                 local newVolume = math.max(0, math.min(1, (x - sliderX) / sliderWidth))
                 gameState.sfxVolume = newVolume
                 return
@@ -5238,8 +5265,8 @@ function love.mousepressed(x, y, button)
                y >= buttonY and y <= buttonY + buttonHeight then
                 -- Save settings to file
                 local success, msg = saveManager:save(gameState, player.x, player.y, player.health)
-                currentMessage = "Settings saved!"
-                messageTimer = 2
+                messageState.currentMessage = "Settings saved!"
+                messageState.messageTimer = 2
                 return
             end
         end
@@ -5255,14 +5282,14 @@ function love.mousepressed(x, y, button)
         end
         
         -- Handle inventory clicks (equipping to quick slots)
-        if showFullInventory and inventoryWidth > 5 then
+        if uiState.showFullInventory and uiState.inventoryWidth > 5 then
             local screenWidth = love.graphics.getWidth()
             local screenHeight = love.graphics.getHeight()
             local slotSize = 48
             local slotSpacing = 8
             local startX = screenWidth - slotSize - 15
             local startY = screenHeight / 2 - ((5 * slotSize + 4 * slotSpacing) / 2)
-            local panelWidth = math.floor(inventoryWidth)
+            local panelWidth = math.floor(uiState.inventoryWidth)
             local panelHeight = slotSize * 5 + slotSpacing * 4 + 40
             local panelX = startX - panelWidth - 10
             local panelY = startY - 20
@@ -5276,18 +5303,18 @@ function love.mousepressed(x, y, button)
                 local slotY = startY + (s - 1) * (slotSize + slotSpacing)
                 if x >= slotX and x <= slotX + slotSize and
                    y >= slotY and y <= slotY + slotSize then
-                    if selectedInventoryItem then
+                    if uiState.selectedInventoryItem then
                         -- Equip selected item to this slot
-                        gameState.quickSlots[s] = selectedInventoryItem
-                        currentMessage = string.format("Equipped %s to slot %d", selectedInventoryItem, s + 5)
-                        messageTimer = 2
-                        selectedInventoryItem = nil -- Deselect after equipping
+                        gameState.quickSlots[s] = uiState.selectedInventoryItem
+                        messageState.currentMessage = string.format("Equipped %s to slot %d", uiState.selectedInventoryItem, s + 5)
+                        messageState.messageTimer = 2
+                        uiState.selectedInventoryItem = nil -- Deselect after equipping
                     elseif gameState.quickSlots[s] then
                         -- Unequip item from this slot
                         local unequippedItem = gameState.quickSlots[s]
                         gameState.quickSlots[s] = nil
-                        currentMessage = string.format("Unequipped %s from slot %d", unequippedItem, s + 5)
-                        messageTimer = 2
+                        messageState.currentMessage = string.format("Unequipped %s from slot %d", unequippedItem, s + 5)
+                        messageState.messageTimer = 2
                     end
                     return
                 end
@@ -5299,21 +5326,21 @@ function love.mousepressed(x, y, button)
                 local col = i % columns
                 local row = math.floor(i / columns)
                 local itemX = panelX + 8 + col * (slotSize + 4)
-                local itemY = contentY + row * (slotSize + 4) - inventoryScrollOffset
+                local itemY = contentY + row * (slotSize + 4) - uiState.inventoryScrollOffset
                 
                 if itemY + slotSize >= contentY and itemY <= contentY + contentHeight then
                     if x >= itemX and x <= itemX + slotSize and
                        y >= itemY and y <= itemY + slotSize and
                        y >= contentY and y <= contentY + contentHeight then
                         -- Toggle selection
-                        if selectedInventoryItem == itemName then
-                            selectedInventoryItem = nil -- Deselect
-                            currentMessage = "Deselected"
-                            messageTimer = 1
+                        if uiState.selectedInventoryItem == itemName then
+                            uiState.selectedInventoryItem = nil -- Deselect
+                            messageState.currentMessage = "Deselected"
+                            messageState.messageTimer = 1
                         else
-                            selectedInventoryItem = itemName -- Select
-                            currentMessage = string.format("Selected %s - Click a slot to equip", itemName)
-                            messageTimer = 2
+                            uiState.selectedInventoryItem = itemName -- Select
+                            messageState.currentMessage = string.format("Selected %s - Click a slot to equip", itemName)
+                            messageState.messageTimer = 2
                         end
                         return
                     end
@@ -5338,39 +5365,39 @@ function love.wheelmoved(x, y)
     end
     
     -- Class selection scrolling
-    if showClassSelection then
-        classSelectionScrollOffset = classSelectionScrollOffset - y * 30
-        classSelectionScrollOffset = math.max(0, classSelectionScrollOffset)
+    if classSelection.show then
+        classSelection.scrollOffset = classSelection.scrollOffset - y * 30
+        classSelection.scrollOffset = math.max(0, classSelection.scrollOffset)
         return
     end
     
     -- Strategy selection scrolling
-    if showStrategySelection then
-        strategySelectionScrollOffset = strategySelectionScrollOffset - y * 30
-        strategySelectionScrollOffset = math.max(0, strategySelectionScrollOffset)
+    if strategySelection.show then
+        strategySelection.scrollOffset = strategySelection.scrollOffset - y * 30
+        strategySelection.scrollOffset = math.max(0, strategySelection.scrollOffset)
         return
     end
     
-    if showFullInventory and inventoryWidth > 5 then
+    if uiState.showFullInventory and uiState.inventoryWidth > 5 then
         -- Scroll inventory
         local slotSize = 48
         local itemCount = 0
         for _ in pairs(gameState.inventory) do itemCount = itemCount + 1 end
-        local inventoryRows = math.ceil(itemCount / math.floor((inventoryWidth - 16) / (slotSize + 4)))
+        local inventoryRows = math.ceil(itemCount / math.floor((uiState.inventoryWidth - 16) / (slotSize + 4)))
         local maxScroll = math.max(0, inventoryRows * (slotSize + 4) - (slotSize * 5 + 32))
         
-        inventoryScrollOffset = inventoryScrollOffset - y * 20
-        inventoryScrollOffset = math.max(0, math.min(inventoryScrollOffset, maxScroll))
+        uiState.inventoryScrollOffset = uiState.inventoryScrollOffset - y * 20
+        uiState.inventoryScrollOffset = math.max(0, math.min(uiState.inventoryScrollOffset, maxScroll))
     end
 end
 
 function love.mousemoved(x, y, dx, dy)
     -- Handle settings slider dragging
-    if draggingMusicSlider or draggingSFXSlider then
+    if uiState.draggingMusicSlider or uiState.draggingSFXSlider then
         local screenWidth = love.graphics.getWidth()
         local screenHeight = love.graphics.getHeight()
         local panelWidth = 350
-        local panelHeight = math.floor(pauseMenuHeight)
+        local panelHeight = math.floor(uiState.pauseMenuHeight)
         local panelX = (screenWidth - panelWidth) / 2
         local panelY = (screenHeight - panelHeight) / 2
         local padding = 12
@@ -5379,7 +5406,7 @@ function love.mousemoved(x, y, dx, dy)
         
         local newVolume = math.max(0, math.min(1, (x - sliderX) / sliderWidth))
         
-        if draggingMusicSlider then
+        if uiState.draggingMusicSlider then
             gameState.musicVolume = newVolume
             -- Apply to music immediately
             if audio.magicalVoyageMusic then
@@ -5397,7 +5424,7 @@ function love.mousemoved(x, y, dx, dy)
                 local ow = audio.overworldSound
                 ow:setVolume(audio.overworldCurrentVolume * gameState.musicVolume)
             end
-        elseif draggingSFXSlider then
+        elseif uiState.draggingSFXSlider then
             gameState.sfxVolume = newVolume
             -- Apply to all one-shot SFX immediately
             if audio.chestCreakSound then
@@ -5466,17 +5493,17 @@ end
 
 function love.mousereleased(x, y, button)
     if button == 1 then
-        draggingMusicSlider = false
-        draggingSFXSlider = false
+        uiState.draggingMusicSlider = false
+        uiState.draggingSFXSlider = false
     end
 end
 
 function love.textinput(text)
-    if not gameStarted and startScreenState == "new_game" and #playerNameInput < 15 then
-        playerNameInput = playerNameInput .. text
+    if not startScreen.gameStarted and startScreen.state == "new_game" and #startScreen.playerNameInput < 15 then
+        startScreen.playerNameInput = startScreen.playerNameInput .. text
         -- Reset cursor to visible when typing
-        cursorBlinkTimer = 0
-        cursorVisible = true
+        startScreen.cursorBlinkTimer = 0
+        startScreen.cursorVisible = true
     end
 end
 
