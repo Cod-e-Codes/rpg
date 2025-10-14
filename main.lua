@@ -311,6 +311,8 @@ local playerNameInput = ""
 local showProfileMenu = false
 local startScreenState = "menu" -- "menu", "new_game", "loading"
 local startMenuSelection = 1 -- 1 = New Game, 2 = Load Game, 3 = Quit
+local cursorBlinkTimer = 0
+local cursorVisible = true
 
 -- Class selection UI state
 local showClassSelection = false
@@ -636,8 +638,16 @@ function loadAnimations()
 end
 
 function love.update(dt)
-    -- Don't update game if not started
+    -- Don't update game if not started (but update cursor blink)
     if not gameStarted then
+        -- Update cursor blink timer for name input
+        if startScreenState == "new_game" then
+            cursorBlinkTimer = cursorBlinkTimer + dt
+            if cursorBlinkTimer >= 0.5 then
+                cursorVisible = not cursorVisible
+                cursorBlinkTimer = 0
+            end
+        end
         return
     end
     
@@ -1816,16 +1826,24 @@ function love.draw()
             local promptWidth = font:getWidth(promptText)
             love.graphics.print(promptText, screenWidth/2 - promptWidth/2, screenHeight/2 - 40)
             
-            -- Input box
+            -- Input box (focused appearance)
             love.graphics.setColor(0.2, 0.2, 0.2)
             love.graphics.rectangle("fill", screenWidth/2 - 100, screenHeight/2, 200, 30, 3, 3)
-            love.graphics.setColor(0.6, 0.6, 0.6)
+            -- Brighter border to indicate focus
+            love.graphics.setColor(1, 0.9, 0.6)
             love.graphics.setLineWidth(2)
             love.graphics.rectangle("line", screenWidth/2 - 100, screenHeight/2, 200, 30, 3, 3)
             
             -- Player name input
             love.graphics.setColor(1, 1, 1)
             love.graphics.print(playerNameInput, screenWidth/2 - 95, screenHeight/2 + 7)
+            
+            -- Blinking cursor
+            if cursorVisible then
+                local textWidth = font:getWidth(playerNameInput)
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.rectangle("fill", screenWidth/2 - 95 + textWidth + 2, screenHeight/2 + 7, 2, 16)
+            end
             
             -- Instructions
             love.graphics.setColor(0.7, 0.7, 0.7)
@@ -3811,6 +3829,8 @@ function love.keypressed(key)
                     -- New Game
                     startScreenState = "new_game"
                     playerNameInput = ""
+                    cursorBlinkTimer = 0
+                    cursorVisible = true
                 elseif startMenuSelection == 2 and hasSaveFile then
                     -- Load Game
                     local loadedState, err = saveManager:load()
@@ -3855,6 +3875,9 @@ function love.keypressed(key)
                 gameStarted = true
             elseif key == "backspace" then
                 playerNameInput = string.sub(playerNameInput, 1, -2)
+                -- Reset cursor to visible when deleting
+                cursorBlinkTimer = 0
+                cursorVisible = true
             elseif key == "escape" then
                 startScreenState = "menu"
                 playerNameInput = ""
@@ -4451,6 +4474,9 @@ end
 function love.textinput(text)
     if not gameStarted and startScreenState == "new_game" and #playerNameInput < 15 then
         playerNameInput = playerNameInput .. text
+        -- Reset cursor to visible when typing
+        cursorBlinkTimer = 0
+        cursorVisible = true
     end
 end
 
