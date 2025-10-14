@@ -86,6 +86,7 @@ Save file: `savegame.sav`
 - [x] Skeleton spawn animations and combat arenas
 - [x] Audio system (ambient sounds, spell casting, NPC dialogue, music)
 - [x] Background music system with combat transitions
+- [x] Settings menu with adjustable music and SFX volume
 - [x] Visual effects for elemental hazards
 - [ ] More content and puzzles
 

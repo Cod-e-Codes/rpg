@@ -325,9 +325,13 @@ local selectedInventoryItem = nil -- Currently selected item for equipping
 local showHelp = false
 local showDebugPanel = false
 local isPaused = false
-local pauseMenuState = "main" -- "main", "controls", or "save_confirm"
-local pauseMenuHeight = 250 -- Current animated height
-local pauseMenuTargetHeight = 250 -- Target height to lerp to
+local pauseMenuState = "main" -- "main", "controls", "settings", or "save_confirm"
+local pauseMenuHeight = 280 -- Current animated height
+local pauseMenuTargetHeight = 280 -- Target height to lerp to
+
+-- Settings slider state
+local draggingMusicSlider = false
+local draggingSFXSlider = false
 
 -- Cutscene state
 local inCutscene = false
@@ -546,7 +550,7 @@ function love.load()
         ---@type any
         local chest = love.audio.newSource("assets/sounds/chest-creak.mp3", "static")
         audio.chestCreakSound = chest
-        chest:setVolume(0.6)
+        chest:setVolume(0.6 * gameState.sfxVolume)
     end)
     if not audioSuccess then
         print("Warning: Could not load chest-creak.mp3: " .. tostring(audioError))
@@ -559,7 +563,7 @@ function love.load()
         ---@type any
         local door = love.audio.newSource("assets/sounds/door-creak.mp3", "static")
         audio.doorCreakSound = door
-        door:setVolume(0.45)  -- 25% quieter than 0.6
+        door:setVolume(0.45 * gameState.sfxVolume)  -- 25% quieter than 0.6
     end)
     if not audioSuccess then
         print("Warning: Could not load door-creak.mp3: " .. tostring(audioError))
@@ -572,7 +576,7 @@ function love.load()
         ---@type any
         local unlocking = love.audio.newSource("assets/sounds/unlocking-door.mp3", "static")
         audio.unlockingDoorSound = unlocking
-        unlocking:setVolume(0.6)
+        unlocking:setVolume(0.6 * gameState.sfxVolume)
     end)
     if not audioSuccess then
         print("Warning: Could not load unlocking-door.mp3: " .. tostring(audioError))
@@ -585,7 +589,7 @@ function love.load()
         ---@type any
         local pauseOpen = love.audio.newSource("assets/sounds/pause-menu-open.mp3", "static")
         audio.pauseMenuOpenSound = pauseOpen
-        pauseOpen:setVolume(0.5)
+        pauseOpen:setVolume(0.5 * gameState.sfxVolume)
     end)
     if not audioSuccess then
         print("Warning: Could not load pause-menu-open.mp3: " .. tostring(audioError))
@@ -598,7 +602,7 @@ function love.load()
         ---@type any
         local panelSwipe = love.audio.newSource("assets/sounds/panel-swipe.mp3", "static")
         audio.panelSwipeSound = panelSwipe
-        panelSwipe:setVolume(0.5)
+        panelSwipe:setVolume(0.5 * gameState.sfxVolume)
     end)
     if not audioSuccess then
         print("Warning: Could not load panel-swipe.mp3: " .. tostring(audioError))
@@ -611,7 +615,7 @@ function love.load()
         ---@type any
         local skeletonChase = love.audio.newSource("assets/sounds/skeleton-chase.mp3", "static")
         audio.skeletonChaseSound = skeletonChase
-        skeletonChase:setVolume(0.6)
+        skeletonChase:setVolume(0.6 * gameState.sfxVolume)
     end)
     if not audioSuccess then
         print("Warning: Could not load skeleton-chase.mp3: " .. tostring(audioError))
@@ -636,7 +640,7 @@ function love.load()
     -- Load spell casting sounds
     audioSuccess, audioError = pcall(function()
         audio.earthCastSound = love.audio.newSource("assets/sounds/earth-cast-1.mp3", "static")
-        audio.earthCastSound:setVolume(0.6)
+        audio.earthCastSound:setVolume(0.6 * gameState.sfxVolume)
     end)
     if not audioSuccess then
         print("Warning: Could not load earth-cast-1.mp3: " .. tostring(audioError))
@@ -646,7 +650,7 @@ function love.load()
     
     audioSuccess, audioError = pcall(function()
         audio.fireCastSound = love.audio.newSource("assets/sounds/fire-cast-1.mp3", "static")
-        audio.fireCastSound:setVolume(0.6)
+        audio.fireCastSound:setVolume(0.6 * gameState.sfxVolume)
     end)
     if not audioSuccess then
         print("Warning: Could not load fire-cast-1.mp3: " .. tostring(audioError))
@@ -656,7 +660,7 @@ function love.load()
     
     audioSuccess, audioError = pcall(function()
         audio.stormCastSound = love.audio.newSource("assets/sounds/storm-cast-1.mp3", "static")
-        audio.stormCastSound:setVolume(0.6)
+        audio.stormCastSound:setVolume(0.6 * gameState.sfxVolume)
     end)
     if not audioSuccess then
         print("Warning: Could not load storm-cast-1.mp3: " .. tostring(audioError))
@@ -666,7 +670,7 @@ function love.load()
     
     audioSuccess, audioError = pcall(function()
         audio.iceCastSound = love.audio.newSource("assets/sounds/ice-cast-1.mp3", "static")
-        audio.iceCastSound:setVolume(0.6)
+        audio.iceCastSound:setVolume(0.6 * gameState.sfxVolume)
     end)
     if not audioSuccess then
         print("Warning: Could not load ice-cast-1.mp3: " .. tostring(audioError))
@@ -676,7 +680,7 @@ function love.load()
     
     audioSuccess, audioError = pcall(function()
         audio.illuminationCastSound = love.audio.newSource("assets/sounds/illumination-cast.mp3", "static")
-        audio.illuminationCastSound:setVolume(0.6)
+        audio.illuminationCastSound:setVolume(0.6 * gameState.sfxVolume)
     end)
     if not audioSuccess then
         print("Warning: Could not load illumination-cast.mp3: " .. tostring(audioError))
@@ -700,7 +704,7 @@ function love.load()
     
     audioSuccess, audioError = pcall(function()
         audio.trialsSpawnSound = love.audio.newSource("assets/sounds/trials-spawn.mp3", "static")
-        audio.trialsSpawnSound:setVolume(0.5)
+        audio.trialsSpawnSound:setVolume(0.5 * gameState.sfxVolume)
     end)
     if not audioSuccess then
         print("Warning: Could not load trials-spawn.mp3: " .. tostring(audioError))
@@ -829,7 +833,7 @@ function love.update(dt)
         -- Apply the current volume
         ---@type any
         local fs = audio.footstepSound
-        fs:setVolume(audio.footstepCurrentVolume)
+        fs:setVolume(audio.footstepCurrentVolume * gameState.sfxVolume)
     end
     
     -- Update river sound volume based on visibility
@@ -849,7 +853,7 @@ function love.update(dt)
         -- Apply the current volume
         ---@type any
         local rs = audio.riverSound
-        rs:setVolume(audio.riverCurrentVolume)
+        rs:setVolume(audio.riverCurrentVolume * gameState.sfxVolume)
         
         -- Debug logging for visibility changes
         if DEBUG_MODE and audio.riverTargetVolume ~= audio.riverPreviousTargetVolume then
@@ -878,7 +882,7 @@ function love.update(dt)
         -- Apply the current volume
         ---@type any
         local cs = audio.caveSound
-        cs:setVolume(audio.caveCurrentVolume)
+        cs:setVolume(audio.caveCurrentVolume * gameState.sfxVolume)
         
         -- Debug logging for cave state changes
         if DEBUG_MODE then
@@ -909,7 +913,7 @@ function love.update(dt)
         -- Apply the current volume
         ---@type any
         local ow = audio.overworldSound
-        ow:setVolume(audio.overworldCurrentVolume)
+        ow:setVolume(audio.overworldCurrentVolume * gameState.musicVolume)
         
         -- Debug logging for overworld state changes
         if DEBUG_MODE then
@@ -1951,7 +1955,7 @@ function love.update(dt)
         
         ---@type any
         local npcTalk = audio.npcTalkingSound
-        npcTalk:setVolume(audio.npcTalkingCurrentVolume)
+        npcTalk:setVolume(audio.npcTalkingCurrentVolume * gameState.sfxVolume)
         
         -- Stop playing when fully faded out
         if audio.npcTalkingCurrentVolume <= 0 and npcTalk:isPlaying() then
@@ -1983,7 +1987,7 @@ function love.update(dt)
         
         ---@type any
         local voyage = audio.magicalVoyageMusic
-        voyage:setVolume(audio.magicalVoyageCurrentVolume)
+        voyage:setVolume(audio.magicalVoyageCurrentVolume * gameState.musicVolume)
         
         -- Start or stop playing based on volume
         if audio.magicalVoyageCurrentVolume > 0 and not voyage:isPlaying() then
@@ -2010,7 +2014,7 @@ function love.update(dt)
         
         ---@type any
         local fight = audio.fightSongMusic
-        fight:setVolume(audio.fightSongCurrentVolume)
+        fight:setVolume(audio.fightSongCurrentVolume * gameState.musicVolume)
         
         -- Stop playing when fully faded out
         if audio.fightSongCurrentVolume <= 0 and fight:isPlaying() then
@@ -2715,6 +2719,8 @@ function drawPauseMenu()
     local titleText = "PAUSED"
     if pauseMenuState == "controls" then
         titleText = "CONTROLS"
+    elseif pauseMenuState == "settings" then
+        titleText = "SETTINGS"
     elseif pauseMenuState == "save_confirm" then
         titleText = "CONFIRM OVERWRITE"
     end
@@ -2737,10 +2743,11 @@ function drawPauseMenu()
             "Resume (ESC)",
             "Save Game (S)",
             "Load Game (L)",
+            "Settings (T)",
             "Controls (C)",
             "Quit Game (Q)"
         }
-        pauseMenuTargetHeight = 250
+        pauseMenuTargetHeight = 280
     elseif pauseMenuState == "save_confirm" then
         -- Save confirmation - will be drawn differently below
         options = {}
@@ -2749,6 +2756,10 @@ function drawPauseMenu()
         -- Controls screen - will be drawn differently below
         options = {"Back (ESC)"}
         pauseMenuTargetHeight = 380 -- Taller for controls list
+    elseif pauseMenuState == "settings" then
+        -- Settings screen - will be drawn differently below
+        options = {"Back (ESC)"}
+        pauseMenuTargetHeight = 280
     end
     
     love.graphics.setColor(1, 0.95, 0.8)
@@ -2805,6 +2816,88 @@ function drawPauseMenu()
         local backText = "Press ESC to return"
         local backWidth = font:getWidth(backText)
         love.graphics.print(backText, panelX + (panelWidth - backWidth) / 2, yPos)
+    elseif pauseMenuState == "settings" then
+        -- Settings screen with sliders
+        yPos = yPos + 10
+        
+        -- Music Volume Label
+        love.graphics.setColor(0.9, 0.8, 0.4)
+        love.graphics.print("Music Volume", panelX + padding + 10, yPos)
+        yPos = yPos + 25
+        
+        -- Music Volume Slider
+        local sliderX = panelX + padding + 10
+        local sliderWidth = panelWidth - (padding * 2) - 20
+        local sliderHeight = 12
+        
+        -- Slider background
+        love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
+        love.graphics.rectangle("fill", sliderX, yPos, sliderWidth, sliderHeight, 4, 4)
+        
+        -- Slider fill
+        local musicFillWidth = sliderWidth * gameState.musicVolume
+        love.graphics.setColor(0.4, 0.7, 0.9)
+        love.graphics.rectangle("fill", sliderX, yPos, musicFillWidth, sliderHeight, 4, 4)
+        
+        -- Slider handle
+        local musicHandleX = sliderX + musicFillWidth
+        love.graphics.setColor(0.9, 0.9, 0.95)
+        love.graphics.circle("fill", musicHandleX, yPos + sliderHeight/2, 8)
+        
+        -- Volume percentage
+        love.graphics.setColor(0.8, 0.8, 0.8)
+        local musicPercent = string.format("%d%%", math.floor(gameState.musicVolume * 100))
+        love.graphics.print(musicPercent, sliderX + sliderWidth + 10, yPos - 4)
+        
+        yPos = yPos + 40
+        
+        -- SFX Volume Label
+        love.graphics.setColor(0.9, 0.8, 0.4)
+        love.graphics.print("SFX Volume", panelX + padding + 10, yPos)
+        yPos = yPos + 25
+        
+        -- SFX Volume Slider
+        -- Slider background
+        love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
+        love.graphics.rectangle("fill", sliderX, yPos, sliderWidth, sliderHeight, 4, 4)
+        
+        -- Slider fill
+        local sfxFillWidth = sliderWidth * gameState.sfxVolume
+        love.graphics.setColor(0.9, 0.6, 0.3)
+        love.graphics.rectangle("fill", sliderX, yPos, sfxFillWidth, sliderHeight, 4, 4)
+        
+        -- Slider handle
+        local sfxHandleX = sliderX + sfxFillWidth
+        love.graphics.setColor(0.9, 0.9, 0.95)
+        love.graphics.circle("fill", sfxHandleX, yPos + sliderHeight/2, 8)
+        
+        -- Volume percentage
+        love.graphics.setColor(0.8, 0.8, 0.8)
+        local sfxPercent = string.format("%d%%", math.floor(gameState.sfxVolume * 100))
+        love.graphics.print(sfxPercent, sliderX + sliderWidth + 10, yPos - 4)
+        
+        yPos = yPos + 40
+        
+        -- Save Button
+        local buttonWidth = 120
+        local buttonHeight = 30
+        local buttonX = panelX + (panelWidth - buttonWidth) / 2
+        love.graphics.setColor(0.3, 0.6, 0.4, 0.9)
+        love.graphics.rectangle("fill", buttonX, yPos, buttonWidth, buttonHeight, 5, 5)
+        love.graphics.setColor(0.5, 0.9, 0.6)
+        love.graphics.rectangle("line", buttonX, yPos, buttonWidth, buttonHeight, 5, 5)
+        love.graphics.setColor(1, 1, 1)
+        local saveText = "Save Settings"
+        local saveWidth = font:getWidth(saveText)
+        love.graphics.print(saveText, buttonX + (buttonWidth - saveWidth) / 2, yPos + 7)
+        
+        yPos = yPos + 50
+        
+        -- Hint
+        love.graphics.setColor(0.6, 0.6, 0.6)
+        local hintText = "Click and drag sliders to adjust • ESC: Return"
+        local hintWidth = font:getWidth(hintText)
+        love.graphics.print(hintText, panelX + (panelWidth - hintWidth) / 2, yPos)
     end
     
     -- Footer hint (only in main menu, controls has its own "return" hint)
@@ -4320,12 +4413,17 @@ function love.keypressed(key)
         if isPaused and pauseMenuState == "controls" then
             -- Return to main pause menu
             pauseMenuState = "main"
-            pauseMenuTargetHeight = 250
+            pauseMenuTargetHeight = 280
+            return
+        elseif isPaused and pauseMenuState == "settings" then
+            -- Return to main pause menu
+            pauseMenuState = "main"
+            pauseMenuTargetHeight = 280
             return
         elseif isPaused and pauseMenuState == "save_confirm" then
             -- Cancel save confirmation
             pauseMenuState = "main"
-            pauseMenuTargetHeight = 250
+            pauseMenuTargetHeight = 280
             return
         end
         
@@ -4333,8 +4431,8 @@ function love.keypressed(key)
         isPaused = not isPaused
         if isPaused then
             pauseMenuState = "main" -- Reset to main menu when pausing
-            pauseMenuTargetHeight = 250
-            pauseMenuHeight = 250 -- Reset animation
+            pauseMenuTargetHeight = 280
+            pauseMenuHeight = 280 -- Reset animation
             
             -- Play pause menu open sound
             if audio.pauseMenuOpenSound then
@@ -4508,6 +4606,10 @@ function love.keypressed(key)
                 messageTimer = 3
                 print("Load error: " .. tostring(err))
             end
+        elseif key == "t" then
+            -- Show settings submenu
+            pauseMenuState = "settings"
+            pauseMenuTargetHeight = 280
         elseif key == "c" then
             -- Show controls submenu
             pauseMenuState = "controls"
@@ -4518,11 +4620,11 @@ function love.keypressed(key)
             currentMessage = msg or "Game saved"
             messageTimer = 3
             pauseMenuState = "main"
-            pauseMenuTargetHeight = 250
+            pauseMenuTargetHeight = 280
         elseif key == "n" and pauseMenuState == "save_confirm" then
             -- Cancel save
             pauseMenuState = "main"
-            pauseMenuTargetHeight = 250
+            pauseMenuTargetHeight = 280
         elseif key == "q" then
         love.event.quit()
         end
@@ -4846,6 +4948,56 @@ end
 
 function love.mousepressed(x, y, button)
     if button == 1 then -- Left click
+        -- Settings menu slider clicks
+        if isPaused and pauseMenuState == "settings" then
+            local screenWidth = love.graphics.getWidth()
+            local screenHeight = love.graphics.getHeight()
+            local panelWidth = 350
+            local panelHeight = math.floor(pauseMenuHeight)
+            local panelX = (screenWidth - panelWidth) / 2
+            local panelY = (screenHeight - panelHeight) / 2
+            local padding = 12
+            local yPos = panelY + 70 -- Start after title
+            
+            -- Music slider hitbox
+            local sliderX = panelX + padding + 10
+            local sliderWidth = panelWidth - (padding * 2) - 20
+            local sliderHeight = 12
+            local musicSliderY = yPos + 25
+            
+            if x >= sliderX and x <= sliderX + sliderWidth and
+               y >= musicSliderY - 10 and y <= musicSliderY + sliderHeight + 10 then
+                draggingMusicSlider = true
+                local newVolume = math.max(0, math.min(1, (x - sliderX) / sliderWidth))
+                gameState.musicVolume = newVolume
+                return
+            end
+            
+            -- SFX slider hitbox
+            local sfxSliderY = musicSliderY + 65
+            if x >= sliderX and x <= sliderX + sliderWidth and
+               y >= sfxSliderY - 10 and y <= sfxSliderY + sliderHeight + 10 then
+                draggingSFXSlider = true
+                local newVolume = math.max(0, math.min(1, (x - sliderX) / sliderWidth))
+                gameState.sfxVolume = newVolume
+                return
+            end
+            
+            -- Save button hitbox
+            local buttonWidth = 120
+            local buttonHeight = 30
+            local buttonX = panelX + (panelWidth - buttonWidth) / 2
+            local buttonY = sfxSliderY + 52
+            if x >= buttonX and x <= buttonX + buttonWidth and
+               y >= buttonY and y <= buttonY + buttonHeight then
+                -- Save settings to file
+                local success, msg = saveManager:save(gameState, player.x, player.y, player.health)
+                currentMessage = "Settings saved!"
+                messageTimer = 2
+                return
+            end
+        end
+        
         -- Dev mode clicks
         if devMode and devMode.enabled and devMode.showPanel then
             devMode:handleClick(x, y, gameState, world, player, spellSystem, Spell)
@@ -4951,6 +5103,113 @@ function love.wheelmoved(x, y)
         
         inventoryScrollOffset = inventoryScrollOffset - y * 20
         inventoryScrollOffset = math.max(0, math.min(inventoryScrollOffset, maxScroll))
+    end
+end
+
+function love.mousemoved(x, y, dx, dy)
+    -- Handle settings slider dragging
+    if draggingMusicSlider or draggingSFXSlider then
+        local screenWidth = love.graphics.getWidth()
+        local screenHeight = love.graphics.getHeight()
+        local panelWidth = 350
+        local panelHeight = math.floor(pauseMenuHeight)
+        local panelX = (screenWidth - panelWidth) / 2
+        local panelY = (screenHeight - panelHeight) / 2
+        local padding = 12
+        local sliderX = panelX + padding + 10
+        local sliderWidth = panelWidth - (padding * 2) - 20
+        
+        local newVolume = math.max(0, math.min(1, (x - sliderX) / sliderWidth))
+        
+        if draggingMusicSlider then
+            gameState.musicVolume = newVolume
+            -- Apply to music immediately
+            if audio.magicalVoyageMusic then
+                ---@type any
+                local music = audio.magicalVoyageMusic
+                music:setVolume(audio.magicalVoyageCurrentVolume * gameState.musicVolume)
+            end
+            if audio.fightSongMusic then
+                ---@type any
+                local fight = audio.fightSongMusic
+                fight:setVolume(audio.fightSongCurrentVolume * gameState.musicVolume)
+            end
+            if audio.overworldSound then
+                ---@type any
+                local ow = audio.overworldSound
+                ow:setVolume(audio.overworldCurrentVolume * gameState.musicVolume)
+            end
+        elseif draggingSFXSlider then
+            gameState.sfxVolume = newVolume
+            -- Apply to all one-shot SFX immediately
+            if audio.chestCreakSound then
+                ---@type any
+                local chest = audio.chestCreakSound
+                chest:setVolume(0.6 * gameState.sfxVolume)
+            end
+            if audio.doorCreakSound then
+                ---@type any
+                local door = audio.doorCreakSound
+                door:setVolume(0.45 * gameState.sfxVolume)
+            end
+            if audio.unlockingDoorSound then
+                ---@type any
+                local unlock = audio.unlockingDoorSound
+                unlock:setVolume(0.6 * gameState.sfxVolume)
+            end
+            if audio.pauseMenuOpenSound then
+                ---@type any
+                local pause = audio.pauseMenuOpenSound
+                pause:setVolume(0.5 * gameState.sfxVolume)
+            end
+            if audio.panelSwipeSound then
+                ---@type any
+                local panel = audio.panelSwipeSound
+                panel:setVolume(0.5 * gameState.sfxVolume)
+            end
+            if audio.skeletonChaseSound then
+                ---@type any
+                local chase = audio.skeletonChaseSound
+                chase:setVolume(0.6 * gameState.sfxVolume)
+            end
+            if audio.earthCastSound then
+                ---@type any
+                local earth = audio.earthCastSound
+                earth:setVolume(0.6 * gameState.sfxVolume)
+            end
+            if audio.fireCastSound then
+                ---@type any
+                local fire = audio.fireCastSound
+                fire:setVolume(0.6 * gameState.sfxVolume)
+            end
+            if audio.stormCastSound then
+                ---@type any
+                local storm = audio.stormCastSound
+                storm:setVolume(0.6 * gameState.sfxVolume)
+            end
+            if audio.iceCastSound then
+                ---@type any
+                local ice = audio.iceCastSound
+                ice:setVolume(0.6 * gameState.sfxVolume)
+            end
+            if audio.illuminationCastSound then
+                ---@type any
+                local illum = audio.illuminationCastSound
+                illum:setVolume(0.6 * gameState.sfxVolume)
+            end
+            if audio.trialsSpawnSound then
+                ---@type any
+                local trials = audio.trialsSpawnSound
+                trials:setVolume(0.5 * gameState.sfxVolume)
+            end
+        end
+    end
+end
+
+function love.mousereleased(x, y, button)
+    if button == 1 then
+        draggingMusicSlider = false
+        draggingSFXSlider = false
     end
 end
 

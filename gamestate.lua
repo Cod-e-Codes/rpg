@@ -36,7 +36,11 @@ function GameState:new()
         
         -- Level progression
         levelHistory = {}, -- Array of completed level names
-        playTime = 0 -- Total play time in seconds
+        playTime = 0, -- Total play time in seconds
+        
+        -- Settings
+        musicVolume = 1.0, -- Music volume (0.0 to 1.0)
+        sfxVolume = 1.0 -- SFX volume (0.0 to 1.0)
     }
     setmetatable(state, {__index = self})
     return state
