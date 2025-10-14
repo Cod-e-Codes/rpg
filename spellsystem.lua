@@ -20,6 +20,7 @@ function SpellSystem:new(gameState)
         showSpellMenu = false,
         spellMenuWidth = 0, -- Current animated width
         spellMenuTargetWidth = 0, -- Target width for lerping
+        spellMenuScrollOffset = 0, -- Scroll offset for spell list
         selectedSpellForEquip = nil, -- Currently selected spell to equip
         hoveredSlot = nil, -- Slot being hovered in bottom bar
         hoveredMenuSpell = nil, -- Spell being hovered in menu
@@ -290,7 +291,8 @@ function SpellSystem:drawSpellMenu()
     -- Spell list
     local listWidth = panelWidth - 30
     local contentY = panelY + headerHeight + 15
-    local contentHeight = panelHeight - headerHeight - 80
+    -- Reserve more space at bottom for equipped slots section (170px total)
+    local contentHeight = panelHeight - headerHeight - 170
     
     local listX = panelX + 15
     love.graphics.setColor(1, 0.95, 0.7)
@@ -300,16 +302,32 @@ function SpellSystem:drawSpellMenu()
     local mouseX, mouseY = love.mouse.getPosition()
     self.hoveredMenuSpell = nil
     
+    -- Calculate max scroll based on total spell list height
+    local totalSpellListHeight = #self.learnedSpells * 55
+    local maxScroll = math.max(0, totalSpellListHeight - contentHeight)
+    self.spellMenuScrollOffset = math.max(0, math.min(self.spellMenuScrollOffset, maxScroll))
+    
+    -- Set up scissor testing to clip spell list to content area (only if dimensions are valid)
+    if listWidth > 0 and contentHeight > 0 then
+        love.graphics.setScissor(listX, spellListY, listWidth, contentHeight)
+    end
+    
     for i, spell in ipairs(self.learnedSpells) do
-        local itemY = spellListY + (i - 1) * 55
+        local itemY = spellListY + (i - 1) * 55 - self.spellMenuScrollOffset
         local itemHeight = 50
+        
+        -- Skip if item is outside visible area (optimization)
+        if itemY + itemHeight < spellListY or itemY > spellListY + contentHeight then
+            goto continue
+        end
         
         -- Check if selected
         local isSelected = (self.selectedSpellForEquip == spell)
         
-        -- Check hover
+        -- Check hover (only within scrollable area)
         local isHovered = mouseX >= listX and mouseX <= listX + listWidth and
-                         mouseY >= itemY and mouseY <= itemY + itemHeight
+                         mouseY >= itemY and mouseY <= itemY + itemHeight and
+                         mouseY >= spellListY and mouseY <= spellListY + contentHeight
         
         if isHovered then
             self.hoveredMenuSpell = spell
@@ -350,7 +368,12 @@ function SpellSystem:drawSpellMenu()
         -- Draw level
         love.graphics.setColor(0.9, 0.85, 0.6)
         love.graphics.print(string.format("Lv.%d", spell.level), listX + 52, itemY + 28)
+        
+        ::continue::
     end
+    
+    -- Disable scissor testing
+    love.graphics.setScissor()
     
     -- Draw hover tooltip for spell details
     if self.hoveredMenuSpell then
@@ -646,25 +669,31 @@ function SpellSystem:handleClick(mouseX, mouseY)
     
     local screenHeight = love.graphics.getHeight()
     local panelX = 0
-    local contentY = 40 + 15
+    local panelY = 0
+    local panelHeight = screenHeight
+    local headerHeight = 40
+    local contentY = panelY + headerHeight + 15
+    local contentHeight = panelHeight - headerHeight - 170
     local spellListY = contentY + 25
     local listX = panelX + 15
     local listWidth = self.spellMenuWidth - 30
     
-    -- Check if clicking on spell list
-    for i, spell in ipairs(self.learnedSpells) do
-        local itemY = spellListY + (i - 1) * 55
-        local itemHeight = 50
-        
-        if mouseX >= listX and mouseX <= listX + listWidth and
-           mouseY >= itemY and mouseY <= itemY + itemHeight then
-            -- Toggle selection
-            if self.selectedSpellForEquip == spell then
-                self.selectedSpellForEquip = nil
-            else
-                self.selectedSpellForEquip = spell
+    -- Check if clicking on spell list (only within scrollable area)
+    if mouseX >= listX and mouseX <= listX + listWidth and
+       mouseY >= spellListY and mouseY <= spellListY + contentHeight then
+        for i, spell in ipairs(self.learnedSpells) do
+            local itemY = spellListY + (i - 1) * 55 - self.spellMenuScrollOffset
+            local itemHeight = 50
+            
+            if mouseY >= itemY and mouseY <= itemY + itemHeight then
+                -- Toggle selection
+                if self.selectedSpellForEquip == spell then
+                    self.selectedSpellForEquip = nil
+                else
+                    self.selectedSpellForEquip = spell
+                end
+                return
             end
-            return
         end
     end
     
