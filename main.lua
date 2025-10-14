@@ -257,6 +257,7 @@ local saveManager
 ---@field unlockingDoorSound any
 ---@field pauseMenuOpenSound any
 ---@field panelSwipeSound any
+---@field skeletonChaseSound any
 local audio = {
     footstepSound = nil,
     footstepTargetVolume = 0,
@@ -279,7 +280,8 @@ local audio = {
     doorCreakSound = nil,
     unlockingDoorSound = nil,
     pauseMenuOpenSound = nil,
-    panelSwipeSound = nil
+    panelSwipeSound = nil,
+    skeletonChaseSound = nil
 }
 local devMode
 local currentMessage = nil
@@ -575,6 +577,19 @@ function love.load()
         print("Warning: Could not load panel-swipe.mp3: " .. tostring(audioError))
     else
         print("[AUDIO] Loaded panel-swipe.mp3 successfully. Volume: 0.5")
+    end
+    
+    -- Load skeleton chase sound effect
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local skeletonChase = love.audio.newSource("assets/sounds/skeleton-chase.mp3", "static")
+        audio.skeletonChaseSound = skeletonChase
+        skeletonChase:setVolume(0.6)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load skeleton-chase.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded skeleton-chase.mp3 successfully. Volume: 0.6")
     end
     
     -- Create example maps
@@ -1195,9 +1210,23 @@ function love.update(dt)
             return world.currentMap:isColliding(boxLeft, boxTop, boxWidth, boxHeight)
         end
         
+        -- Track previous chase state to detect when chase starts
+        local wasChasing = enemy.isChasing
+        
         -- Only check for hits if player doesn't have immunity
         local canBeHit = (player.immunityTimer <= 0)
         local enemyResult = enemy:update(dt, player.x, player.y, gameTime, canBeHit)
+        
+        -- Play chase sound when enemy starts chasing
+        if not wasChasing and enemy.isChasing and audio.skeletonChaseSound then
+            ---@type any
+            local chase = audio.skeletonChaseSound
+            chase:stop()
+            chase:play()
+            if DEBUG_MODE then
+                print("[AUDIO] Playing skeleton chase sound (enemy started chasing)")
+            end
+        end
         
         -- Handle knockback and damage
         if enemyResult and enemyResult.type == "knockback" and canBeHit then
@@ -1221,6 +1250,12 @@ function love.update(dt)
                         player.isDead = true
                         -- Fade out footsteps on death
                         audio.footstepTargetVolume = 0
+                        -- Stop skeleton chase sound on death
+                        if audio.skeletonChaseSound then
+                            ---@type any
+                            local chase = audio.skeletonChaseSound
+                            chase:stop()
+                        end
                     end
                 end
             end
@@ -1318,6 +1353,12 @@ function love.update(dt)
                 player.isDead = true
                 -- Fade out footsteps on death
                 audio.footstepTargetVolume = 0
+                -- Stop skeleton chase sound on death
+                if audio.skeletonChaseSound then
+                    ---@type any
+                    local chase = audio.skeletonChaseSound
+                    chase:stop()
+                end
             end
             
             -- Grant brief immunity to prevent rapid damage ticks
@@ -4037,6 +4078,13 @@ function love.keypressed(key)
                 ---@type any
                 local unlocking = audio.unlockingDoorSound
                 unlocking:stop()
+            end
+            
+            -- Stop skeleton chase sound if playing
+            if audio.skeletonChaseSound then
+                ---@type any
+                local chase = audio.skeletonChaseSound
+                chase:stop()
             end
         else
             -- Resume all ambient sounds
