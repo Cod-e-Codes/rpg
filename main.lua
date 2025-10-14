@@ -337,6 +337,8 @@ local draggingSFXSlider = false
 local inCutscene = false
 local cutsceneWalkTarget = nil
 local cutsceneOnComplete = nil
+local cutsceneDelayTimer = 0
+local cutsceneDelayCallback = nil
 
 -- Start screen state
 local gameStarted = false
@@ -1383,24 +1385,27 @@ function love.update(dt)
         local npcResult = npc:update(dt, player.x, player.y)
         
         -- Handle NPC-triggered events
-        if npcResult == "enter_house" and not inCutscene then
-            -- Start cutscene: player walks to door, then transitions
-            inCutscene = true
-            cutsceneWalkTarget = {x = 55 * 32, y = 19 * 32} -- Door position
-            cutsceneOnComplete = function()
-                -- Transition to house interior
-                gameState:changeMap("house_interior", 7*32, 9*32)
-                world:loadMap(gameState.currentMap)
-                player.x = gameState.playerSpawn.x
-                player.y = gameState.playerSpawn.y
-                
-                currentMessage = "Inside the merchant's house..."
-                currentMessageItem = nil
-                messageTimer = 2
-                
-                inCutscene = false
-                cutsceneWalkTarget = nil
-                cutsceneOnComplete = nil
+        if npcResult == "enter_house" and not inCutscene and cutsceneDelayTimer <= 0 then
+            -- Start cutscene after a delay to let door unlock sound play
+            cutsceneDelayTimer = 2.5 -- 2.5 second delay
+            cutsceneDelayCallback = function()
+                inCutscene = true
+                cutsceneWalkTarget = {x = 55 * 32, y = 19 * 32} -- Door position
+                cutsceneOnComplete = function()
+                    -- Transition to house interior
+                    gameState:changeMap("house_interior", 7*32, 9*32)
+                    world:loadMap(gameState.currentMap)
+                    player.x = gameState.playerSpawn.x
+                    player.y = gameState.playerSpawn.y
+                    
+                    currentMessage = "Inside the merchant's house..."
+                    currentMessageItem = nil
+                    messageTimer = 2
+                    
+                    inCutscene = false
+                    cutsceneWalkTarget = nil
+                    cutsceneOnComplete = nil
+                end
             end
             
             currentMessage = "Following the merchant inside..."
@@ -1724,6 +1729,18 @@ function love.update(dt)
         -- Stop knockback if velocity is very small
         player.knockbackVelocityX = 0
         player.knockbackVelocityY = 0
+    end
+    
+    -- Handle cutscene delay timer
+    if cutsceneDelayTimer > 0 then
+        cutsceneDelayTimer = cutsceneDelayTimer - dt
+        if cutsceneDelayTimer <= 0 then
+            cutsceneDelayTimer = 0
+            if cutsceneDelayCallback then
+                cutsceneDelayCallback()
+                cutsceneDelayCallback = nil
+            end
+        end
     end
     
     -- Handle cutscene movement
