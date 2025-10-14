@@ -4692,6 +4692,7 @@ function love.keypressed(key)
                 audio.fireCastSound:play()
             elseif gameState.playerElement == "lightning" and audio.stormCastSound then
                 audio.stormCastSound:stop()
+                audio.stormCastSound:seek(3.0)
                 audio.stormCastSound:play()
             elseif gameState.playerElement == "ice" and audio.iceCastSound then
                 audio.iceCastSound:stop()
@@ -4718,6 +4719,7 @@ function love.keypressed(key)
                 audio.fireCastSound:play()
             elseif gameState.playerElement == "lightning" and audio.stormCastSound then
                 audio.stormCastSound:stop()
+                audio.stormCastSound:seek(3.0)
                 audio.stormCastSound:play()
             elseif gameState.playerElement == "ice" and audio.iceCastSound then
                 audio.iceCastSound:stop()
@@ -4743,6 +4745,7 @@ function love.keypressed(key)
                 audio.fireCastSound:play()
             elseif gameState.playerElement == "lightning" and audio.stormCastSound then
                 audio.stormCastSound:stop()
+                audio.stormCastSound:seek(3.0)
                 audio.stormCastSound:play()
             elseif gameState.playerElement == "ice" and audio.iceCastSound then
                 audio.iceCastSound:stop()
@@ -4768,6 +4771,7 @@ function love.keypressed(key)
                 audio.fireCastSound:play()
             elseif gameState.playerElement == "lightning" and audio.stormCastSound then
                 audio.stormCastSound:stop()
+                audio.stormCastSound:seek(3.0)
                 audio.stormCastSound:play()
             elseif gameState.playerElement == "ice" and audio.iceCastSound then
                 audio.iceCastSound:stop()
@@ -4793,6 +4797,7 @@ function love.keypressed(key)
                 audio.fireCastSound:play()
             elseif gameState.playerElement == "lightning" and audio.stormCastSound then
                 audio.stormCastSound:stop()
+                audio.stormCastSound:seek(3.0)
                 audio.stormCastSound:play()
             elseif gameState.playerElement == "ice" and audio.iceCastSound then
                 audio.iceCastSound:stop()
