@@ -7,6 +7,7 @@ function Spell:new(data)
         name = data.name or "Unknown Spell",
         type = data.type or "active", -- "active" or "passive"
         description = data.description or "",
+        element = data.element or "fire", -- Element type for projectile creation
         
         -- Active spell properties
         duration = data.duration or 0, -- Seconds (0 = instant/permanent)
@@ -261,6 +262,7 @@ function Spell.createIllumination()
         name = "Illumination",
         type = "active",
         description = "Creates a magical light that reveals the darkness around you.",
+        element = "light", -- Illumination is light-based magic
         duration = 20,
         radius = 120,
         manaCost = 15,
@@ -332,6 +334,7 @@ function Spell.createFireball()
         name = "Fireball",
         type = "active",
         description = "Launch a blazing projectile",
+        element = "fire",
         duration = 0,
         radius = 80,
         manaCost = 20,
@@ -359,6 +362,7 @@ function Spell.createIceShard()
         name = "Ice Shard",
         type = "active",
         description = "Fire a freezing projectile",
+        element = "ice",
         duration = 0,
         radius = 70,
         manaCost = 18,
@@ -386,6 +390,7 @@ function Spell.createLightningBolt()
         name = "Lightning Bolt",
         type = "active",
         description = "Strike with electric fury",
+        element = "lightning",
         duration = 0,
         radius = 90,
         manaCost = 22,
@@ -413,6 +418,7 @@ function Spell.createStoneSpike()
         name = "Stone Spike",
         type = "active",
         description = "Summon earth from below",
+        element = "earth",
         duration = 0,
         radius = 75,
         manaCost = 19,
@@ -441,6 +447,7 @@ function Spell.createFireResistance()
         name = "Fire Ward",
         type = "active",
         description = "Reduces fire damage by 90% for a short time",
+        element = "fire",
         duration = 10,
         radius = 0,
         manaCost = 25,
@@ -472,6 +479,7 @@ function Spell.createIceResistance()
         name = "Frost Barrier",
         type = "active",
         description = "Reduces ice damage by 90% for a short time",
+        element = "ice",
         duration = 10,
         radius = 0,
         manaCost = 25,
@@ -503,6 +511,7 @@ function Spell.createLightningResistance()
         name = "Storm Shield",
         type = "active",
         description = "Reduces lightning damage by 90% for a short time",
+        element = "lightning",
         duration = 10,
         radius = 0,
         manaCost = 25,
@@ -534,6 +543,7 @@ function Spell.createEarthResistance()
         name = "Stone Skin",
         type = "active",
         description = "Reduces earth damage by 90% for a short time",
+        element = "earth",
         duration = 10,
         radius = 0,
         manaCost = 25,

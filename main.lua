@@ -1442,6 +1442,41 @@ function love.update(dt)
                 end
             end
             
+            -- Trigger cave reveal cutscene when exiting house with sword
+            if fade.targetMap == "overworld" and 
+               gameState.currentMap == "overworld" and
+               gameState.questState == "sword_collected" and 
+               not cameraPan.caveCutsceneShown and
+               not gameState.mysteriousCaveHidden then -- Don't trigger if cave already hidden
+                cameraPan.caveCutsceneShown = true
+                
+                -- Start a walking cutscene first (player walks out)
+                cutsceneState.inCutscene = true
+                player.isMoving = false -- Stop any current movement
+                cutsceneState.cutsceneWalkTarget = {x = player.x, y = player.y + 64} -- Walk south a bit
+                cutsceneState.cutsceneOnComplete = function()
+                    -- After walking out, clear cutscene walk state
+                    cutsceneState.cutsceneWalkTarget = nil
+                    cutsceneState.cutsceneOnComplete = nil
+                    
+                    -- Start camera pan
+                    local screenWidth = love.graphics.getWidth()
+                    local screenHeight = love.graphics.getHeight()
+                    local caveX = 80  -- Cave center (new large entrance at x=0, width=160)
+                    local caveY = 26*32 + 96  -- Cave center (y=26*32, height=192)
+                    
+                    cameraPan.original.x = player.x - screenWidth / 2
+                    cameraPan.original.y = player.y - screenHeight / 2
+                    cameraPan.target.x = caveX - screenWidth / 2
+                    cameraPan.target.y = caveY - screenHeight / 2
+                    cameraPan.state = "pan_to_target"
+                    
+                    messageState.currentMessage = "A mysterious cave has appeared to the west!"
+                    messageState.currentMessageItem = nil -- Clear any item icon
+                    messageState.messageTimer = 999 -- Keep message until cutscene ends
+                end
+            end
+            
             -- Trigger town greeting cutscene if entering town for the first time
             if gameState.currentMap == "town" and not gameState.townGreetingShown then
                 -- Find the greeter NPC
@@ -2090,54 +2125,16 @@ function love.update(dt)
                 interactable:syncWithGameState(gameState)
             end
             
-            -- Trigger cave reveal cutscene when exiting house with sword
-            local triggerCaveCutscene = false
-            if gameState.currentMap == "overworld" and 
-               gameState.questState == "sword_collected" and 
-               not cameraPan.caveCutsceneShown and
-               not gameState.mysteriousCaveHidden then -- Don't trigger if cave already hidden
-                cameraPan.caveCutsceneShown = true
-                triggerCaveCutscene = true
-                
-                -- Start a walking cutscene first (player walks out)
-                cutsceneState.inCutscene = true
-                player.isMoving = false -- Stop any current movement
-                cutsceneState.cutsceneWalkTarget = {x = player.x, y = player.y + 64} -- Walk south a bit
-                cutsceneState.cutsceneOnComplete = function()
-                    -- After walking out, clear cutscene walk state
-                    cutsceneState.cutsceneWalkTarget = nil
-                    cutsceneState.cutsceneOnComplete = nil
-                    
-                    -- Start camera pan
-                    local screenWidth = love.graphics.getWidth()
-                    local screenHeight = love.graphics.getHeight()
-                    local caveX = 80  -- Cave center (new large entrance at x=0, width=160)
-                    local caveY = 26*32 + 96  -- Cave center (y=26*32, height=192)
-                    
-                    cameraPan.original.x = player.x - screenWidth / 2
-                    cameraPan.original.y = player.y - screenHeight / 2
-                    cameraPan.target.x = caveX - screenWidth / 2
-                    cameraPan.target.y = caveY - screenHeight / 2
-                    cameraPan.state = "pan_to_target"
-                    
-                    messageState.currentMessage = "A mysterious cave has appeared to the west!"
-                    messageState.currentMessageItem = nil -- Clear any item icon
-                    messageState.messageTimer = 999 -- Keep message until cutscene ends
-                end
+            -- Better dialogue based on where we're going
+            if gameState.currentMap == "overworld" then
+                messageState.currentMessage = "Back outside..."
+            elseif gameState.currentMap == "house_interior" then
+                messageState.currentMessage = "Inside the house"
+            else
+                messageState.currentMessage = gameState.currentMap
             end
-            
-            -- Better dialogue based on where we're going (skip if cave cutscene)
-            if not triggerCaveCutscene then
-                if gameState.currentMap == "overworld" then
-                    messageState.currentMessage = "Back outside..."
-                elseif gameState.currentMap == "house_interior" then
-                    messageState.currentMessage = "Inside the house"
-                else
-                    messageState.currentMessage = gameState.currentMap
-                end
-                messageState.currentMessageItem = nil  -- Clear item icon for door transitions
-                messageState.messageTimer = 2
-            end
+            messageState.currentMessageItem = nil  -- Clear item icon for door transitions
+            messageState.messageTimer = 2
         end
     end
     
@@ -5923,8 +5920,8 @@ function love.keypressed(key)
             end
             
             if spell.damage then
-                -- Create projectile for attack spell
-                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+                -- Create projectile for attack spell using the spell's element
+                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, spell.element))
             end
         end
     elseif key == "2" and not cutsceneState.inCutscene and spellSystem then
@@ -5950,7 +5947,7 @@ function love.keypressed(key)
             end
             
             if spell.damage then
-                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, spell.element))
             end
         end
     elseif key == "3" and not cutsceneState.inCutscene and spellSystem then
@@ -5976,7 +5973,7 @@ function love.keypressed(key)
             end
             
             if spell.damage then
-                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, spell.element))
             end
         end
     elseif key == "4" and not cutsceneState.inCutscene and spellSystem then
@@ -6002,7 +5999,7 @@ function love.keypressed(key)
             end
             
             if spell.damage then
-                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, spell.element))
             end
         end
     elseif key == "5" and not cutsceneState.inCutscene and spellSystem then
@@ -6028,7 +6025,7 @@ function love.keypressed(key)
             end
             
             if spell.damage then
-                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, spell.element))
             end
         end
     elseif key == "6" and not cutsceneState.inCutscene then

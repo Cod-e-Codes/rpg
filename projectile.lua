@@ -96,6 +96,9 @@ function Projectile:draw()
     elseif self.element == "earth" then
         color1 = {0.6, 0.4, 0.3}
         color2 = {0.9, 0.75, 0.5}
+    elseif self.element == "light" then
+        color1 = {1.0, 1.0, 0.8}
+        color2 = {1.0, 1.0, 0.95}
     end
     
     -- Draw projectile with glow effect (make it bigger and more visible)
