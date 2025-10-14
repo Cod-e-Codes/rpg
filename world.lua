@@ -960,6 +960,24 @@ function World:createTown()
         end
     end
     
+    -- Stone border around fountain (rectangular blocks)
+    -- North side stones
+    for x = 22, 27 do
+        collision[19][x] = 2
+    end
+    -- South side stones
+    for x = 22, 27 do
+        collision[24][x] = 2
+    end
+    -- West side stones (excluding corners already covered)
+    for y = 20, 23 do
+        collision[y][22] = 2
+    end
+    -- East side stones (excluding corners already covered)
+    for y = 20, 23 do
+        collision[y][27] = 2
+    end
+    
     -- Decorative obstacles (trees, benches, etc.)
     -- Trees around perimeter
     local treePositions = {

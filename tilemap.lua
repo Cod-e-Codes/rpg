@@ -556,6 +556,48 @@ function TileMap:draw(camera, gameTime)
                     love.graphics.circle("fill", px + 8 + i * 8, py + 6, 2)
                     love.graphics.circle("fill", px + 8 + i * 8, py + self.tileSize - 6, 2)
                 end
+            
+            elseif waterType == 5 then
+                -- Fountain water (special animated water for fountains)
+                local px = x * self.tileSize
+                local py = y * self.tileSize
+                
+                -- Animated water with toon shader (same as river but brighter)
+                local wavePhase = (gameTime * 2 + x * 0.7 + y * 0.7) % (math.pi * 2)
+                local waveValue = (math.sin(wavePhase) + 1) / 2  -- 0 to 1
+                
+                -- Toon shading levels for fountain water (brighter than river)
+                local toonLevel
+                if waveValue < 0.33 then
+                    toonLevel = 0  -- Dark
+                elseif waveValue < 0.66 then
+                    toonLevel = 1  -- Medium
+                else
+                    toonLevel = 2  -- Light (wave peaks)
+                end
+                
+                -- Apply brighter toon colors for fountain
+                if toonLevel == 0 then
+                    love.graphics.setColor(0.25, 0.45, 0.65)
+                elseif toonLevel == 1 then
+                    love.graphics.setColor(0.35, 0.55, 0.75)
+                else
+                    love.graphics.setColor(0.45, 0.65, 0.85)
+                end
+                
+                love.graphics.rectangle("fill", px, py, self.tileSize, self.tileSize)
+                
+                -- Sharp highlight (toon style, more prominent)
+                if toonLevel == 2 then
+                    love.graphics.setColor(0.60, 0.80, 0.95, 0.7)
+                    love.graphics.rectangle("fill", px + 4, py + 4, self.tileSize - 8, 8)
+                end
+                
+                -- Sparkle effect (occasional bright spots)
+                if (x + y + math.floor(gameTime * 3)) % 7 == 0 then
+                    love.graphics.setColor(0.85, 0.95, 1.0, 0.8)
+                    love.graphics.circle("fill", px + 12, py + 12, 3)
+                end
             end
         end
     end
@@ -574,11 +616,24 @@ function TileMap:draw(camera, gameTime)
                 local groundTile = self:getTile(x, y, "ground")
                 local isInCave = (groundTile == 5)
                 
-                -- Cave boulders are larger and more imposing
+                -- Check if this is a fountain border stone (more rectangular)
+                local isFountainStone = (x >= 22 and x <= 27 and y >= 19 and y <= 24 and 
+                    (x == 22 or x == 27 or y == 19 or y == 24))
+                
+                -- Fountain stones are more rectangular and blocky
+                local segments
                 local sizeVar
-                if isInCave then
+                local rotationOffset = 0
+                if isFountainStone then
+                    segments = 6  -- More corners for irregular blocky shape
+                    sizeVar = 0.90  -- Slightly smaller for gap between blocks
+                    -- Add slight rotation offset (each stone rotates slightly differently)
+                    rotationOffset = ((seed % 20) - 10) * 0.05  -- -0.5 to +0.5 radians (~-30 to +30 degrees)
+                elseif isInCave then
+                    segments = 10
                     sizeVar = ((seed % 8) / 10) + 1.0  -- 1.0 to 1.8 (bigger)
                 else
+                    segments = 7
                     sizeVar = ((seed % 7) / 10) + 0.7  -- 0.7 to 1.4 (normal)
                 end
                 
@@ -586,14 +641,19 @@ function TileMap:draw(camera, gameTime)
                 local offsetX = (self.tileSize - rockSize) / 2
                 local offsetY = (self.tileSize - rockSize) / 2
                 
-                -- More irregular shapes for cave walls (more segments)
-                local segments = isInCave and 10 or 7
+                -- Create shape points with appropriate distortion
                 local noisePoints = {}
                 for i = 0, segments do
-                    local angle = (i / segments) * math.pi * 2
-                    local distortion = ((seed * 11 + i * 17) % 10) / 30 + 0.85
-                    if isInCave then
+                    local angle = (i / segments) * math.pi * 2 + rotationOffset
+                    local distortion
+                    if isFountainStone then
+                        -- More noise distortion for irregular outline (but still blocky)
+                        distortion = ((seed * 11 + i * 17) % 15) / 50 + 0.85  -- 0.85 to 1.15
+                    elseif isInCave then
+                        distortion = ((seed * 11 + i * 17) % 10) / 30 + 0.85
                         distortion = distortion * 0.9  -- More irregular in caves
+                    else
+                        distortion = ((seed * 11 + i * 17) % 10) / 30 + 0.85
                     end
                     local radius = (rockSize / 2) * distortion
                     local cx = px + self.tileSize / 2
@@ -602,10 +662,19 @@ function TileMap:draw(camera, gameTime)
                     table.insert(noisePoints, cy + math.sin(angle) * radius)
                 end
                 
-                -- Color palette (darker in caves)
+                -- Color palette
                 local lightLevel = ((seed % 5) / 5)
                 local baseColor
-                if isInCave then
+                if isFountainStone then
+                    -- Lighter, cut stone blocks for fountain
+                    if lightLevel < 0.33 then
+                        baseColor = {0.55, 0.52, 0.48}  -- Light gray stone
+                    elseif lightLevel < 0.66 then
+                        baseColor = {0.62, 0.58, 0.54}  -- Medium gray stone
+                    else
+                        baseColor = {0.68, 0.64, 0.60}  -- Lighter gray stone
+                    end
+                elseif isInCave then
                     -- Earth tone cave boulders (like entrance boulders)
                     if lightLevel < 0.33 then
                         baseColor = {0.32, 0.24, 0.16}  -- Dark earthy brown
@@ -629,9 +698,12 @@ function TileMap:draw(camera, gameTime)
                 love.graphics.setColor(baseColor)
                 love.graphics.polygon("fill", noisePoints)
                 
-                -- Toon highlights (more subtle in caves)
+                -- Toon highlights
                 if lightLevel >= 0.66 then
-                    if isInCave then
+                    if isFountainStone then
+                        -- Brighter highlight for cut stone
+                        love.graphics.setColor(0.80, 0.76, 0.72, 0.6)
+                    elseif isInCave then
                         love.graphics.setColor(0.52, 0.42, 0.32, 0.5)
                     else
                         love.graphics.setColor(0.60, 0.55, 0.50, 0.7)
@@ -640,8 +712,10 @@ function TileMap:draw(camera, gameTime)
                     love.graphics.circle("fill", px + offsetX + highlightSize, py + offsetY + highlightSize, highlightSize * 0.5)
                 end
                 
-                -- Toon shadows (deeper in caves)
-                if isInCave then
+                -- Toon shadows
+                if isFountainStone then
+                    love.graphics.setColor(0.35, 0.32, 0.30, 0.5)
+                elseif isInCave then
                     love.graphics.setColor(0.14, 0.12, 0.10, 0.8)
                 else
                     love.graphics.setColor(0.22, 0.18, 0.15, 0.6)
@@ -652,37 +726,44 @@ function TileMap:draw(camera, gameTime)
                     py + self.tileSize / 2 + shadowSize, 
                     shadowSize)
                 
-                -- More prominent cracks in caves
-                if isInCave then
-                    love.graphics.setColor(0.12, 0.10, 0.08, 0.9)
+                -- Cracks (skip for cut fountain stones)
+                if not isFountainStone then
+                    if isInCave then
+                        love.graphics.setColor(0.12, 0.10, 0.08, 0.9)
+                    else
+                        love.graphics.setColor(0.18, 0.14, 0.10, 0.8)
+                    end
+                    love.graphics.setLineWidth(isInCave and 3 or 2)
+                    
+                    local crackPattern = (seed % 4)
+                    if crackPattern == 0 then
+                        love.graphics.line(
+                            px + offsetX + rockSize * 0.2, 
+                            py + offsetY + rockSize * 0.3,
+                            px + offsetX + rockSize * 0.8, 
+                            py + offsetY + rockSize * 0.7)
+                    elseif crackPattern == 1 then
+                        love.graphics.line(
+                            px + offsetX + rockSize * 0.5, 
+                            py + offsetY + rockSize * 0.1,
+                            px + offsetX + rockSize * 0.5, 
+                            py + offsetY + rockSize * 0.9)
+                    elseif crackPattern == 2 then
+                        love.graphics.circle("line", 
+                            px + self.tileSize / 2, 
+                            py + self.tileSize / 2, 
+                            rockSize * 0.3)
+                    end
+                end
+                
+                -- Outline (stronger for fountain stones)
+                if isFountainStone then
+                    love.graphics.setColor(0.25, 0.22, 0.20)
+                    love.graphics.setLineWidth(3)
                 else
-                    love.graphics.setColor(0.18, 0.14, 0.10, 0.8)
+                    love.graphics.setColor(0.10, 0.08, 0.06)
+                    love.graphics.setLineWidth(isInCave and 4 or 3)
                 end
-                love.graphics.setLineWidth(isInCave and 3 or 2)
-                
-                local crackPattern = (seed % 4)
-                if crackPattern == 0 then
-                    love.graphics.line(
-                        px + offsetX + rockSize * 0.2, 
-                        py + offsetY + rockSize * 0.3,
-                        px + offsetX + rockSize * 0.8, 
-                        py + offsetY + rockSize * 0.7)
-                elseif crackPattern == 1 then
-                    love.graphics.line(
-                        px + offsetX + rockSize * 0.5, 
-                        py + offsetY + rockSize * 0.1,
-                        px + offsetX + rockSize * 0.5, 
-                        py + offsetY + rockSize * 0.9)
-                elseif crackPattern == 2 then
-                    love.graphics.circle("line", 
-                        px + self.tileSize / 2, 
-                        py + self.tileSize / 2, 
-                        rockSize * 0.3)
-                end
-                
-                -- Thicker outline for cave boulders
-                love.graphics.setColor(0.10, 0.08, 0.06)
-                love.graphics.setLineWidth(isInCave and 4 or 3)
                 love.graphics.polygon("line", noisePoints)
                 love.graphics.setLineWidth(1)
             end

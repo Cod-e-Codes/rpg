@@ -3515,6 +3515,30 @@ local function drawItemIcon(itemName, x, y, size, isHovered)
         love.graphics.rectangle("line", x + 12, y + 6, 8, 6)
         love.graphics.setLineWidth(1)
         
+    elseif itemName == "Mana Potion" then
+        -- Bottle (glass)
+        love.graphics.setColor(0.7, 0.85, 0.9)
+        love.graphics.rectangle("fill", x + 8, y + 10, 16, 18, 2, 2)
+        
+        -- Blue liquid (toon shaded)
+        love.graphics.setColor(0.15, 0.35, 0.85)
+        love.graphics.rectangle("fill", x + 10, y + 14, 12, 12, 2, 2)
+        
+        -- Liquid highlight
+        love.graphics.setColor(0.35, 0.55, 0.95)
+        love.graphics.rectangle("fill", x + 11, y + 15, 4, 4)
+        
+        -- Cork
+        love.graphics.setColor(0.55, 0.35, 0.25)
+        love.graphics.rectangle("fill", x + 12, y + 6, 8, 6)
+        
+        -- Outline
+        love.graphics.setColor(0.15, 0.10, 0.10)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", x + 8, y + 10, 16, 18, 2, 2)
+        love.graphics.rectangle("line", x + 12, y + 6, 8, 6)
+        love.graphics.setLineWidth(1)
+        
     elseif itemName == "Magic Sword" then
         -- Blade (silver with purple glow)
         love.graphics.setColor(0.75, 0.75, 0.85)
