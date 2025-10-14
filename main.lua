@@ -248,6 +248,10 @@ local saveManager
 ---@field caveTargetVolume number
 ---@field caveCurrentVolume number
 ---@field caveFadeSpeed number
+---@field overworldSound any
+---@field overworldTargetVolume number
+---@field overworldCurrentVolume number
+---@field overworldFadeSpeed number
 ---@field chestCreakSound any
 ---@field doorCreakSound any
 local audio = {
@@ -264,6 +268,10 @@ local audio = {
     caveTargetVolume = 0,
     caveCurrentVolume = 0,
     caveFadeSpeed = 0.5,
+    overworldSound = nil,
+    overworldTargetVolume = 0,
+    overworldCurrentVolume = 0,
+    overworldFadeSpeed = 0.5,
     chestCreakSound = nil,
     doorCreakSound = nil
 }
@@ -475,6 +483,27 @@ function love.load()
         end
     end
     
+    -- Load overworld ambient sound
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local overworld = love.audio.newSource("assets/sounds/overworld-sounds.mp3", "stream")
+        audio.overworldSound = overworld
+        overworld:setLooping(true)
+        overworld:setVolume(0)  -- Start at 0, will fade in when in overworld
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load overworld-sounds.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded overworld-sounds.mp3 successfully. Looping: true, Max Volume: 0.25")
+        if audio.overworldSound then
+            ---@type any
+            local ow = audio.overworldSound
+            print("[AUDIO] Overworld duration: " .. string.format("%.2f", ow:getDuration()) .. "s")
+            ow:play()  -- Start playing but at 0 volume
+            print("[AUDIO] Overworld playback started (will fade in when in overworld)")
+        end
+    end
+    
     -- Load chest creak sound effect
     audioSuccess, audioError = pcall(function()
         ---@type any
@@ -660,6 +689,37 @@ function love.update(dt)
                     inCave and "IN CAVE" or "OUTSIDE", 
                     audio.caveTargetVolume * 100, 
                     audio.caveCurrentVolume * 100))
+            end
+        end
+    end
+    
+    -- Update overworld sound volume based on current map
+    if audio.overworldSound and gameStarted and gameState then
+        local inOverworld = gameState.currentMap == "overworld"
+        
+        -- Set target volume based on whether player is in overworld
+        audio.overworldTargetVolume = inOverworld and 0.25 or 0  -- Max volume of 0.25 when in overworld
+        
+        -- Smoothly lerp current volume towards target
+        if audio.overworldCurrentVolume < audio.overworldTargetVolume then
+            audio.overworldCurrentVolume = math.min(audio.overworldTargetVolume, audio.overworldCurrentVolume + audio.overworldFadeSpeed * dt)
+        elseif audio.overworldCurrentVolume > audio.overworldTargetVolume then
+            audio.overworldCurrentVolume = math.max(audio.overworldTargetVolume, audio.overworldCurrentVolume - audio.overworldFadeSpeed * dt)
+        end
+        
+        -- Apply the current volume
+        ---@type any
+        local ow = audio.overworldSound
+        ow:setVolume(audio.overworldCurrentVolume)
+        
+        -- Debug logging for overworld state changes
+        if DEBUG_MODE then
+            local prevInOverworld = audio.overworldTargetVolume > 0
+            if inOverworld ~= prevInOverworld then
+                print(string.format("[AUDIO] Overworld state: %s (target: %.0f%%, current: %.0f%%)", 
+                    inOverworld and "IN OVERWORLD" or "LEFT OVERWORLD", 
+                    audio.overworldTargetVolume * 100, 
+                    audio.overworldCurrentVolume * 100))
             end
         end
     end
@@ -2993,7 +3053,7 @@ function drawUI()
     if showDebugPanel then
         local screenWidth = love.graphics.getWidth()
         local panelWidth = 320
-        local panelHeight = 320  -- Increased for audio info (footsteps, river, cave)
+        local panelHeight = 340  -- Increased for audio info (footsteps, river, cave, overworld)
         local panelX = screenWidth - panelWidth - 115  -- Moved further left to avoid inventory
         local panelY = 15
         local headerHeight = 28
@@ -3109,6 +3169,18 @@ function drawUI()
             yPos = yPos + lineHeight
         else
             love.graphics.print("Cave: NOT LOADED", panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+        end
+        
+        if audio.overworldSound then
+            ---@type any
+            local ow = audio.overworldSound
+            local isPlaying = ow:isPlaying()
+            local volume = ow:getVolume()
+            love.graphics.print(string.format("Overworld: %s (%.0f%% -> %.0f%%)", isPlaying and "PLAYING" or "STOPPED", volume * 100, audio.overworldTargetVolume * 100), panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+        else
+            love.graphics.print("Overworld: NOT LOADED", panelX + padding + 8, yPos)
             yPos = yPos + lineHeight
         end
         
