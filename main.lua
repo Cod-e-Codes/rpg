@@ -619,7 +619,7 @@ function love.update(dt)
     gameState.playTime = gameState.playTime + dt
     
     -- Update footstep sound volume with smooth fading
-    if audio.footstepSound and gameStarted then
+    if audio.footstepSound and gameStarted and not isPaused then
         -- Smoothly lerp current volume towards target
         if audio.footstepCurrentVolume < audio.footstepTargetVolume then
             audio.footstepCurrentVolume = math.min(audio.footstepTargetVolume, audio.footstepCurrentVolume + audio.footstepFadeSpeed * dt)
@@ -634,7 +634,7 @@ function love.update(dt)
     end
     
     -- Update river sound volume based on visibility
-    if audio.riverSound and gameStarted and world.currentMap then
+    if audio.riverSound and gameStarted and world.currentMap and not isPaused then
         local hasWater = world.currentMap:hasVisibleWater(camera)
         
         -- Set target volume based on whether water is visible
@@ -663,7 +663,7 @@ function love.update(dt)
     end
     
     -- Update cave sound volume based on current map
-    if audio.caveSound and gameStarted and gameState then
+    if audio.caveSound and gameStarted and gameState and not isPaused then
         local inCave = gameState.currentMap == "cave_level1"
         
         -- Set target volume based on whether player is in cave
@@ -694,7 +694,7 @@ function love.update(dt)
     end
     
     -- Update overworld sound volume based on current map
-    if audio.overworldSound and gameStarted and gameState then
+    if audio.overworldSound and gameStarted and gameState and not isPaused then
         local inOverworld = gameState.currentMap == "overworld"
         
         -- Set target volume based on whether player is in overworld
@@ -3881,6 +3881,50 @@ function love.keypressed(key)
             pauseMenuState = "main" -- Reset to main menu when pausing
             pauseMenuTargetHeight = 250
             pauseMenuHeight = 250 -- Reset animation
+            
+            -- Pause all ambient sounds
+            if audio.footstepSound then
+                ---@type any
+                local fs = audio.footstepSound
+                fs:pause()
+            end
+            if audio.riverSound then
+                ---@type any
+                local rs = audio.riverSound
+                rs:pause()
+            end
+            if audio.caveSound then
+                ---@type any
+                local cs = audio.caveSound
+                cs:pause()
+            end
+            if audio.overworldSound then
+                ---@type any
+                local ow = audio.overworldSound
+                ow:pause()
+            end
+        else
+            -- Resume all ambient sounds
+            if audio.footstepSound then
+                ---@type any
+                local fs = audio.footstepSound
+                fs:play()
+            end
+            if audio.riverSound then
+                ---@type any
+                local rs = audio.riverSound
+                rs:play()
+            end
+            if audio.caveSound then
+                ---@type any
+                local cs = audio.caveSound
+                cs:play()
+            end
+            if audio.overworldSound then
+                ---@type any
+                local ow = audio.overworldSound
+                ow:play()
+            end
         end
         return
     end
@@ -3921,6 +3965,29 @@ function love.keypressed(key)
                 end
                 
                 isPaused = false
+                
+                -- Resume all ambient sounds
+                if audio.footstepSound then
+                    ---@type any
+                    local fs = audio.footstepSound
+                    fs:play()
+                end
+                if audio.riverSound then
+                    ---@type any
+                    local rs = audio.riverSound
+                    rs:play()
+                end
+                if audio.caveSound then
+                    ---@type any
+                    local cs = audio.caveSound
+                    cs:play()
+                end
+                if audio.overworldSound then
+                    ---@type any
+                    local ow = audio.overworldSound
+                    ow:play()
+                end
+                
                 currentMessage = "Game loaded"
                 messageTimer = 3
             else
