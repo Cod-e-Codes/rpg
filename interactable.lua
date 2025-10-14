@@ -115,8 +115,18 @@ function Interactable:interact(gameState)
             end
             
             if self.data.item then
-                gameState:addItem(self.data.item)
-                return string.format("Found: %s!", self.data.item)
+                -- Check if it's a gold chest
+                if self.data.item == "Gold" and self.data.goldAmount then
+                    gameState:addGold(self.data.goldAmount)
+                    return {
+                        type = "gold_found",
+                        amount = self.data.goldAmount,
+                        message = string.format("Found: %d Gold!", self.data.goldAmount)
+                    }
+                else
+                    gameState:addItem(self.data.item)
+                    return string.format("Found: %s!", self.data.item)
+                end
             end
             return "Nothing inside..."
         else
@@ -294,70 +304,280 @@ function Interactable:draw(layer)
         end
         
     elseif self.type == "door" then
-        -- Wooden door with perspective swing animation
-        local doorAlpha = 1 - (self.openProgress * 0.5) -- Fade slightly when opening
-        local perspectiveScale = 1 - self.openProgress * 0.9 -- Narrow in perspective
+        -- Check if this is a side-of-building door (isometric style) or interior door (vertical style)
+        local isSideDoor = self.data.isSideDoor or false
         
-        -- Door frame (always visible, doesn't move)
-        love.graphics.setColor(0.55, 0.48, 0.35)
-        love.graphics.setLineWidth(6)
-        love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
-        love.graphics.setLineWidth(1)
-        
-        if perspectiveScale > 0.05 then -- Only draw if visible
-            love.graphics.push()
-            -- Pivot at left edge, create perspective
-            love.graphics.translate(self.x, self.y + self.height/2)
-            love.graphics.scale(perspectiveScale, 1) -- Horizontal squash for perspective
-            love.graphics.translate(-self.x, -(self.y + self.height/2))
+        if isSideDoor then
+            -- Side-of-building isometric door with artistic detail
+            local doorAlpha = 1 - (self.openProgress * 0.3)
+            local time = love.timer.getTime()
+            local seed = self.x * 7 + self.y * 11
             
-            -- Main door body - dark wood
-            love.graphics.setColor(0.38, 0.26, 0.16, doorAlpha)
-            love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+            -- Door dimensions
+            local doorWidth = self.width
+            local doorHeight = self.height
             
-            -- Wood planks (vertical) - medium
-            love.graphics.setColor(0.46, 0.32, 0.20, doorAlpha)
-            for i = 0, 2 do
-                love.graphics.rectangle("fill", self.x + 2 + i * 10, self.y, 8, self.height)
+            -- Create proper parallelogram with vertical left/right sides and 45-degree top/bottom
+            local leftX = self.x
+            local rightX = self.x + doorWidth
+            local topY = self.y
+            local bottomY = self.y + doorHeight
+            
+            -- Parallelogram points: vertical sides, 45-degree top/bottom
+            local offset = doorHeight * 0.3 -- 45-degree angle offset
+            local doorPoints = {
+                leftX, topY,                    -- Top-left
+                rightX, topY,                   -- Top-right  
+                rightX + offset, bottomY,       -- Bottom-right (45-degree angle)
+                leftX + offset, bottomY         -- Bottom-left (45-degree angle)
+            }
+            
+            -- Wood grain base with noise distortion
+            love.graphics.setColor(0.35, 0.24, 0.14, doorAlpha)
+            love.graphics.polygon("fill", doorPoints)
+            
+            -- Wood planks (horizontal) with individual character
+            love.graphics.setColor(0.42, 0.29, 0.18, doorAlpha)
+            for i = 1, 4 do
+                local plankProgress = (i - 1) / 3
+                local plankTopY = topY + plankProgress * doorHeight
+                local plankBottomY = topY + (plankProgress + 0.25) * doorHeight
+                
+                -- Add slight variation to each plank
+                local plankNoise = math.sin(seed + i * 5) * 1.5
+                local leftOffset = leftX + offset * plankProgress + plankNoise
+                local rightOffset = rightX + offset * plankProgress + plankNoise
+                
+                local plankPoints = {
+                    leftOffset, plankTopY,
+                    rightOffset, plankTopY,
+                    rightOffset + offset * 0.25, plankBottomY,
+                    leftOffset + offset * 0.25, plankBottomY
+                }
+                love.graphics.polygon("fill", plankPoints)
+                
+                -- Individual plank highlights (toon style)
+                love.graphics.setColor(0.52, 0.37, 0.24, doorAlpha)
+                local highlightPoints = {
+                    leftOffset + 2, plankTopY + 2,
+                    rightOffset - 2, plankTopY + 2,
+                    rightOffset + offset * 0.25 - 2, plankBottomY - 2,
+                    leftOffset + offset * 0.25 + 2, plankBottomY - 2
+                }
+                love.graphics.polygon("fill", highlightPoints)
+                love.graphics.setColor(0.42, 0.29, 0.18, doorAlpha)
             end
             
-            -- Toon highlights on planks
-            love.graphics.setColor(0.56, 0.40, 0.26, doorAlpha)
-            for i = 0, 2 do
-                love.graphics.rectangle("fill", self.x + 3 + i * 10, self.y + 4, 3, self.height - 8)
-            end
-            
-            -- Cross beams (dark)
+            -- Wood grain lines with noise distortion
             love.graphics.setColor(0.28, 0.18, 0.10, doorAlpha)
-            love.graphics.rectangle("fill", self.x, self.y + self.height * 0.3, self.width, 5)
-            love.graphics.rectangle("fill", self.x, self.y + self.height * 0.7, self.width, 5)
+            for i = 1, 6 do
+                local grainProgress = (i - 1) / 5
+                local grainY = topY + grainProgress * doorHeight
+                local grainNoise = math.sin(seed + i * 3 + time * 0.1) * 2
+                
+                local grainPoints = {
+                    leftX + offset * grainProgress + grainNoise, grainY,
+                    rightX + offset * grainProgress + grainNoise, grainY
+                }
+                love.graphics.line(grainPoints)
+            end
             
-            -- Door handle/ring (iron with toon shading)
+            -- Metal reinforcement strips (horizontal)
+            love.graphics.setColor(0.45, 0.45, 0.50, doorAlpha)
+            for i = 1, 3 do
+                local stripProgress = (i - 1) / 2
+                local stripY = topY + stripProgress * doorHeight
+                local stripHeight = 4
+                
+                local stripPoints = {
+                    leftX + offset * stripProgress, stripY,
+                    rightX + offset * stripProgress, stripY,
+                    rightX + offset * stripProgress + offset * 0.15, stripY + stripHeight,
+                    leftX + offset * stripProgress + offset * 0.15, stripY + stripHeight
+                }
+                love.graphics.polygon("fill", stripPoints)
+                
+                -- Metal strip highlights
+                love.graphics.setColor(0.60, 0.60, 0.65, doorAlpha)
+                local highlightStripPoints = {
+                    leftX + offset * stripProgress + 1, stripY + 1,
+                    rightX + offset * stripProgress - 1, stripY + 1,
+                    rightX + offset * stripProgress + offset * 0.15 - 1, stripY + stripHeight - 1,
+                    leftX + offset * stripProgress + offset * 0.15 + 1, stripY + stripHeight - 1
+                }
+                love.graphics.polygon("fill", highlightStripPoints)
+                love.graphics.setColor(0.45, 0.45, 0.50, doorAlpha)
+            end
+            
+            -- Decorative metal studs/rivets
             love.graphics.setColor(0.35, 0.35, 0.40, doorAlpha)
-            love.graphics.circle("fill", self.x + self.width - 8, self.y + self.height/2, 5)
-            love.graphics.setColor(0.20, 0.20, 0.25, doorAlpha)
-            love.graphics.circle("fill", self.x + self.width - 8, self.y + self.height/2, 3)
-            
-            -- Highlight on handle
-            love.graphics.setColor(0.50, 0.50, 0.55, doorAlpha)
-            love.graphics.circle("fill", self.x + self.width - 9, self.y + self.height/2 - 1, 2)
-            
-            -- Metal studs (toon style)
-            love.graphics.setColor(0.40, 0.40, 0.45, doorAlpha)
-            for i = 0, 1 do
-                for j = 0, 3 do
-                    love.graphics.circle("fill", self.x + 6 + i * 20, self.y + 10 + j * 12, 2)
+            for i = 1, 3 do
+                for j = 1, 4 do
+                    local studX = leftX + offset * ((j - 1) / 3) + (i - 1) * 12
+                    local studY = topY + ((j - 1) / 3) * doorHeight + 8
+                    local studNoise = math.sin(seed + i * j) * 0.5
+                    
+                    love.graphics.circle("fill", studX + studNoise, studY, 3)
+                    -- Stud highlight
+                    love.graphics.setColor(0.50, 0.50, 0.55, doorAlpha)
+                    love.graphics.circle("fill", studX + studNoise - 1, studY - 1, 1.5)
+                    love.graphics.setColor(0.35, 0.35, 0.40, doorAlpha)
                 end
             end
             
-            -- Toon outline (follows the door)
+            -- Door handle/ring (iron)
+            local handleX = rightX + offset * 0.7 - 12
+            local handleY = topY + doorHeight * 0.6
+            love.graphics.setColor(0.30, 0.30, 0.35, doorAlpha)
+            love.graphics.circle("fill", handleX, handleY, 6)
+            love.graphics.setColor(0.20, 0.20, 0.25, doorAlpha)
+            love.graphics.circle("fill", handleX, handleY, 4)
+            -- Handle highlight
+            love.graphics.setColor(0.45, 0.45, 0.50, doorAlpha)
+            love.graphics.circle("fill", handleX - 2, handleY - 2, 2)
+            
+            -- Decorative corner brackets
+            love.graphics.setColor(0.40, 0.40, 0.45, doorAlpha)
+            -- Top-left bracket
+            love.graphics.rectangle("fill", leftX, topY, 8, 8)
+            -- Top-right bracket  
+            love.graphics.rectangle("fill", rightX - 8, topY, 8, 8)
+            -- Bottom-left bracket
+            love.graphics.rectangle("fill", leftX + offset - 8, bottomY - 8, 8, 8)
+            -- Bottom-right bracket
+            love.graphics.rectangle("fill", rightX + offset - 8, bottomY - 8, 8, 8)
+            
+            -- Bracket highlights
+            love.graphics.setColor(0.55, 0.55, 0.60, doorAlpha)
+            love.graphics.rectangle("fill", leftX + 1, topY + 1, 4, 4)
+            love.graphics.rectangle("fill", rightX - 7, topY + 1, 4, 4)
+            love.graphics.rectangle("fill", leftX + offset - 7, bottomY - 7, 4, 4)
+            love.graphics.rectangle("fill", rightX + offset - 7, bottomY - 7, 4, 4)
+            
+            -- Weathered wood texture (subtle)
+            love.graphics.setColor(0.25, 0.16, 0.08, doorAlpha * 0.3)
+            for i = 1, 8 do
+                local weatherX = leftX + (i - 1) * 8 + math.sin(seed + i * 7) * 3
+                local weatherY = topY + math.sin(seed + i * 11) * 4
+                local weatherLength = doorHeight + math.sin(seed + i * 13) * 6
+                love.graphics.line(weatherX, weatherY, weatherX, weatherY + weatherLength)
+            end
+            
+            -- Door outline with proper parallelogram shape
             love.graphics.setColor(0.15, 0.10, 0.06, doorAlpha)
-            love.graphics.setLineWidth(3)
+            love.graphics.setLineWidth(4)
+            love.graphics.polygon("line", doorPoints)
+            love.graphics.setLineWidth(1)
+            
+            -- Subtle shadow effect
+            love.graphics.setColor(0.10, 0.06, 0.03, doorAlpha * 0.4)
+            local shadowPoints = {
+                leftX + 2, topY + 2,
+                rightX + 2, topY + 2,
+                rightX + offset + 2, bottomY + 2,
+                leftX + offset + 2, bottomY + 2
+            }
+            love.graphics.polygon("fill", shadowPoints)
+            
+        else
+            -- Vertical door (interior style) - standing upright with perspective
+            local doorAlpha = 1 - (self.openProgress * 0.3)
+            local perspectiveOffset = self.openProgress * 16
+            
+            -- Door frame (always visible, doesn't move)
+            love.graphics.setColor(0.55, 0.48, 0.35)
+            love.graphics.setLineWidth(6)
             love.graphics.rectangle("line", self.x, self.y, self.width, self.height)
             love.graphics.setLineWidth(1)
             
-            love.graphics.pop()
+            -- Draw isometric door (standing upright with perspective)
+            -- Door face (front) - dark wood
+            love.graphics.setColor(0.38, 0.26, 0.16, doorAlpha)
+            love.graphics.rectangle("fill", self.x + perspectiveOffset, self.y, self.width - perspectiveOffset, self.height)
+        
+        -- Door side (visible when opening) - darker
+        if perspectiveOffset > 0 then
+            love.graphics.setColor(0.28, 0.18, 0.10, doorAlpha)
+            -- Draw the side face as a parallelogram
+            local sidePoints = {
+                self.x, self.y,
+                self.x + perspectiveOffset, self.y,
+                self.x + perspectiveOffset + 8, self.y + self.height,
+                self.x + 8, self.y + self.height
+            }
+            love.graphics.polygon("fill", sidePoints)
         end
+        
+        -- Wood planks (vertical) on door face - medium
+        love.graphics.setColor(0.46, 0.32, 0.20, doorAlpha)
+        for i = 0, 2 do
+            local plankX = self.x + perspectiveOffset + 2 + i * 10
+            if plankX < self.x + self.width then -- Only draw visible parts
+                local plankWidth = math.min(8, self.x + self.width - plankX)
+                love.graphics.rectangle("fill", plankX, self.y, plankWidth, self.height)
+            end
+        end
+        
+        -- Toon highlights on planks
+        love.graphics.setColor(0.56, 0.40, 0.26, doorAlpha)
+        for i = 0, 2 do
+            local plankX = self.x + perspectiveOffset + 3 + i * 10
+            if plankX < self.x + self.width - 3 then
+                local highlightWidth = math.min(3, self.x + self.width - plankX - 3)
+                love.graphics.rectangle("fill", plankX, self.y + 4, highlightWidth, self.height - 8)
+            end
+        end
+        
+        -- Cross beams (dark) on door face
+        love.graphics.setColor(0.28, 0.18, 0.10, doorAlpha)
+        local beamWidth = self.width - perspectiveOffset
+        if beamWidth > 0 then
+            love.graphics.rectangle("fill", self.x + perspectiveOffset, self.y + self.height * 0.3, beamWidth, 5)
+            love.graphics.rectangle("fill", self.x + perspectiveOffset, self.y + self.height * 0.7, beamWidth, 5)
+        end
+        
+        -- Door handle/ring (iron with toon shading) - only if visible
+        if self.x + self.width - 8 > self.x + perspectiveOffset then
+            local handleX = math.max(self.x + perspectiveOffset + 4, self.x + self.width - 8)
+            love.graphics.setColor(0.35, 0.35, 0.40, doorAlpha)
+            love.graphics.circle("fill", handleX, self.y + self.height/2, 5)
+            love.graphics.setColor(0.20, 0.20, 0.25, doorAlpha)
+            love.graphics.circle("fill", handleX, self.y + self.height/2, 3)
+            
+            -- Highlight on handle
+            love.graphics.setColor(0.50, 0.50, 0.55, doorAlpha)
+            love.graphics.circle("fill", handleX - 1, self.y + self.height/2 - 1, 2)
+        end
+        
+        -- Metal studs (toon style) - only visible ones
+        love.graphics.setColor(0.40, 0.40, 0.45, doorAlpha)
+        for i = 0, 1 do
+            for j = 0, 3 do
+                local studX = self.x + perspectiveOffset + 6 + i * 20
+                if studX < self.x + self.width then
+                    love.graphics.circle("fill", studX, self.y + 10 + j * 12, 2)
+                end
+            end
+        end
+        
+        -- Toon outline (follows the door face)
+        love.graphics.setColor(0.15, 0.10, 0.06, doorAlpha)
+        love.graphics.setLineWidth(3)
+        love.graphics.rectangle("line", self.x + perspectiveOffset, self.y, self.width - perspectiveOffset, self.height)
+        
+        -- Draw outline for door side if visible
+        if perspectiveOffset > 0 then
+            local sidePoints = {
+                self.x, self.y,
+                self.x + perspectiveOffset, self.y,
+                self.x + perspectiveOffset + 8, self.y + self.height,
+                self.x + 8, self.y + self.height
+            }
+            love.graphics.polygon("line", sidePoints)
+        end
+        love.graphics.setLineWidth(1)
+        
+        end -- End of vertical door (else block)
         
     elseif self.type == "sign" then
         -- Wooden sign post with toon shading
@@ -426,6 +646,170 @@ function Interactable:draw(layer)
         love.graphics.setLineWidth(3)
         love.graphics.rectangle("line", self.x + 12, self.y + 16, 8, 16)  -- Only bottom part of post
         love.graphics.setLineWidth(1)
+        
+    elseif self.type == "inn_table" then
+        -- Inn table with toon shading and noise distortion for hand-drawn look
+        local time = love.timer.getTime()
+        local seed = self.x * 7 + self.y * 11
+        
+        -- Table dimensions
+        local tableWidth = 64
+        local tableHeight = 64
+        local tableTop = 48
+        
+        -- Draw table legs (4 corners) with noise distortion
+        local legWidth = 6
+        local legHeight = 16
+        for i = 1, 4 do
+            local legX, legY
+            if i == 1 then legX, legY = self.x + 8, self.y + tableTop - legHeight
+            elseif i == 2 then legX, legY = self.x + tableWidth - 8 - legWidth, self.y + tableTop - legHeight
+            elseif i == 3 then legX, legY = self.x + 8, self.y + tableHeight - 8
+            else legX, legY = self.x + tableWidth - 8 - legWidth, self.y + tableHeight - 8
+            end
+            
+            -- Leg with slight noise distortion
+            local noiseX = math.sin(seed + i * 3) * 0.5
+            local noiseY = math.cos(seed + i * 5) * 0.5
+            
+            -- Dark leg
+            love.graphics.setColor(0.35, 0.25, 0.15)
+            love.graphics.rectangle("fill", legX + noiseX, legY + noiseY, legWidth, legHeight)
+            
+            -- Leg highlight
+            love.graphics.setColor(0.45, 0.32, 0.20)
+            love.graphics.rectangle("fill", legX + noiseX + 1, legY + noiseY, 2, legHeight)
+            
+            -- Leg outline with noise
+            love.graphics.setColor(0.18, 0.12, 0.07)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("line", legX + noiseX, legY + noiseY, legWidth, legHeight)
+        end
+        
+        -- Draw table top (round-ish with noise)
+        local centerX = self.x + tableWidth / 2
+        local centerY = self.y + tableTop / 2
+        local radiusX = 28
+        local radiusY = 24
+        
+        -- Create irregular table top shape with noise
+        local tablePoints = {}
+        local segments = 16
+        for i = 0, segments do
+            local angle = (i / segments) * math.pi * 2
+            local noiseOffset = math.sin(angle * 4 + seed) * 1.5 + math.cos(angle * 6 + seed * 1.7) * 1.2
+            local rx = radiusX + noiseOffset
+            local ry = radiusY + noiseOffset * 0.8
+            local px = centerX + math.cos(angle) * rx
+            local py = centerY + math.sin(angle) * ry
+            table.insert(tablePoints, px)
+            table.insert(tablePoints, py)
+        end
+        
+        -- Table top base color
+        love.graphics.setColor(0.52, 0.38, 0.24)
+        love.graphics.polygon("fill", tablePoints)
+        
+        -- Table top highlight (toon style)
+        love.graphics.setColor(0.62, 0.48, 0.32)
+        local highlightPoints = {}
+        for i = 0, segments do
+            local angle = (i / segments) * math.pi * 2
+            local noiseOffset = math.sin(angle * 4 + seed) * 1.5 + math.cos(angle * 6 + seed * 1.7) * 1.2
+            local rx = (radiusX + noiseOffset) * 0.6
+            local ry = (radiusY + noiseOffset * 0.8) * 0.6
+            local px = centerX - 4 + math.cos(angle) * rx
+            local py = centerY - 4 + math.sin(angle) * ry
+            table.insert(highlightPoints, px)
+            table.insert(highlightPoints, py)
+        end
+        love.graphics.polygon("fill", highlightPoints)
+        
+        -- Wood grain lines
+        love.graphics.setColor(0.38, 0.26, 0.16)
+        for i = 1, 3 do
+            local grainY = centerY - 8 + i * 6
+            local grainNoise = math.sin(seed + i * 2) * 2
+            love.graphics.line(centerX - 20 + grainNoise, grainY, centerX + 20 + grainNoise, grainY)
+        end
+        
+        -- Table top outline with noise distortion
+        love.graphics.setColor(0.20, 0.14, 0.08)
+        love.graphics.setLineWidth(3)
+        love.graphics.polygon("line", tablePoints)
+        love.graphics.setLineWidth(1)
+        
+        -- Draw mug if specified
+        if self.data.hasMug then
+            local mugX = centerX - 10
+            local mugY = centerY + 4
+            local mugNoise = math.sin(time * 0.5 + seed) * 0.3
+            
+            -- Mug body
+            love.graphics.setColor(0.6, 0.5, 0.4)
+            love.graphics.rectangle("fill", mugX + mugNoise, mugY, 12, 10, 2, 2)
+            
+            -- Mug highlight
+            love.graphics.setColor(0.75, 0.65, 0.55)
+            love.graphics.rectangle("fill", mugX + mugNoise + 1, mugY + 1, 4, 8)
+            
+            -- Mug handle
+            love.graphics.setColor(0.6, 0.5, 0.4)
+            love.graphics.arc("line", "open", mugX + 12 + mugNoise, mugY + 5, 4, -math.pi/2, math.pi/2)
+            
+            -- Mug outline
+            love.graphics.setColor(0.2, 0.15, 0.1)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("line", mugX + mugNoise, mugY, 12, 10, 2, 2)
+            love.graphics.setLineWidth(1)
+        end
+        
+        -- Draw candle if specified
+        if self.data.hasCandle then
+            local candleX = centerX + 8
+            local candleY = centerY - 6
+            local flicker = math.sin(time * 8 + seed) * 0.5 + math.cos(time * 12 + seed * 1.3) * 0.3
+            
+            -- Candle body
+            love.graphics.setColor(0.9, 0.85, 0.7)
+            love.graphics.rectangle("fill", candleX, candleY + 4, 6, 10, 1, 1)
+            
+            -- Candle highlight
+            love.graphics.setColor(0.95, 0.92, 0.85)
+            love.graphics.rectangle("fill", candleX + 1, candleY + 5, 2, 8)
+            
+            -- Candle outline
+            love.graphics.setColor(0.3, 0.25, 0.2)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("line", candleX, candleY + 4, 6, 10, 1, 1)
+            love.graphics.setLineWidth(1)
+            
+            -- Flame (animated)
+            local flameHeight = 6 + flicker
+            local flameWidth = 4 + flicker * 0.5
+            
+            -- Flame glow (outer)
+            love.graphics.setColor(1, 0.6, 0.1, 0.4)
+            love.graphics.ellipse("fill", candleX + 3, candleY + flicker, flameWidth + 2, flameHeight + 2)
+            
+            -- Flame core
+            love.graphics.setColor(1, 0.8, 0.2)
+            love.graphics.ellipse("fill", candleX + 3, candleY + flicker, flameWidth, flameHeight)
+            
+            -- Flame highlight (brightest part)
+            love.graphics.setColor(1, 0.95, 0.7)
+            love.graphics.ellipse("fill", candleX + 3, candleY + flicker, flameWidth * 0.5, flameHeight * 0.6)
+            
+            -- Tiny flame particles (sparkles)
+            for i = 1, 3 do
+                local particleSeed = seed + i * 13 + time * 2
+                local px = candleX + 3 + math.sin(particleSeed) * 4
+                local py = candleY - 4 + (particleSeed % 8) - flicker
+                local pSize = 1 + math.sin(particleSeed * 3) * 0.5
+                love.graphics.setColor(1, 0.9, 0.5, 0.6)
+                love.graphics.circle("fill", px, py, pSize)
+            end
+        end
         
     elseif self.type == "cave" or self.type == "cave_exit" then
         -- Large cave entrance/exit with two staggered boulders

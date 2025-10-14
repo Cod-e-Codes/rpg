@@ -1071,6 +1071,16 @@ function World:createTown()
         })
     )
     
+    -- Inn door (The Restful Inn) - Door faces west at x=33, y=6
+    table.insert(self.interactables["town"],
+        Interactable:new(33*32, 6*32, 32, 48, "door", {
+            destination = "inn_interior",
+            spawnX = 10*32,
+            spawnY = 12*32,
+            isSideDoor = true -- Mark as side-of-building door for isometric drawing
+        })
+    )
+    
     -- Welcome sign near entrance (moved west to avoid spawn collision)
     table.insert(self.interactables["town"],
         Interactable:new(24*32 - 100, 36*32, 32, 32, "sign", {
@@ -1110,7 +1120,7 @@ function World:createTown()
     -- Inn/Tavern sign
     table.insert(self.interactables["town"],
         Interactable:new(32*32, 4*32, 32, 32, "sign", {
-            message = "The Restful Inn\n(Coming Soon)"
+            message = "The Restful Inn\nWarm beds & cold drinks!"
         })
     )
     
@@ -1132,6 +1142,126 @@ function World:createTown()
             shopType = "potions"
         })
     )
+end
+
+function World:createInnInterior()
+    -- The Restful Inn: Cozy interior with tables, candles, and inn keeper
+    local TileMap = require("tilemap")
+    local NPC = require("npc")
+    local Interactable = require("interactable")
+    
+    -- Larger than house interior (20x15 tiles)
+    local map = TileMap:new(20, 15, 32)
+    
+    -- Create wooden floor
+    local ground = {}
+    for y = 0, 14 do
+        ground[y] = {}
+        for x = 0, 19 do
+            ground[y][x] = 4 -- Wooden floor
+        end
+    end
+    
+    -- Create walls and collision
+    local collision = {}
+    for y = 0, 14 do
+        collision[y] = {}
+        for x = 0, 19 do
+            -- Outer walls
+            if x == 0 or x == 19 or y == 0 or y == 14 then
+                collision[y][x] = 2 -- Wall
+            else
+                collision[y][x] = 0 -- Walkable
+            end
+        end
+    end
+    
+    -- Door opening (south side, centered)
+    collision[14][9] = 0
+    collision[14][10] = 0
+    
+    -- Add rock at tile (10, 14) on southern wall
+    collision[14][10] = 2 -- Rock on southern wall
+    
+    map:loadFromData({ground = ground, collision = collision})
+    self.maps["inn_interior"] = map
+    
+    -- Add interactables
+    self.interactables["inn_interior"] = {}
+    
+    -- Exit door (back to town) - positioned like house interior door
+    table.insert(self.interactables["inn_interior"],
+        Interactable:new(9*32, 13.5*32, 32, 40, "door", {
+            destination = "town",
+            spawnX = 33*32,
+            spawnY = 6*32
+        })
+    )
+    
+    -- Tables with candles and mugs (custom interactable type)
+    -- Table 1 (top-left area)
+    table.insert(self.interactables["inn_interior"],
+        Interactable:new(4*32, 3*32, 64, 64, "inn_table", {
+            hasCandle = true,
+            hasMug = true
+        })
+    )
+    
+    -- Table 2 (top-right area)
+    table.insert(self.interactables["inn_interior"],
+        Interactable:new(14*32, 3*32, 64, 64, "inn_table", {
+            hasCandle = true,
+            hasMug = true
+        })
+    )
+    
+    -- Table 3 (middle-left)
+    table.insert(self.interactables["inn_interior"],
+        Interactable:new(4*32, 7*32, 64, 64, "inn_table", {
+            hasCandle = true,
+            hasMug = true
+        })
+    )
+    
+    -- Table 4 (middle-right)
+    table.insert(self.interactables["inn_interior"],
+        Interactable:new(14*32, 7*32, 64, 64, "inn_table", {
+            hasCandle = true,
+            hasMug = true
+        })
+    )
+    
+    -- Chests side by side (back wall)
+    -- Chest 1: Mana Potion
+    table.insert(self.interactables["inn_interior"],
+        Interactable:new(8*32, 2*32, 32, 32, "chest", {
+            id = "inn_chest_mana",
+            item = "Mana Potion"
+        })
+    )
+    
+    -- Chest 2: 100 Gold
+    table.insert(self.interactables["inn_interior"],
+        Interactable:new(11*32, 2*32, 32, 32, "chest", {
+            id = "inn_chest_gold",
+            item = "Gold",
+            goldAmount = 100
+        })
+    )
+    
+    self.enemies["inn_interior"] = {}
+    self.npcs["inn_interior"] = {}
+    
+    -- Add inn keeper NPC with wandering behavior
+    local innKeeper = NPC:new(10*32, 8*32, "inn_keeper", {
+        questState = "inn_keeper",
+        useAnimations = true,
+        wandering = true,
+        wanderRadius = 128,
+        wanderPauseMin = 2,
+        wanderPauseMax = 5
+    })
+    table.insert(self.npcs["inn_interior"], innKeeper)
 end
 
 function World:loadMap(mapName)

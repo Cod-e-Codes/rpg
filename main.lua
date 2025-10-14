@@ -867,6 +867,7 @@ function love.load()
     world:createClassSelection()
     world:createDefenseTrials()
     world:createTown()
+    world:createInnInterior()
     world:loadMap("overworld")
     
     -- Sync all interactables with game state
@@ -3607,6 +3608,98 @@ local function drawItemIcon(itemName, x, y, size, isHovered)
         love.graphics.rectangle("line", x + 12, y + 6, 8, 6)
         love.graphics.setLineWidth(1)
         
+    elseif itemName == "Class Changer Potion" then
+        -- Magical swirling potion with different shape and particle effects
+        local time = love.timer.getTime()
+        local centerX = x + 16
+        local centerY = y + 16
+        
+        -- Special flask shape (wider, more ornate)
+        love.graphics.setColor(0.8, 0.9, 0.95) -- Slightly tinted glass
+        love.graphics.rectangle("fill", x + 6, y + 12, 20, 16, 3, 3)
+        
+        -- Magical swirling liquid (rainbow colors)
+        love.graphics.setColor(0.85, 0.25, 0.85) -- Base purple
+        love.graphics.rectangle("fill", x + 8, y + 14, 16, 12, 3, 3)
+        
+        -- Liquid color swirl (animated)
+        local colorPhase = (time * 2) % (math.pi * 2)
+        local red = 0.5 + 0.4 * math.sin(colorPhase)
+        local green = 0.3 + 0.4 * math.sin(colorPhase + math.pi * 2/3)
+        local blue = 0.7 + 0.3 * math.sin(colorPhase + math.pi * 4/3)
+        love.graphics.setColor(red, green, blue)
+        love.graphics.rectangle("fill", x + 10, y + 16, 12, 8, 2, 2)
+        
+        -- Magical highlight (shimmering)
+        local shimmerPhase = (time * 4) % (math.pi * 2)
+        local shimmerAlpha = 0.3 + 0.4 * math.sin(shimmerPhase)
+        love.graphics.setColor(0.95, 0.95, 1.0, shimmerAlpha)
+        love.graphics.rectangle("fill", x + 11, y + 17, 4, 3, 1, 1)
+        
+        -- Ornate cork with magical runes
+        love.graphics.setColor(0.45, 0.25, 0.15) -- Darker cork
+        love.graphics.rectangle("fill", x + 11, y + 4, 10, 8, 2, 2)
+        
+        -- Cork highlights
+        love.graphics.setColor(0.65, 0.45, 0.35)
+        love.graphics.rectangle("fill", x + 12, y + 5, 3, 2, 1, 1)
+        love.graphics.rectangle("fill", x + 17, y + 7, 3, 2, 1, 1)
+        
+        -- Swirling particle effects (like portal)
+        local swirlTime = time * 1.5
+        local baseRadius = 8
+        
+        -- Inner swirls (3 layers)
+        for j = 1, 3 do
+            local swirlPhase = (swirlTime * 0.8 + (j / 3) * math.pi * 2) % (math.pi * 2)
+            local swirlSegments = 16
+            
+            for i = 0, swirlSegments - 1 do
+                local t1 = i / swirlSegments
+                local t2 = (i + 1) / swirlSegments
+                local angle1 = t1 * math.pi * 2 + swirlPhase
+                local angle2 = t2 * math.pi * 2 + swirlPhase
+                
+                local radius1 = baseRadius * (0.2 + t1 * 0.4)
+                local radius2 = baseRadius * (0.2 + t2 * 0.4)
+                
+                local x1 = centerX + math.cos(angle1) * radius1
+                local y1 = centerY + math.sin(angle1) * radius1
+                local x2 = centerX + math.cos(angle2) * radius2
+                local y2 = centerY + math.sin(angle2) * radius2
+                
+                -- Color varies with swirl layer
+                local alpha = 0.4 + 0.2 * math.sin(swirlTime + j)
+                love.graphics.setColor(0.8 + j * 0.05, 0.4 + j * 0.1, 0.9, alpha)
+                love.graphics.setLineWidth(2)
+                love.graphics.line(x1, y1, x2, y2)
+            end
+        end
+        love.graphics.setLineWidth(1)
+        
+        -- Floating sparkles around the potion
+        for i = 1, 8 do
+            local sparkleSeed = centerX + centerY + i * 17
+            local sparkleX = centerX + math.sin(sparkleSeed + time * 1.2 + i * 0.5) * 12
+            local sparkleY = centerY + math.cos(sparkleSeed + time * 0.8 + i * 0.7) * 12
+            local sparkleSize = 1 + math.sin(time * 2 + i) * 0.5
+            local sparkleAlpha = 0.6 + 0.4 * math.sin(time * 3 + i * 0.8)
+            
+            love.graphics.setColor(1, 0.9, 0.7, sparkleAlpha)
+            love.graphics.circle("fill", sparkleX, sparkleY, sparkleSize)
+            
+            -- Sparkle highlight
+            love.graphics.setColor(1, 1, 1, sparkleAlpha * 0.8)
+            love.graphics.circle("fill", sparkleX - 0.5, sparkleY - 0.5, sparkleSize * 0.5)
+        end
+        
+        -- Flask outline (ornate)
+        love.graphics.setColor(0.15, 0.10, 0.10)
+        love.graphics.setLineWidth(3)
+        love.graphics.rectangle("line", x + 6, y + 12, 20, 16, 3, 3)
+        love.graphics.rectangle("line", x + 11, y + 4, 10, 8, 2, 2)
+        love.graphics.setLineWidth(1)
+        
     elseif itemName == "Magic Sword" then
         -- Blade (silver with purple glow)
         love.graphics.setColor(0.75, 0.75, 0.85)
@@ -4815,6 +4908,37 @@ checkInteraction = function()
     -- Check NPC interaction first
     local npc = getNearestNPC()
     if npc then
+        -- Check if this is the inn keeper
+        if npc.questState == "inn_keeper" then
+            -- Random dialogue phrases
+            local phrases = {
+                "Welcome to The Restful Inn! Make yourself at home.",
+                "Care for a drink? We have the finest ale in the village!",
+                "The rooms upstairs are cozy and warm. Perfect for weary travelers.",
+                "I've been running this inn for twenty years. Seen all sorts pass through.",
+                "Help yourself to the chests upstairs. Consider it a gift for our guests!",
+                "The candles never seem to go out here. Must be the magic in the air."
+            }
+            local randomPhrase = phrases[math.random(1, #phrases)]
+            messageState.currentMessage = randomPhrase
+            messageState.messageTimer = 4
+            messageState.currentMessageItem = nil
+            
+            -- Play NPC talking sound with higher pitch for female voice
+            if audio.npcTalkingSound then
+                ---@type any
+                local talk = audio.npcTalkingSound
+                talk:stop()
+                talk:setPitch(1.3) -- Higher pitch for female voice
+                talk:play()
+                audio.npcTalkingTargetVolume = 1.0  -- Ensure volume is set
+                if DEBUG_MODE then
+                    print("[AUDIO] Starting inn keeper talking sound (female pitch)")
+                end
+            end
+            return
+        end
+        
         -- Check if this is a shop merchant (potion merchant)
         if npc.questState == "potion_merchant" and npc.data.shopType then
             -- Open shop UI
@@ -4856,6 +4980,7 @@ checkInteraction = function()
             if audio.npcTalkingSound then
                 ---@type any
                 local npcTalk = audio.npcTalkingSound
+                npcTalk:setPitch(1.0) -- Reset to normal pitch for male NPCs
                 if not npcTalk:isPlaying() then
                     npcTalk:play()
                 end
@@ -5011,6 +5136,22 @@ checkInteraction = function()
             messageState.currentMessage = result.message
             messageState.messageTimer = 5
             messageState.currentMessageItem = nil
+            return
+        end
+        
+        -- Handle gold found
+        if type(result) == "table" and result.type == "gold_found" then
+            messageState.currentMessage = result.message
+            messageState.messageTimer = 3
+            messageState.currentMessageItem = nil
+            
+            -- Play gold coin sound
+            if audio.goldCoinsSound then
+                ---@type any
+                local gold = audio.goldCoinsSound
+                gold:stop()
+                gold:play()
+            end
             return
         end
         

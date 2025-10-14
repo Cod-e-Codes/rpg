@@ -90,6 +90,7 @@ Save file: `savegame.sav`
 - [x] Visual effects for elemental hazards
 - [x] Trading system with gold currency and shop
 - [x] Sanctuary Village with animated fountain
+- [x] The Restful Inn with interactive NPC and loot chests
 - [ ] More content and puzzles
 
 ## License

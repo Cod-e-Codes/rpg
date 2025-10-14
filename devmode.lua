@@ -13,7 +13,8 @@ function DevMode:new()
             {name = "cave_level1", display = "Cave Level 1", spawnX = 3*32, spawnY = 12*32},
             {name = "class_selection", display = "Class Selection", spawnX = 3*32, spawnY = 15*32},
             {name = "defense_trials", display = "Defense Trials", spawnX = 14*32, spawnY = 35*32},
-            {name = "town", display = "Sanctuary Village", spawnX = 24*32, spawnY = 37*32}
+            {name = "town", display = "Sanctuary Village", spawnX = 24*32, spawnY = 37*32},
+            {name = "inn_interior", display = "The Restful Inn", spawnX = 10*32, spawnY = 12*32}
         },
         
         selectedLevelIndex = 1,
