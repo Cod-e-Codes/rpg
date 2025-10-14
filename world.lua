@@ -1057,12 +1057,12 @@ function World:createTown()
     -- Add interactables
     self.interactables["town"] = {}
     
-    -- Portal/Exit back to overworld (west entrance)
+    -- Southern path exit back to overworld (same as entrance)
     table.insert(self.interactables["town"],
-        Interactable:new(2*32, 20*32, 64, 64, "portal", {
-            destination = "overworld",
-            spawnX = 77*32,  -- East side of overworld
-            spawnY = 30*32
+        Interactable:new(24*32, 38*32, 64, 64, "eastern_path", {
+            targetMap = "overworld",
+            spawnX = 77*32,  -- East side of overworld at eastern path
+            spawnY = 878  -- Y position of eastern path bridge
         })
     )
     
