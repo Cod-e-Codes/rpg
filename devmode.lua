@@ -70,6 +70,13 @@ function DevMode:giveAllSpells(gameState, spellSystem, Spell)
         return false, "Dev mode not enabled"
     end
     
+    -- Enable player class and combat if not already set
+    if not gameState.playerClass then
+        gameState.playerClass = "Storm Mage" -- Default class for dev mode
+        gameState.playerElement = "lightning"
+        print("Enabled combat system (Storm Mage)")
+    end
+    
     -- Give Illumination spell if not already learned
     if not gameState:hasSpell("Illumination") then
         local spell = Spell.createIllumination()

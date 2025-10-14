@@ -1389,22 +1389,22 @@ function love.update(dt)
             -- Start cutscene after a delay to let door unlock sound play
             cutsceneDelayTimer = 2.5 -- 2.5 second delay
             cutsceneDelayCallback = function()
-                inCutscene = true
-                cutsceneWalkTarget = {x = 55 * 32, y = 19 * 32} -- Door position
-                cutsceneOnComplete = function()
-                    -- Transition to house interior
-                    gameState:changeMap("house_interior", 7*32, 9*32)
-                    world:loadMap(gameState.currentMap)
-                    player.x = gameState.playerSpawn.x
-                    player.y = gameState.playerSpawn.y
-                    
-                    currentMessage = "Inside the merchant's house..."
-                    currentMessageItem = nil
-                    messageTimer = 2
-                    
-                    inCutscene = false
-                    cutsceneWalkTarget = nil
-                    cutsceneOnComplete = nil
+            inCutscene = true
+            cutsceneWalkTarget = {x = 55 * 32, y = 19 * 32} -- Door position
+            cutsceneOnComplete = function()
+                -- Transition to house interior
+                gameState:changeMap("house_interior", 7*32, 9*32)
+                world:loadMap(gameState.currentMap)
+                player.x = gameState.playerSpawn.x
+                player.y = gameState.playerSpawn.y
+                
+                currentMessage = "Inside the merchant's house..."
+                currentMessageItem = nil
+                messageTimer = 2
+                
+                inCutscene = false
+                cutsceneWalkTarget = nil
+                cutsceneOnComplete = nil
                 end
             end
             
@@ -5097,6 +5097,18 @@ function love.mousepressed(x, y, button)
 end
 
 function love.wheelmoved(x, y)
+    -- Spell book scrolling
+    if spellSystem and spellSystem.showSpellMenu and spellSystem.spellMenuWidth > 400 then
+        spellSystem.spellMenuScrollOffset = spellSystem.spellMenuScrollOffset - y * 30
+        local totalSpellListHeight = #spellSystem.learnedSpells * 55
+        local screenHeight = love.graphics.getHeight()
+        local headerHeight = 40
+        local contentHeight = screenHeight - headerHeight - 170
+        local maxScroll = math.max(0, totalSpellListHeight - contentHeight)
+        spellSystem.spellMenuScrollOffset = math.max(0, math.min(spellSystem.spellMenuScrollOffset, maxScroll))
+        return
+    end
+    
     -- Class selection scrolling
     if showClassSelection then
         classSelectionScrollOffset = classSelectionScrollOffset - y * 30
