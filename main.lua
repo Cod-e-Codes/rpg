@@ -193,6 +193,9 @@ local player = {
     -- Combat stats
     health = 100,
     maxHealth = 100,
+    armor = 0,
+    maxArmor = 0,
+    armorRegenRate = 0,
     isDead = false,
     wasMoving = false,
     scale = 2,
@@ -1074,6 +1077,76 @@ function love.update(dt)
                 end
             end
         end
+        
+        -- Passive healing strategy mechanics
+        -- Auto-detect and initialize armor if Iron Fortitude is learned
+        if not gameState.healingStrategy and player.maxArmor == 0 then
+            for _, spell in ipairs(spellSystem.learnedSpells) do
+                if spell.name == "Iron Fortitude" then
+                    gameState.healingStrategy = "armor"
+                    player.maxArmor = 50 + (spell.level - 1) * 10
+                    player.armor = player.maxArmor
+                    player.armorRegenRate = 2 + (spell.level - 1) * 0.5
+                    if DEBUG_MODE then
+                        print(string.format("[ARMOR] Auto-initialized from learned spell: %d/%d (regen: %.1f/s)", 
+                            player.armor, player.maxArmor, player.armorRegenRate))
+                    end
+                    break
+                elseif spell.name == "Soul Siphon" then
+                    gameState.healingStrategy = "drain"
+                    break
+                elseif spell.name == "Death Harvest" then
+                    gameState.healingStrategy = "necromancer"
+                    break
+                end
+            end
+        end
+        
+        if gameState.healingStrategy and not player.isDead then
+            if gameState.healingStrategy == "armor" then
+                -- Iron Fortitude: Regenerate armor over time
+                if player.armor < player.maxArmor then
+                    player.armor = math.min(player.maxArmor, player.armor + player.armorRegenRate * dt)
+                end
+                
+            elseif gameState.healingStrategy == "drain" then
+                -- Soul Siphon: Drain health from nearby enemies
+                local drainSpell = nil
+                for _, spell in ipairs(spellSystem.learnedSpells) do
+                    if spell.name == "Soul Siphon" then
+                        drainSpell = spell
+                        break
+                    end
+                end
+                
+                if drainSpell and player.health < player.maxHealth then
+                    local enemies = world:getCurrentEnemies()
+                    local drainRange = 120 + (drainSpell.level - 1) * 15
+                    local drainPerSecond = 2 + (drainSpell.level - 1) * 1
+                    local totalDrain = 0
+                    
+                    for _, enemy in ipairs(enemies) do
+                        if not enemy.isDead then
+                            local dx = enemy.x - player.x
+                            local dy = enemy.y - player.y
+                            local dist = math.sqrt(dx * dx + dy * dy)
+                            
+                            if dist <= drainRange then
+                                local drainAmount = drainPerSecond * dt
+                                totalDrain = totalDrain + drainAmount
+                            end
+                        end
+                    end
+                    
+                    if totalDrain > 0 then
+                        player.health = math.min(player.maxHealth, player.health + totalDrain)
+                        if DEBUG_MODE then
+                            print(string.format("[LIFESTEAL] Drained %.1f HP", totalDrain))
+                        end
+                    end
+                end
+            end
+        end
     end
     
     -- Update fade transitions
@@ -1465,26 +1538,37 @@ function love.update(dt)
                 
                 -- Take damage from enemy (only if player has selected a class)
                 if gameState.playerClass then
-                    -- Check for active tank buff (damage reduction)
-                    local damageReduction = 0
-                    if spellSystem then
-                        for _, spell in ipairs(spellSystem.learnedSpells) do
-                            if spell.name == "Iron Fortitude" and spell.damageReduction then
-                                damageReduction = spell.damageReduction
-                                if DEBUG_MODE then
-                                    print("[DAMAGE] Tank buff active: " .. (damageReduction * 100) .. "% reduction")
-                                end
-                                break
+                    local damage = enemy.damage
+                    
+                    -- Apply damage to armor first, then health
+                    if player.armor > 0 then
+                        if player.armor >= damage then
+                            -- Armor absorbs all damage
+                            player.armor = player.armor - damage
+                            damage = 0
+                            if DEBUG_MODE then
+                                print(string.format("[DAMAGE] Armor absorbed %.1f damage (armor: %.1f/%.1f)", 
+                                    enemy.damage, player.armor, player.maxArmor))
                             end
+                        else
+                            -- Armor absorbs partial damage, rest goes to health
+                            local overflow = damage - player.armor
+                            if DEBUG_MODE then
+                                print(string.format("[DAMAGE] Armor broke! %.1f absorbed, %.1f to health", 
+                                    player.armor, overflow))
+                            end
+                            player.armor = 0
+                            damage = overflow
                         end
                     end
                     
-                    -- Calculate and apply damage
-                    local damage = enemy.damage * (1 - damageReduction)
-                    player.health = player.health - damage
-                    if DEBUG_MODE then
-                        print(string.format("[DAMAGE] Enemy dealt %.1f damage (base: %d, reduction: %.1f%%)", 
-                            damage, enemy.damage, damageReduction * 100))
+                    -- Apply remaining damage to health
+                    if damage > 0 then
+                        player.health = player.health - damage
+                        if DEBUG_MODE then
+                            print(string.format("[DAMAGE] Dealt %.1f damage to health (HP: %.1f/%.1f)", 
+                                damage, player.health, player.maxHealth))
+                        end
                     end
                     
                     if player.health <= 0 then
@@ -1525,6 +1609,26 @@ function love.update(dt)
             if died then
                 -- Mark enemy as killed in gameState for persistence
                 gameState:killEnemy(hitEnemy.id)
+                
+                -- Death Harvest: Heal on kill
+                if gameState.healingStrategy == "necromancer" and spellSystem then
+                    local necroSpell = nil
+                    for _, spell in ipairs(spellSystem.learnedSpells) do
+                        if spell.name == "Death Harvest" then
+                            necroSpell = spell
+                            break
+                        end
+                    end
+                    
+                    if necroSpell and player.health < player.maxHealth then
+                        local healAmount = 20 + (necroSpell.level - 1) * 10
+                        player.health = math.min(player.maxHealth, player.health + healAmount)
+                        if DEBUG_MODE then
+                            print(string.format("[NECRO] Gained %d HP from kill (HP: %.1f/%.1f)", 
+                                healAmount, player.health, player.maxHealth))
+                        end
+                    end
+                end
                 
                 -- Remove dead enemy from world
                 for j, enemy in ipairs(enemies) do
@@ -1611,8 +1715,22 @@ function love.update(dt)
                     hazard.type, damage, hazard.damage, tostring(hasResistance)))
             end
             
-            -- Apply damage
-            player.health = player.health - damage
+            -- Apply damage to armor first, then health
+            if player.armor > 0 then
+                if player.armor >= damage then
+                    player.armor = player.armor - damage
+                    damage = 0
+                else
+                    local overflow = damage - player.armor
+                    player.armor = 0
+                    damage = overflow
+                end
+            end
+            
+            -- Apply remaining damage to health
+            if damage > 0 then
+                player.health = player.health - damage
+            end
             if player.health <= 0 then
                 player.health = 0
                 player.isDead = true
@@ -3476,6 +3594,62 @@ function drawUI()
         love.graphics.rectangle("line", healthBarX, healthBarY, healthBarWidth, healthBarHeight, 2, 2)
         love.graphics.setLineWidth(1)
         
+        -- Draw armor bar if player has armor (beside health bar)
+        if gameState.healingStrategy == "armor" and player.maxArmor > 0 then
+            local armorBarWidth = 18
+            local armorBarHeight = 100
+            local armorBarX = healthBarX + healthBarWidth + 5  -- Beside health bar
+            local armorBarY = healthBarY
+            
+            -- Background
+            love.graphics.setColor(0.08, 0.08, 0.10, 0.85)
+            love.graphics.rectangle("fill", armorBarX, armorBarY, armorBarWidth, armorBarHeight, 2, 2)
+            
+            -- Armor fill (bottom to top, silver/gray)
+            local armorPercent = player.armor / player.maxArmor
+            local armorFillHeight = armorBarHeight * armorPercent
+            love.graphics.setColor(0.6, 0.65, 0.7)  -- Silver color
+            love.graphics.rectangle("fill", armorBarX, armorBarY + (armorBarHeight - armorFillHeight), armorBarWidth, armorFillHeight, 2, 2)
+            
+            -- Border
+            love.graphics.setColor(0.75, 0.65, 0.25)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("line", armorBarX, armorBarY, armorBarWidth, armorBarHeight, 2, 2)
+            love.graphics.setLineWidth(1)
+        end
+        
+        -- Draw Iron Fortitude indicator (thin purple bar when armor strategy is active)
+        -- Auto-detect strategy from learned spells if not explicitly set
+        local hasArmorStrategy = gameState.healingStrategy == "armor"
+        if not hasArmorStrategy and spellSystem then
+            for _, spell in ipairs(spellSystem.learnedSpells) do
+                if spell.name == "Iron Fortitude" then
+                    hasArmorStrategy = true
+                    break
+                end
+            end
+        end
+        
+        if hasArmorStrategy then
+            local armorIndicatorWidth = 8
+            local armorIndicatorHeight = 100
+            local armorIndicatorX = healthBarX + healthBarWidth + (player.maxArmor > 0 and 23 or 5)
+            local armorIndicatorY = healthBarY
+            
+            -- Purple bar for armor strategy
+            love.graphics.setColor(0.15, 0.1, 0.2, 0.85)
+            love.graphics.rectangle("fill", armorIndicatorX, armorIndicatorY, armorIndicatorWidth, armorIndicatorHeight, 1, 1)
+            
+            -- Fill (always full - it's a passive buff indicator)
+            love.graphics.setColor(0.6, 0.3, 0.8)
+            love.graphics.rectangle("fill", armorIndicatorX, armorIndicatorY, armorIndicatorWidth, armorIndicatorHeight, 1, 1)
+            
+            -- Border
+            love.graphics.setColor(0.7, 0.5, 0.9)
+            love.graphics.setLineWidth(1)
+            love.graphics.rectangle("line", armorIndicatorX, armorIndicatorY, armorIndicatorWidth, armorIndicatorHeight, 1, 1)
+        end
+        
         love.graphics.setColor(1, 1, 1)
     end
     
@@ -4193,6 +4367,17 @@ checkInteraction = function()
                     gameState.healingStrategy = result.strategy
                     gameState.defenseTrialsCompleted = true
                     gameState.questState = "strategy_selected"
+                    
+                    -- Initialize armor system for tank strategy
+                    if result.strategy == "armor" and player.maxArmor == 0 then
+                        player.maxArmor = 50 + (spell.level - 1) * 10
+                        player.armor = player.maxArmor
+                        player.armorRegenRate = 2 + (spell.level - 1) * 0.5
+                        if DEBUG_MODE then
+                            print(string.format("[ARMOR] Initialized: %d/%d (regen: %.1f/s)", 
+                                player.armor, player.maxArmor, player.armorRegenRate))
+                        end
+                    end
                 end
             end
             
@@ -4333,6 +4518,21 @@ function love.keypressed(key)
                         -- Rebuild spell system with loaded data
                         spellSystem = SpellSystem:new(gameState)
                         spellSystem:rebuildLearnedSpells()
+                        
+                        -- Restore armor system if player has tank strategy
+                        if gameState.healingStrategy == "armor" then
+                            for _, spell in ipairs(spellSystem.learnedSpells) do
+                                if spell.name == "Iron Fortitude" then
+                                    player.maxArmor = 50 + (spell.level - 1) * 10
+                                    player.armor = player.maxArmor  -- Start with full armor on load
+                                    player.armorRegenRate = 2 + (spell.level - 1) * 0.5
+                                    if DEBUG_MODE then
+                                        print(string.format("[ARMOR] Restored on load: %d/%d", player.armor, player.maxArmor))
+                                    end
+                                    break
+                                end
+                            end
+                        end
                         
                         -- Sync interactables
                         local interactables = world:getCurrentInteractables()

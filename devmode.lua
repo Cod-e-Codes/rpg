@@ -107,6 +107,12 @@ function DevMode:giveAllSpells(gameState, spellSystem, Spell)
         end
     end
     
+    -- Set default healing strategy if not already set
+    if not gameState.healingStrategy then
+        gameState.healingStrategy = "armor" -- Default to tank for dev mode
+        print("Set healing strategy: armor")
+    end
+    
     return true, "All spells granted"
 end
 
