@@ -1385,33 +1385,61 @@ function love.update(dt)
             fade.alpha = 0
             fade.state = "none"
             
-            -- Check if returning to overworld from class selection via cave (not portal)
+            -- Check if arriving at class selection after class reset (create portal animation)
+            if fade.targetMap == "class_selection" and 
+               gameState.currentMap == "class_selection" then
+                -- Create temporary portal at spawn location for class reset teleport
+                portal.temp = {
+                    x = player.x - 32,
+                    y = player.y - 32,
+                    width = 64,
+                    height = 64,
+                    type = "portal",
+                    swirlTime = 0
+                }
+                portal.despawnTimer = 2.0 -- Portal lasts 2 seconds after player arrives
+            end
+            
+            -- Check if returning to overworld from class selection via portal (create portal animation)
             if fade.targetMap == "overworld" and 
                gameState.currentMap == "overworld" and
-               gameState.playerClass and
-               not cameraPan.northPathCutsceneShown and
-               not gameState.mysteriousCaveHidden then -- Only if cave not already hidden
-                cameraPan.northPathCutsceneShown = true
-                gameState.mysteriousCaveHidden = true -- Hide the mysterious cave
+               gameState.playerClass then
+                -- Create temporary portal at spawn location for class selection portal exit
+                portal.temp = {
+                    x = player.x - 32,
+                    y = player.y - 32,
+                    width = 64,
+                    height = 64,
+                    type = "portal",
+                    swirlTime = 0
+                }
+                portal.despawnTimer = 2.0 -- Portal lasts 2 seconds after player arrives
                 
-                -- Start camera pan cutscene
-                cutsceneState.inCutscene = true
-                local screenWidth = love.graphics.getWidth()
-                local screenHeight = love.graphics.getHeight()
-                
-                -- Pan to the northern path area (center of archway at 1280, 5)
-                local northPathX = 1280
-                local northPathY = 5 * 32
-                
-                cameraPan.original.x = player.x - screenWidth / 2
-                cameraPan.original.y = player.y - screenHeight / 2
-                cameraPan.target.x = northPathX - screenWidth / 2
-                cameraPan.target.y = northPathY - screenHeight / 2
-                cameraPan.state = "pan_to_target"
-                
-                messageState.currentMessage = "An ancient path to the north has revealed itself!"
-                messageState.currentMessageItem = nil
-                messageState.messageTimer = 5
+                -- Also trigger north path cutscene if not already shown and cave not hidden
+                if not cameraPan.northPathCutsceneShown and
+                   not gameState.mysteriousCaveHidden then -- Only if cave not already hidden
+                    cameraPan.northPathCutsceneShown = true
+                    gameState.mysteriousCaveHidden = true -- Hide the mysterious cave
+                    
+                    -- Start camera pan cutscene
+                    cutsceneState.inCutscene = true
+                    local screenWidth = love.graphics.getWidth()
+                    local screenHeight = love.graphics.getHeight()
+                    
+                    -- Pan to the northern path area (center of archway at 1280, 5)
+                    local northPathX = 1280
+                    local northPathY = 5 * 32
+                    
+                    cameraPan.original.x = player.x - screenWidth / 2
+                    cameraPan.original.y = player.y - screenHeight / 2
+                    cameraPan.target.x = northPathX - screenWidth / 2
+                    cameraPan.target.y = northPathY - screenHeight / 2
+                    cameraPan.state = "pan_to_target"
+                    
+                    messageState.currentMessage = "An ancient path to the north has revealed itself!"
+                    messageState.currentMessageItem = nil
+                    messageState.messageTimer = 5
+                end
             end
             
             -- Trigger town greeting cutscene if entering town for the first time
@@ -4864,10 +4892,6 @@ useItem = function(itemName)
             return false
         end
         
-        -- Confirmation message
-        messageState.currentMessage = "Class reset! Return to the portal west of the house to choose a new class."
-        messageState.messageTimer = 5
-        
         -- Reset class and spells
         gameState.playerClass = nil
         gameState.playerElement = nil
@@ -4875,6 +4899,7 @@ useItem = function(itemName)
         gameState.equippedSpells = {nil, nil, nil, nil, nil}
         gameState.spellLevels = {}
         gameState.spellExperience = {}
+        gameState.questState = "class_reset"  -- Reset quest state so portal is not available
         
         -- Reset spell system
         if spellSystem then
@@ -4894,6 +4919,16 @@ useItem = function(itemName)
         
         -- Remove item from inventory
         gameState:removeItem(itemName, 1)
+        
+        -- Start fade transition to class selection
+        fade.state = "fade_out"
+        fade.targetMap = "class_selection"
+        fade.spawnX = 3*32  -- Center of class selection area
+        fade.spawnY = 15*32
+        
+        -- Confirmation message
+        messageState.currentMessage = "Class reset! Choose your new class to continue your adventure."
+        messageState.messageTimer = 5
         
         return true
     else
@@ -5050,6 +5085,8 @@ checkInteraction = function()
                     spellSystem:learnSpell(spell)
                 end
             end
+            
+            gameState.questState = "class_selected"  -- Mark class as selected for portal access
             
             messageState.currentMessage = result.message
             messageState.messageTimer = 5 -- Longer duration for class selection message
@@ -5722,6 +5759,7 @@ function love.keypressed(key)
                 if classSelection.selectedIcon then
                     gameState.playerClass = classSelection.selectedIcon.className
                     gameState.playerElement = classSelection.selectedIcon.element
+                    gameState.questState = "class_selected"  -- Mark class as selected for portal access
                     
                     -- Give the player their starter attack spell based on element
                     if spellSystem and classSelection.selectedIcon.element then

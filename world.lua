@@ -573,20 +573,22 @@ function World:createClassSelection()
         })
     )
     
-    -- Portal on eastern border (return to overworld)
+    -- Portal on eastern border (return to overworld) - only available after class selection
     table.insert(self.interactables["class_selection"],
         Interactable:new(27*32, 9*32, 64, 64, "portal", {
             destination = "overworld",
             spawnX = 30*32,  -- Spawn player safely in overworld
-            spawnY = 30*32
+            spawnY = 30*32,
+            questRequired = "class_selected"  -- Only visible after choosing a class
         })
     )
     
-    -- Sign pointing to portal (right arrow)
+    -- Sign pointing to portal (right arrow) - only visible after class selection
     table.insert(self.interactables["class_selection"],
         Interactable:new(24*32, 9*32, 32, 32, "sign", {
             message = "Back to Overworld ->",
-            arrow = "right"
+            arrow = "right",
+            questRequired = "class_selected"  -- Only visible after choosing a class
         })
     )
     
