@@ -259,6 +259,14 @@ local saveManager
 ---@field panelSwipeSound any
 ---@field skeletonChaseSound any
 ---@field npcTalkingSound any
+---@field earthCastSound any
+---@field fireCastSound any
+---@field stormCastSound any
+---@field iceCastSound any
+---@field illuminationCastSound any
+---@field magicalVoyageMusic any
+---@field trialsSpawnSound any
+---@field fightSongMusic any
 local audio = {
     footstepSound = nil,
     footstepTargetVolume = 0,
@@ -286,7 +294,21 @@ local audio = {
     npcTalkingSound = nil,
     npcTalkingTargetVolume = 0,
     npcTalkingCurrentVolume = 0,
-    npcTalkingFadeSpeed = 2.0
+    npcTalkingFadeSpeed = 2.0,
+    earthCastSound = nil,
+    fireCastSound = nil,
+    stormCastSound = nil,
+    iceCastSound = nil,
+    illuminationCastSound = nil,
+    magicalVoyageMusic = nil,
+    magicalVoyageTargetVolume = 0,
+    magicalVoyageCurrentVolume = 0,
+    magicalVoyageFadeSpeed = 0.5,
+    trialsSpawnSound = nil,
+    fightSongMusic = nil,
+    fightSongTargetVolume = 0,
+    fightSongCurrentVolume = 0,
+    fightSongFadeSpeed = 0.5
 }
 local devMode
 local currentMessage = nil
@@ -609,6 +631,94 @@ function love.load()
         print("Warning: Could not load npc-talking.mp3: " .. tostring(audioError))
     else
         print("[AUDIO] Loaded npc-talking.mp3 successfully. Looping: true, Volume: 0-1.0")
+    end
+    
+    -- Load spell casting sounds
+    audioSuccess, audioError = pcall(function()
+        audio.earthCastSound = love.audio.newSource("assets/sounds/earth-cast-1.mp3", "static")
+        audio.earthCastSound:setVolume(0.6)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load earth-cast-1.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded earth-cast-1.mp3 successfully")
+    end
+    
+    audioSuccess, audioError = pcall(function()
+        audio.fireCastSound = love.audio.newSource("assets/sounds/fire-cast-1.mp3", "static")
+        audio.fireCastSound:setVolume(0.6)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load fire-cast-1.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded fire-cast-1.mp3 successfully")
+    end
+    
+    audioSuccess, audioError = pcall(function()
+        audio.stormCastSound = love.audio.newSource("assets/sounds/storm-cast-1.mp3", "static")
+        audio.stormCastSound:setVolume(0.6)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load storm-cast-1.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded storm-cast-1.mp3 successfully")
+    end
+    
+    audioSuccess, audioError = pcall(function()
+        audio.iceCastSound = love.audio.newSource("assets/sounds/ice-cast-1.mp3", "static")
+        audio.iceCastSound:setVolume(0.6)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load ice-cast-1.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded ice-cast-1.mp3 successfully")
+    end
+    
+    audioSuccess, audioError = pcall(function()
+        audio.illuminationCastSound = love.audio.newSource("assets/sounds/illumination-cast.mp3", "static")
+        audio.illuminationCastSound:setVolume(0.6)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load illumination-cast.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded illumination-cast.mp3 successfully")
+    end
+    
+    -- Load background music
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local voyage = love.audio.newSource("assets/sounds/magical-voyage.mp3", "stream")
+        audio.magicalVoyageMusic = voyage
+        voyage:setLooping(true)
+        voyage:setVolume(0)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load magical-voyage.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded magical-voyage.mp3 successfully. Looping: true, Volume: 0-0.4")
+    end
+    
+    audioSuccess, audioError = pcall(function()
+        audio.trialsSpawnSound = love.audio.newSource("assets/sounds/trials-spawn.mp3", "static")
+        audio.trialsSpawnSound:setVolume(0.5)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load trials-spawn.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded trials-spawn.mp3 successfully")
+    end
+    
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local fight = love.audio.newSource("assets/sounds/fight-song.mp3", "stream")
+        audio.fightSongMusic = fight
+        fight:setLooping(true)
+        fight:setVolume(0)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load fight-song.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded fight-song.mp3 successfully. Looping: true, Volume: 0-0.4")
     end
     
     -- Create example maps
@@ -986,6 +1096,17 @@ function love.update(dt)
             gameState.questState = "skeletons_defeated"
             currentMessage = "Victory! Choose your path forward..."
             messageTimer = 5
+            
+            -- Music transition: fade out fight song, fade in magical voyage
+            if audio.fightSongMusic then
+                audio.fightSongTargetVolume = 0
+            end
+            if audio.magicalVoyageMusic then
+                audio.magicalVoyageTargetVolume = 0.4
+                if DEBUG_MODE then
+                    print("[AUDIO] Returning to magical voyage (skeletons defeated)")
+                end
+            end
         end
     end
     
@@ -1283,6 +1404,13 @@ function love.update(dt)
                             audio.npcTalkingTargetVolume = 0
                             audio.npcTalkingCurrentVolume = 0
                         end
+                        -- Stop background music on death
+                        if audio.magicalVoyageMusic then
+                            audio.magicalVoyageTargetVolume = 0
+                        end
+                        if audio.fightSongMusic then
+                            audio.fightSongTargetVolume = 0
+                        end
                     end
                 end
             end
@@ -1393,6 +1521,13 @@ function love.update(dt)
                     npcTalk:stop()
                     audio.npcTalkingTargetVolume = 0
                     audio.npcTalkingCurrentVolume = 0
+                end
+                -- Stop background music on death
+                if audio.magicalVoyageMusic then
+                    audio.magicalVoyageTargetVolume = 0
+                end
+                if audio.fightSongMusic then
+                    audio.fightSongTargetVolume = 0
                 end
             end
             
@@ -1823,6 +1958,65 @@ function love.update(dt)
             npcTalk:stop()
             if DEBUG_MODE then
                 print("[AUDIO] Stopped NPC talking sound (faded out)")
+            end
+        end
+    end
+    
+    -- Update background music based on current map
+    if audio.magicalVoyageMusic and gameStarted and gameState and not isPaused then
+        local inMusicMap = (gameState.currentMap == "class_selection" or gameState.currentMap == "defense_trials")
+        local inCombat = (skeletonSpawnState == "spawning" or skeletonSpawnState == "combat")
+        
+        -- Set target volume for magical voyage (only play when in music maps and not in combat)
+        if inMusicMap and not inCombat then
+            audio.magicalVoyageTargetVolume = 0.4
+        else
+            audio.magicalVoyageTargetVolume = 0
+        end
+        
+        -- Smoothly lerp current volume towards target
+        if audio.magicalVoyageCurrentVolume < audio.magicalVoyageTargetVolume then
+            audio.magicalVoyageCurrentVolume = math.min(audio.magicalVoyageTargetVolume, audio.magicalVoyageCurrentVolume + audio.magicalVoyageFadeSpeed * dt)
+        elseif audio.magicalVoyageCurrentVolume > audio.magicalVoyageTargetVolume then
+            audio.magicalVoyageCurrentVolume = math.max(audio.magicalVoyageTargetVolume, audio.magicalVoyageCurrentVolume - audio.magicalVoyageFadeSpeed * dt)
+        end
+        
+        ---@type any
+        local voyage = audio.magicalVoyageMusic
+        voyage:setVolume(audio.magicalVoyageCurrentVolume)
+        
+        -- Start or stop playing based on volume
+        if audio.magicalVoyageCurrentVolume > 0 and not voyage:isPlaying() then
+            voyage:play()
+            if DEBUG_MODE then
+                print("[AUDIO] Started magical voyage music")
+            end
+        elseif audio.magicalVoyageCurrentVolume <= 0 and voyage:isPlaying() then
+            voyage:stop()
+            if DEBUG_MODE then
+                print("[AUDIO] Stopped magical voyage music")
+            end
+        end
+    end
+    
+    -- Update fight song music
+    if audio.fightSongMusic and not isPaused then
+        -- Smoothly lerp current volume towards target
+        if audio.fightSongCurrentVolume < audio.fightSongTargetVolume then
+            audio.fightSongCurrentVolume = math.min(audio.fightSongTargetVolume, audio.fightSongCurrentVolume + audio.fightSongFadeSpeed * dt)
+        elseif audio.fightSongCurrentVolume > audio.fightSongTargetVolume then
+            audio.fightSongCurrentVolume = math.max(audio.fightSongTargetVolume, audio.fightSongCurrentVolume - audio.fightSongFadeSpeed * dt)
+        end
+        
+        ---@type any
+        local fight = audio.fightSongMusic
+        fight:setVolume(audio.fightSongCurrentVolume)
+        
+        -- Stop playing when fully faded out
+        if audio.fightSongCurrentVolume <= 0 and fight:isPlaying() then
+            fight:stop()
+            if DEBUG_MODE then
+                print("[AUDIO] Stopped fight song music")
             end
         end
     end
@@ -3869,6 +4063,27 @@ checkInteraction = function()
             skeletonSpawnTimer = 0
             spawnedSkeletons = {}
             
+            -- Music transition: stop magical voyage, play trials spawn, then start fight song
+            if audio.magicalVoyageMusic then
+                audio.magicalVoyageTargetVolume = 0  -- Fade out magical voyage
+            end
+            if audio.trialsSpawnSound then
+                audio.trialsSpawnSound:stop()
+                audio.trialsSpawnSound:play()
+            end
+            -- Fight song will fade in shortly after spawn sound plays
+            if audio.fightSongMusic then
+                ---@type any
+                local fight = audio.fightSongMusic
+                if not fight:isPlaying() then
+                    fight:play()
+                end
+                audio.fightSongTargetVolume = 0.4
+                if DEBUG_MODE then
+                    print("[AUDIO] Starting fight song (skeleton spawn)")
+                end
+            end
+            
             -- Spawn 2 skeletons at full size but transparent (in north arena)
             local Enemy = require("enemy")
             local spawn1 = Enemy:new(10*32, 6*32, "skeleton", {})
@@ -4177,6 +4392,18 @@ function love.keypressed(key)
                 audio.npcTalkingTargetVolume = 0
                 audio.npcTalkingCurrentVolume = 0
             end
+            
+            -- Pause background music
+            if audio.magicalVoyageMusic then
+                ---@type any
+                local voyage = audio.magicalVoyageMusic
+                voyage:pause()
+            end
+            if audio.fightSongMusic then
+                ---@type any
+                local fight = audio.fightSongMusic
+                fight:pause()
+            end
         else
             -- Resume all ambient sounds
             if audio.footstepSound then
@@ -4198,6 +4425,18 @@ function love.keypressed(key)
                 ---@type any
                 local ow = audio.overworldSound
                 ow:play()
+            end
+            
+            -- Resume background music
+            if audio.magicalVoyageMusic and audio.magicalVoyageCurrentVolume > 0 then
+                ---@type any
+                local voyage = audio.magicalVoyageMusic
+                voyage:play()
+            end
+            if audio.fightSongMusic and audio.fightSongCurrentVolume > 0 then
+                ---@type any
+                local fight = audio.fightSongMusic
+                fight:play()
             end
         end
         return
@@ -4440,29 +4679,129 @@ function love.keypressed(key)
         end
     elseif key == "1" and not inCutscene and spellSystem then
         local success, spell = spellSystem:activateSlot(1)
-        if success and spell and spell.damage then
-            -- Create projectile for attack spell
-            table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+        if success and spell then
+            -- Play spell casting sound
+            if spell.name == "Illumination" and audio.illuminationCastSound then
+                audio.illuminationCastSound:stop()
+                audio.illuminationCastSound:play()
+            elseif gameState.playerElement == "earth" and audio.earthCastSound then
+                audio.earthCastSound:stop()
+                audio.earthCastSound:play()
+            elseif gameState.playerElement == "fire" and audio.fireCastSound then
+                audio.fireCastSound:stop()
+                audio.fireCastSound:play()
+            elseif gameState.playerElement == "lightning" and audio.stormCastSound then
+                audio.stormCastSound:stop()
+                audio.stormCastSound:play()
+            elseif gameState.playerElement == "ice" and audio.iceCastSound then
+                audio.iceCastSound:stop()
+                audio.iceCastSound:play()
+            end
+            
+            if spell.damage then
+                -- Create projectile for attack spell
+                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+            end
         end
     elseif key == "2" and not inCutscene and spellSystem then
         local success, spell = spellSystem:activateSlot(2)
-        if success and spell and spell.damage then
-            table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+        if success and spell then
+            -- Play spell casting sound
+            if spell.name == "Illumination" and audio.illuminationCastSound then
+                audio.illuminationCastSound:stop()
+                audio.illuminationCastSound:play()
+            elseif gameState.playerElement == "earth" and audio.earthCastSound then
+                audio.earthCastSound:stop()
+                audio.earthCastSound:play()
+            elseif gameState.playerElement == "fire" and audio.fireCastSound then
+                audio.fireCastSound:stop()
+                audio.fireCastSound:play()
+            elseif gameState.playerElement == "lightning" and audio.stormCastSound then
+                audio.stormCastSound:stop()
+                audio.stormCastSound:play()
+            elseif gameState.playerElement == "ice" and audio.iceCastSound then
+                audio.iceCastSound:stop()
+                audio.iceCastSound:play()
+            end
+            
+            if spell.damage then
+                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+            end
         end
     elseif key == "3" and not inCutscene and spellSystem then
         local success, spell = spellSystem:activateSlot(3)
-        if success and spell and spell.damage then
-            table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+        if success and spell then
+            -- Play spell casting sound
+            if spell.name == "Illumination" and audio.illuminationCastSound then
+                audio.illuminationCastSound:stop()
+                audio.illuminationCastSound:play()
+            elseif gameState.playerElement == "earth" and audio.earthCastSound then
+                audio.earthCastSound:stop()
+                audio.earthCastSound:play()
+            elseif gameState.playerElement == "fire" and audio.fireCastSound then
+                audio.fireCastSound:stop()
+                audio.fireCastSound:play()
+            elseif gameState.playerElement == "lightning" and audio.stormCastSound then
+                audio.stormCastSound:stop()
+                audio.stormCastSound:play()
+            elseif gameState.playerElement == "ice" and audio.iceCastSound then
+                audio.iceCastSound:stop()
+                audio.iceCastSound:play()
+            end
+            
+            if spell.damage then
+                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+            end
         end
     elseif key == "4" and not inCutscene and spellSystem then
         local success, spell = spellSystem:activateSlot(4)
-        if success and spell and spell.damage then
-            table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+        if success and spell then
+            -- Play spell casting sound
+            if spell.name == "Illumination" and audio.illuminationCastSound then
+                audio.illuminationCastSound:stop()
+                audio.illuminationCastSound:play()
+            elseif gameState.playerElement == "earth" and audio.earthCastSound then
+                audio.earthCastSound:stop()
+                audio.earthCastSound:play()
+            elseif gameState.playerElement == "fire" and audio.fireCastSound then
+                audio.fireCastSound:stop()
+                audio.fireCastSound:play()
+            elseif gameState.playerElement == "lightning" and audio.stormCastSound then
+                audio.stormCastSound:stop()
+                audio.stormCastSound:play()
+            elseif gameState.playerElement == "ice" and audio.iceCastSound then
+                audio.iceCastSound:stop()
+                audio.iceCastSound:play()
+            end
+            
+            if spell.damage then
+                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+            end
         end
     elseif key == "5" and not inCutscene and spellSystem then
         local success, spell = spellSystem:activateSlot(5)
-        if success and spell and spell.damage then
-            table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+        if success and spell then
+            -- Play spell casting sound
+            if spell.name == "Illumination" and audio.illuminationCastSound then
+                audio.illuminationCastSound:stop()
+                audio.illuminationCastSound:play()
+            elseif gameState.playerElement == "earth" and audio.earthCastSound then
+                audio.earthCastSound:stop()
+                audio.earthCastSound:play()
+            elseif gameState.playerElement == "fire" and audio.fireCastSound then
+                audio.fireCastSound:stop()
+                audio.fireCastSound:play()
+            elseif gameState.playerElement == "lightning" and audio.stormCastSound then
+                audio.stormCastSound:stop()
+                audio.stormCastSound:play()
+            elseif gameState.playerElement == "ice" and audio.iceCastSound then
+                audio.iceCastSound:stop()
+                audio.iceCastSound:play()
+            end
+            
+            if spell.damage then
+                table.insert(projectiles, Projectile:new(player.x, player.y, player.direction, spell, gameState.playerElement))
+            end
         end
     elseif key == "6" and not inCutscene then
         -- Use quick slot 1

@@ -12,7 +12,7 @@ A simple action RPG with:
 - Dark caves with lighting effects
 - Save/load system
 - Toon-shaded art style
-- Ambient audio (footsteps, river, cave, overworld, interactions)
+- Audio system (ambient sounds, spell casting, NPC voices, music)
 
 ## Requirements
 
@@ -84,10 +84,10 @@ Save file: `savegame.sav`
 - [x] Defense trials with elemental hazards and resistance spells
 - [x] Healing strategy selection (Tank/Lifesteal/Soul Reaper)
 - [x] Skeleton spawn animations and combat arenas
-- [x] Audio system (footsteps, river, cave, overworld ambience, chest/door sounds)
+- [x] Audio system (ambient sounds, spell casting, NPC dialogue, music)
+- [x] Background music system with combat transitions
 - [x] Visual effects for elemental hazards
 - [ ] More content and puzzles
-- [ ] Additional sound effects and music
 
 ## License
 
