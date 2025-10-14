@@ -254,6 +254,8 @@ local saveManager
 ---@field overworldFadeSpeed number
 ---@field chestCreakSound any
 ---@field doorCreakSound any
+---@field unlockingDoorSound any
+---@field pauseMenuOpenSound any
 local audio = {
     footstepSound = nil,
     footstepTargetVolume = 0,
@@ -273,7 +275,9 @@ local audio = {
     overworldCurrentVolume = 0,
     overworldFadeSpeed = 0.5,
     chestCreakSound = nil,
-    doorCreakSound = nil
+    doorCreakSound = nil,
+    unlockingDoorSound = nil,
+    pauseMenuOpenSound = nil
 }
 local devMode
 local currentMessage = nil
@@ -528,6 +532,32 @@ function love.load()
         print("Warning: Could not load door-creak.mp3: " .. tostring(audioError))
     else
         print("[AUDIO] Loaded door-creak.mp3 successfully (volume: 0.45)")
+    end
+    
+    -- Load unlocking door sound effect
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local unlocking = love.audio.newSource("assets/sounds/unlocking-door.mp3", "static")
+        audio.unlockingDoorSound = unlocking
+        unlocking:setVolume(0.6)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load unlocking-door.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded unlocking-door.mp3 successfully. Volume: 0.6 (skips 1.0s initial silence)")
+    end
+    
+    -- Load pause menu open sound effect
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local pauseOpen = love.audio.newSource("assets/sounds/pause-menu-open.mp3", "static")
+        audio.pauseMenuOpenSound = pauseOpen
+        pauseOpen:setVolume(0.5)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load pause-menu-open.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded pause-menu-open.mp3 successfully. Volume: 0.5")
     end
     
     -- Create example maps
@@ -1277,6 +1307,16 @@ function love.update(dt)
         
         -- Handle delayed door transitions
         if transitionResult == "door_transition" then
+            -- Stop unlocking door sound when entering house
+            if gameState.currentMap == "house_interior" and audio.unlockingDoorSound then
+                ---@type any
+                local unlocking = audio.unlockingDoorSound
+                unlocking:stop()
+                if DEBUG_MODE then
+                    print("[AUDIO] Stopped unlocking door sound (entered house)")
+                end
+            end
+            
             world:loadMap(gameState.currentMap)
             player.x = gameState.playerSpawn.x
             player.y = gameState.playerSpawn.y
@@ -3510,6 +3550,18 @@ checkInteraction = function()
     -- Check NPC interaction first
     local npc = getNearestNPC()
     if npc then
+        -- Play unlocking door sound if player is returning the key to merchant
+        if npc.npcType == "merchant" and gameState:hasItem("Gold Key") and audio.unlockingDoorSound then
+            ---@type any
+            local unlocking = audio.unlockingDoorSound
+            unlocking:stop()
+            unlocking:seek(1.0) -- Skip 1 second of silence
+            unlocking:play()
+            if DEBUG_MODE then
+                print("[AUDIO] Playing unlocking door sound (merchant receives key, from 1.0s)")
+            end
+        end
+        
         local result = npc:interact(gameState)
         if result then
             currentMessage = result
@@ -3522,10 +3574,8 @@ checkInteraction = function()
     -- Then check interactable objects
     local obj = getNearestInteractable()
     if obj then
-        local result = obj:interact(gameState)
-        
-        -- Play sound effects for chest and door interactions
-        if obj.type == "chest" and obj.isOpen and audio.chestCreakSound then
+        -- Play sound effects BEFORE interaction for instant feedback
+        if obj.type == "chest" and not obj.isOpen and audio.chestCreakSound then
             ---@type any
             local chest = audio.chestCreakSound
             chest:stop() -- Stop any currently playing instance
@@ -3534,15 +3584,20 @@ checkInteraction = function()
             if DEBUG_MODE then
                 print("[AUDIO] Playing chest creak sound (from 0.2s)")
             end
-        elseif obj.type == "door" and audio.doorCreakSound then
-            ---@type any
-            local door = audio.doorCreakSound
-            door:stop() -- Stop any currently playing instance
-            door:play() -- Play from the beginning
-            if DEBUG_MODE then
-                print("[AUDIO] Playing door creak sound")
+        elseif obj.type == "door" then
+            -- Play door creak sound
+            if audio.doorCreakSound then
+                ---@type any
+                local door = audio.doorCreakSound
+                door:stop() -- Stop any currently playing instance
+                door:play() -- Play from the beginning
+                if DEBUG_MODE then
+                    print("[AUDIO] Playing door creak sound")
+                end
             end
         end
+        
+        local result = obj:interact(gameState)
         
         -- Handle class icon interaction (show detailed UI)
         if type(result) == "table" and result.type == "class_icon_interact" then
@@ -3882,6 +3937,18 @@ function love.keypressed(key)
             pauseMenuTargetHeight = 250
             pauseMenuHeight = 250 -- Reset animation
             
+            -- Play pause menu open sound
+            if audio.pauseMenuOpenSound then
+                ---@type any
+                local pauseOpen = audio.pauseMenuOpenSound
+                pauseOpen:stop()
+                pauseOpen:seek(0.1) -- Skip 100ms initial lag
+                pauseOpen:play()
+                if DEBUG_MODE then
+                    print("[AUDIO] Playing pause menu open sound (from 0.1s)")
+                end
+            end
+            
             -- Pause all ambient sounds
             if audio.footstepSound then
                 ---@type any
@@ -3902,6 +3969,13 @@ function love.keypressed(key)
                 ---@type any
                 local ow = audio.overworldSound
                 ow:pause()
+            end
+            
+            -- Stop unlocking door sound if playing
+            if audio.unlockingDoorSound then
+                ---@type any
+                local unlocking = audio.unlockingDoorSound
+                unlocking:stop()
             end
         else
             -- Resume all ambient sounds
