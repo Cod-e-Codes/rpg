@@ -509,7 +509,7 @@ function love.load()
     if not audioSuccess then
         print("Warning: Could not load overworld-sounds.mp3: " .. tostring(audioError))
     else
-        print("[AUDIO] Loaded overworld-sounds.mp3 successfully. Looping: true, Max Volume: 0.25")
+        print("[AUDIO] Loaded overworld-sounds.mp3 successfully. Looping: true, Max Volume: 0.225")
         if audio.overworldSound then
             ---@type any
             local ow = audio.overworldSound
@@ -608,7 +608,7 @@ function love.load()
     if not audioSuccess then
         print("Warning: Could not load npc-talking.mp3: " .. tostring(audioError))
     else
-        print("[AUDIO] Loaded npc-talking.mp3 successfully. Looping: true, Volume: 0-0.625")
+        print("[AUDIO] Loaded npc-talking.mp3 successfully. Looping: true, Volume: 0-1.0")
     end
     
     -- Create example maps
@@ -787,7 +787,7 @@ function love.update(dt)
         local inOverworld = gameState.currentMap == "overworld"
         
         -- Set target volume based on whether player is in overworld
-        audio.overworldTargetVolume = inOverworld and 0.25 or 0  -- Max volume of 0.25 when in overworld
+        audio.overworldTargetVolume = inOverworld and 0.225 or 0  -- Max volume of 0.225 when in overworld
         
         -- Smoothly lerp current volume towards target
         if audio.overworldCurrentVolume < audio.overworldTargetVolume then
@@ -1790,7 +1790,7 @@ function love.update(dt)
         
         -- Fade out NPC talking sound as message timer runs down (last 1 second)
         if audio.npcTalkingSound and messageTimer <= 1.0 then
-            audio.npcTalkingTargetVolume = math.max(0, messageTimer * 0.625) -- Fade to 0 over last second
+            audio.npcTalkingTargetVolume = math.max(0, messageTimer * 1.0) -- Fade to 0 over last second
         end
         
         if messageTimer <= 0 then
@@ -3718,7 +3718,7 @@ checkInteraction = function()
                 if not npcTalk:isPlaying() then
                     npcTalk:play()
                 end
-                audio.npcTalkingTargetVolume = 0.625  -- 25% louder than 0.5
+                audio.npcTalkingTargetVolume = 1.0  -- 100% volume
                 if DEBUG_MODE then
                     print("[AUDIO] Starting NPC talking sound (fade in)")
                 end
