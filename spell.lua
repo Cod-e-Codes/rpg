@@ -99,6 +99,10 @@ function Spell:activate(playerMana)
     if not self.damage then
         self.isActive = true
         self.activeTimer = self:getCurrentDuration()
+        if DEBUG_MODE then
+            print(string.format("[SPELL] Activated '%s' for %.1f seconds (mana cost: %d)", 
+                self.name, self.activeTimer, self.manaCost))
+        end
     end
     
     self.cooldownTimer = self.cooldown
@@ -107,6 +111,9 @@ function Spell:activate(playerMana)
 end
 
 function Spell:deactivate()
+    if DEBUG_MODE and self.isActive then
+        print(string.format("[SPELL] Deactivated '%s'", self.name))
+    end
     self.isActive = false
     self.activeTimer = 0
 end

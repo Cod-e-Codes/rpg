@@ -1465,7 +1465,28 @@ function love.update(dt)
                 
                 -- Take damage from enemy (only if player has selected a class)
                 if gameState.playerClass then
-                    player.health = player.health - enemy.damage
+                    -- Check for active tank buff (damage reduction)
+                    local damageReduction = 0
+                    if spellSystem then
+                        for _, spell in ipairs(spellSystem.learnedSpells) do
+                            if spell.name == "Iron Fortitude" and spell.damageReduction then
+                                damageReduction = spell.damageReduction
+                                if DEBUG_MODE then
+                                    print("[DAMAGE] Tank buff active: " .. (damageReduction * 100) .. "% reduction")
+                                end
+                                break
+                            end
+                        end
+                    end
+                    
+                    -- Calculate and apply damage
+                    local damage = enemy.damage * (1 - damageReduction)
+                    player.health = player.health - damage
+                    if DEBUG_MODE then
+                        print(string.format("[DAMAGE] Enemy dealt %.1f damage (base: %d, reduction: %.1f%%)", 
+                            damage, enemy.damage, damageReduction * 100))
+                    end
+                    
                     if player.health <= 0 then
                         player.health = 0
                         player.isDead = true
@@ -1558,12 +1579,21 @@ function love.update(dt)
                         -- Extract element from hazard type (e.g., "lightning" from "lightning_trap")
                         local hazardElement = hazard.type:match("^(%w+)_") or hazard.type:match("^(%w+)$")
                         
+                        if DEBUG_MODE then
+                            print(string.format("[RESIST] Checking spell '%s' (active: %s, reduction: %.1f%%) against hazard '%s' (element: %s)", 
+                                spell.name, tostring(spell.isActive), (spell.damageReduction or 0) * 100, hazard.type, hazardElement or "none"))
+                        end
+                        
                         if (hazardElement == "fire" and spell.name == "Fire Ward") or
                            (hazardElement == "ice" and spell.name == "Frost Barrier") or
                            (hazardElement == "lightning" and spell.name == "Storm Shield") or
                            (hazardElement == "earth" and spell.name == "Stone Skin") then
                             hasResistance = true
                             resistanceReduction = spell.damageReduction
+                            if DEBUG_MODE then
+                                print(string.format("[RESIST] ✓ Resistance active! %s vs %s = %.1f%% reduction", 
+                                    spell.name, hazard.type, resistanceReduction * 100))
+                            end
                             break
                         end
                     end
@@ -1574,6 +1604,11 @@ function love.update(dt)
             local damage = hazard.damage
             if hasResistance then
                 damage = damage * (1 - resistanceReduction)
+            end
+            
+            if DEBUG_MODE then
+                print(string.format("[HAZARD] %s dealing %.1f damage (base: %.1f, has resistance: %s)", 
+                    hazard.type, damage, hazard.damage, tostring(hasResistance)))
             end
             
             -- Apply damage
