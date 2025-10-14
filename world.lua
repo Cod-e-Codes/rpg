@@ -277,9 +277,9 @@ function World:createExampleOverworld()
     )
     
     -- Add eastern path to town (appears after defense trials completion)
-    -- Path-style exit on the east side (wider and positioned higher)
+    -- Bridge centered at tile (80, 30) - same size as sanctuary village bridge
     table.insert(self.interactables["overworld"],
-        Interactable:new(2528, 878, 192, 128, "eastern_path", {
+        Interactable:new(80*32 - 32, 30*32 - 32, 64, 64, "eastern_path", {
             targetMap = "town",
             spawnX = 24*32,
             spawnY = 37*32,

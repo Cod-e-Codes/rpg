@@ -1207,6 +1207,8 @@ function love.update(dt)
         -- Update ambient darkness based on current map
         if gameState.currentMap == "cave_level1" then
             lighting:setAmbientDarkness(0.88) -- Very dark - need illumination spell
+        elseif gameState.currentMap == "defense_trials" then
+            lighting:setAmbientDarkness(0) -- No darkness in defense trials
         else
             lighting:setAmbientDarkness(0) -- No darkness in overworld/house
         end
@@ -2026,8 +2028,8 @@ function love.update(dt)
     for _, obj in ipairs(interactables) do
         local transitionResult = obj:update(dt, gameState)
         
-        -- Handle delayed door transitions
-        if transitionResult == "door_transition" then
+        -- Door transitions now use fade system, no special handling needed
+        if false then -- Old door transition code removed
             -- Stop unlocking door sound when entering house
             if gameState.currentMap == "house_interior" and audio.unlockingDoorSound then
                 ---@type any

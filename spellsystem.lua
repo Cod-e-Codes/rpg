@@ -495,9 +495,9 @@ function SpellSystem:drawSpellMessage()
     
     local padding = 15
     local panelHeight = 60
-    local panelWidth = 400
+    local panelWidth = 200  -- Narrower message panel
     local panelX = (screenWidth - panelWidth) / 2
-    local panelY = screenHeight / 2 - 100
+    local panelY = screenHeight / 2 + 100  -- Moved down 200 pixels from center
     
     -- Background
     love.graphics.setColor(0.08, 0.08, 0.10, 0.90)

@@ -63,16 +63,7 @@ function Interactable:update(dt, gameState)
         self.swirlTime = self.swirlTime + dt
     end
     
-    -- Handle door transition timer
-    if self.doorTransition then
-        self.doorTransition.timer = self.doorTransition.timer - dt
-        if self.doorTransition.timer <= 0 and gameState then
-            gameState:changeMap(self.doorTransition.destination, self.doorTransition.spawnX, self.doorTransition.spawnY)
-            local result = "door_transition"
-            self.doorTransition = nil
-            return result
-        end
-    end
+    -- Door transitions now use fade system instead of timer
     
     return nil
 end
@@ -138,15 +129,13 @@ function Interactable:interact(gameState)
                 return "The door is locked. You need a key..."
             end
             
-            -- Don't transition immediately - let door animate first
-            self.targetProgress = 1
-            self.doorTransition = {
-                destination = self.data.destination,
+            -- Use fade transition instead of direct door transition
+            return {
+                type = "fade_transition",
+                targetMap = self.data.destination,
                 spawnX = self.data.spawnX,
-                spawnY = self.data.spawnY,
-                timer = 0.1 -- Quick animation
+                spawnY = self.data.spawnY
             }
-            return nil -- No message yet
         end
     elseif self.type == "sign" then
         return self.data.message or "..."
@@ -229,15 +218,7 @@ function Interactable:interact(gameState)
 end
 
 function Interactable:checkTransition(gameState)
-    -- Check if door is ready to transition
-    if self.doorTransition then
-        self.doorTransition.timer = self.doorTransition.timer - (1/60) -- Approximate dt
-        if self.doorTransition.timer <= 0 then
-            gameState:changeMap(self.doorTransition.destination, self.doorTransition.spawnX, self.doorTransition.spawnY)
-            self.doorTransition = nil
-            return "door_transition"
-        end
-    end
+    -- Door transitions now use fade system
     return nil
 end
 
