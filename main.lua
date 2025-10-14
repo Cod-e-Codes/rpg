@@ -1102,6 +1102,22 @@ function love.update(dt)
             end
         end
         
+        -- Initialize armor values if strategy is set but armor isn't initialized
+        if gameState.healingStrategy == "armor" and player.maxArmor == 0 then
+            for _, spell in ipairs(spellSystem.learnedSpells) do
+                if spell.name == "Iron Fortitude" then
+                    player.maxArmor = 50 + (spell.level - 1) * 10
+                    player.armor = player.maxArmor
+                    player.armorRegenRate = 2 + (spell.level - 1) * 0.5
+                    if DEBUG_MODE then
+                        print(string.format("[ARMOR] Initialized armor values: %d/%d (regen: %.1f/s)", 
+                            player.armor, player.maxArmor, player.armorRegenRate))
+                    end
+                    break
+                end
+            end
+        end
+        
         if gameState.healingStrategy and not player.isDead then
             if gameState.healingStrategy == "armor" then
                 -- Iron Fortitude: Regenerate armor over time
@@ -3594,32 +3610,7 @@ function drawUI()
         love.graphics.rectangle("line", healthBarX, healthBarY, healthBarWidth, healthBarHeight, 2, 2)
         love.graphics.setLineWidth(1)
         
-        -- Draw armor bar if player has armor (beside health bar)
-        if gameState.healingStrategy == "armor" and player.maxArmor > 0 then
-            local armorBarWidth = 18
-            local armorBarHeight = 100
-            local armorBarX = healthBarX + healthBarWidth + 5  -- Beside health bar
-            local armorBarY = healthBarY
-            
-            -- Background
-            love.graphics.setColor(0.08, 0.08, 0.10, 0.85)
-            love.graphics.rectangle("fill", armorBarX, armorBarY, armorBarWidth, armorBarHeight, 2, 2)
-            
-            -- Armor fill (bottom to top, silver/gray)
-            local armorPercent = player.armor / player.maxArmor
-            local armorFillHeight = armorBarHeight * armorPercent
-            love.graphics.setColor(0.6, 0.65, 0.7)  -- Silver color
-            love.graphics.rectangle("fill", armorBarX, armorBarY + (armorBarHeight - armorFillHeight), armorBarWidth, armorFillHeight, 2, 2)
-            
-            -- Border
-            love.graphics.setColor(0.75, 0.65, 0.25)
-            love.graphics.setLineWidth(2)
-            love.graphics.rectangle("line", armorBarX, armorBarY, armorBarWidth, armorBarHeight, 2, 2)
-            love.graphics.setLineWidth(1)
-        end
-        
-        -- Draw Iron Fortitude indicator (thin purple bar when armor strategy is active)
-        -- Auto-detect strategy from learned spells if not explicitly set
+        -- Draw armor bar (purple) if player has Iron Fortitude
         local hasArmorStrategy = gameState.healingStrategy == "armor"
         if not hasArmorStrategy and spellSystem then
             for _, spell in ipairs(spellSystem.learnedSpells) do
@@ -3630,24 +3621,26 @@ function drawUI()
             end
         end
         
-        if hasArmorStrategy then
-            local armorIndicatorWidth = 8
-            local armorIndicatorHeight = 100
-            local armorIndicatorX = healthBarX + healthBarWidth + (player.maxArmor > 0 and 23 or 5)
-            local armorIndicatorY = healthBarY
+        if hasArmorStrategy and player.maxArmor > 0 then
+            local armorBarWidth = 8
+            local armorBarHeight = 100
+            local armorBarX = healthBarX + healthBarWidth + 5  -- Beside health bar
+            local armorBarY = healthBarY
             
-            -- Purple bar for armor strategy
+            -- Background
             love.graphics.setColor(0.15, 0.1, 0.2, 0.85)
-            love.graphics.rectangle("fill", armorIndicatorX, armorIndicatorY, armorIndicatorWidth, armorIndicatorHeight, 1, 1)
+            love.graphics.rectangle("fill", armorBarX, armorBarY, armorBarWidth, armorBarHeight, 1, 1)
             
-            -- Fill (always full - it's a passive buff indicator)
+            -- Armor fill (bottom to top, purple, shows current armor amount)
+            local armorPercent = player.armor / player.maxArmor
+            local armorFillHeight = armorBarHeight * armorPercent
             love.graphics.setColor(0.6, 0.3, 0.8)
-            love.graphics.rectangle("fill", armorIndicatorX, armorIndicatorY, armorIndicatorWidth, armorIndicatorHeight, 1, 1)
+            love.graphics.rectangle("fill", armorBarX, armorBarY + (armorBarHeight - armorFillHeight), armorBarWidth, armorFillHeight, 1, 1)
             
             -- Border
             love.graphics.setColor(0.7, 0.5, 0.9)
             love.graphics.setLineWidth(1)
-            love.graphics.rectangle("line", armorIndicatorX, armorIndicatorY, armorIndicatorWidth, armorIndicatorHeight, 1, 1)
+            love.graphics.rectangle("line", armorBarX, armorBarY, armorBarWidth, armorBarHeight, 1, 1)
         end
         
         love.graphics.setColor(1, 1, 1)
