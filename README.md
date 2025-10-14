@@ -88,6 +88,8 @@ Save file: `savegame.sav`
 - [x] Background music system with combat transitions
 - [x] Settings menu with adjustable music and SFX volume
 - [x] Visual effects for elemental hazards
+- [x] Trading system with gold currency and shop
+- [x] Sanctuary Village with animated fountain
 - [ ] More content and puzzles
 
 ## License

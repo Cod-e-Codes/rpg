@@ -251,6 +251,11 @@ local saveManager
 ---@field riverCurrentVolume number
 ---@field riverFadeSpeed number
 ---@field riverPreviousTargetVolume number
+---@field fountainSound any
+---@field fountainTargetVolume number
+---@field fountainCurrentVolume number
+---@field fountainFadeSpeed number
+---@field fountainPreviousTargetVolume number
 ---@field caveSound any
 ---@field caveTargetVolume number
 ---@field caveCurrentVolume number
@@ -286,6 +291,11 @@ local audio = {
     riverCurrentVolume = 0,
     riverFadeSpeed = 0.5,
     riverPreviousTargetVolume = 0,
+    fountainSound = nil,
+    fountainTargetVolume = 0,
+    fountainCurrentVolume = 0,
+    fountainFadeSpeed = 0.5,
+    fountainPreviousTargetVolume = 0,
     caveSound = nil,
     caveTargetVolume = 0,
     caveCurrentVolume = 0,
@@ -570,6 +580,27 @@ function love.load()
             print("[AUDIO] River duration: " .. string.format("%.2f", rs:getDuration()) .. "s")
             rs:play()  -- Start playing but at 0 volume
             print("[AUDIO] River playback started (will fade in when water visible)")
+        end
+    end
+    
+    -- Load fountain sound
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local fountain = love.audio.newSource("assets/sounds/fountain.mp3", "stream")
+        audio.fountainSound = fountain
+        fountain:setLooping(true)
+        fountain:setVolume(0)  -- Start at 0, will fade in when visible
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load fountain.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded fountain.mp3 successfully. Looping: true, Max Volume: 0.7")
+        if audio.fountainSound then
+            ---@type any
+            local fs = audio.fountainSound
+            print("[AUDIO] Fountain duration: " .. string.format("%.2f", fs:getDuration()) .. "s")
+            fs:play()  -- Start playing but at 0 volume
+            print("[AUDIO] Fountain playback started (will fade in when fountain visible)")
         end
     end
     
@@ -1039,6 +1070,35 @@ function love.update(dt)
                 audio.riverTargetVolume * 100, 
                 audio.riverCurrentVolume * 100))
             audio.riverPreviousTargetVolume = audio.riverTargetVolume
+        end
+    end
+    
+    -- Update fountain sound volume based on visibility
+    if audio.fountainSound and startScreen.gameStarted and world.currentMap and not uiState.isPaused then
+        local hasFountain = world.currentMap:hasVisibleFountain(camera)
+        
+        -- Set target volume based on whether fountain is visible
+        audio.fountainTargetVolume = hasFountain and 0.7 or 0  -- Max volume of 0.7 when visible
+        
+        -- Smoothly lerp current volume towards target
+        if audio.fountainCurrentVolume < audio.fountainTargetVolume then
+            audio.fountainCurrentVolume = math.min(audio.fountainTargetVolume, audio.fountainCurrentVolume + audio.fountainFadeSpeed * dt)
+        elseif audio.fountainCurrentVolume > audio.fountainTargetVolume then
+            audio.fountainCurrentVolume = math.max(audio.fountainTargetVolume, audio.fountainCurrentVolume - audio.fountainFadeSpeed * dt)
+        end
+        
+        -- Apply the current volume
+        ---@type any
+        local fs = audio.fountainSound
+        fs:setVolume(audio.fountainCurrentVolume * gameState.sfxVolume)
+        
+        -- Debug logging for visibility changes
+        if DEBUG_MODE and audio.fountainTargetVolume ~= audio.fountainPreviousTargetVolume then
+            print(string.format("[AUDIO] Fountain visibility: %s (target: %.0f%%, current: %.0f%%)", 
+                hasFountain and "VISIBLE" or "HIDDEN", 
+                audio.fountainTargetVolume * 100, 
+                audio.fountainCurrentVolume * 100))
+            audio.fountainPreviousTargetVolume = audio.fountainTargetVolume
         end
     end
     
@@ -4175,6 +4235,18 @@ function drawUI()
             yPos = yPos + lineHeight
         end
         
+        if audio.fountainSound then
+            ---@type any
+            local fs = audio.fountainSound
+            local isPlaying = fs:isPlaying()
+            local volume = fs:getVolume()
+            love.graphics.print(string.format("Fountain: %s (%.0f%% -> %.0f%%)", isPlaying and "PLAYING" or "STOPPED", volume * 100, audio.fountainTargetVolume * 100), panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+        else
+            love.graphics.print("Fountain: NOT LOADED", panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+        end
+        
         if audio.caveSound then
             ---@type any
             local cs = audio.caveSound
@@ -4196,6 +4268,18 @@ function drawUI()
             yPos = yPos + lineHeight
         else
             love.graphics.print("Overworld: NOT LOADED", panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+        end
+        
+        if audio.villageSound then
+            ---@type any
+            local vs = audio.villageSound
+            local isPlaying = vs:isPlaying()
+            local volume = vs:getVolume()
+            love.graphics.print(string.format("Village: %s (%.0f%% -> %.0f%%)", isPlaying and "PLAYING" or "STOPPED", volume * 100, audio.villageTargetVolume * 100), panelX + padding + 8, yPos)
+            yPos = yPos + lineHeight
+        else
+            love.graphics.print("Village: NOT LOADED", panelX + padding + 8, yPos)
             yPos = yPos + lineHeight
         end
         
@@ -5262,6 +5346,16 @@ function love.keypressed(key)
                 local rs = audio.riverSound
                 rs:pause()
             end
+            if audio.fountainSound then
+                ---@type any
+                local fs = audio.fountainSound
+                fs:pause()
+            end
+            if audio.villageSound then
+                ---@type any
+                local vs = audio.villageSound
+                vs:pause()
+            end
             if audio.caveSound then
                 ---@type any
                 local cs = audio.caveSound
@@ -5318,6 +5412,16 @@ function love.keypressed(key)
                 ---@type any
                 local rs = audio.riverSound
                 rs:play()
+            end
+            if audio.fountainSound then
+                ---@type any
+                local fs = audio.fountainSound
+                fs:play()
+            end
+            if audio.villageSound then
+                ---@type any
+                local vs = audio.villageSound
+                vs:play()
             end
             if audio.caveSound then
                 ---@type any
@@ -5407,6 +5511,16 @@ function love.keypressed(key)
                     ---@type any
                     local rs = audio.riverSound
                     rs:play()
+                end
+                if audio.fountainSound then
+                    ---@type any
+                    local fs = audio.fountainSound
+                    fs:play()
+                end
+                if audio.villageSound then
+                    ---@type any
+                    local vs = audio.villageSound
+                    vs:play()
                 end
                 if audio.caveSound then
                     ---@type any
