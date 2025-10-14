@@ -465,7 +465,7 @@ local shopInventories = {
     potions = {
         {name = "Health Potion", price = 25, description = "Restores 50 HP"},
         {name = "Mana Potion", price = 30, description = "Restores 50 Mana"},
-        {name = "Class Changer Potion", price = 100, description = "Reset class & spell XP"},
+        {name = "Class Changer Potion", price = 100, description = "Change class while preserving spells & progress"},
         {name = "Speed Potion", price = 50, description = "Low Stock - Shipment Coming Soon!", disabled = true},
         {name = "Strength Potion", price = 50, description = "Low Stock - Shipment Coming Soon!", disabled = true},
         {name = "Defense Potion", price = 50, description = "Low Stock - Shipment Coming Soon!", disabled = true}
@@ -4889,30 +4889,18 @@ useItem = function(itemName)
             return false
         end
         
-        -- Reset class and spells
+        -- Reset only class-related data (keep learned spells, equipped spells, and progression)
+        local oldPlayerClass = gameState.playerClass
+        local oldPlayerElement = gameState.playerElement
+        
         gameState.playerClass = nil
         gameState.playerElement = nil
-        gameState.learnedSpells = {}
-        gameState.equippedSpells = {nil, nil, nil, nil, nil}
-        gameState.spellLevels = {}
-        gameState.spellExperience = {}
         gameState.questState = "class_reset"  -- Reset quest state so portal is not available
         
-        -- Reset spell system
-        if spellSystem then
-            spellSystem.learnedSpells = {}
-            spellSystem.currentMana = 100
-            spellSystem.maxMana = 100
-        end
-        
-        -- Reset player stats
-        player.health = player.maxHealth
-        player.armor = 0
-        player.maxArmor = 0
-        
-        -- Reset healing strategy
-        gameState.healingStrategy = nil
-        gameState.resistanceSpellLearned = false
+        -- Keep spell system intact - don't clear learnedSpells, equippedSpells, spellLevels, or spellExperience
+        -- Keep healing strategy and resistance spells
+        -- Keep player health and mana current values
+        -- Keep armor values
         
         -- Remove item from inventory
         gameState:removeItem(itemName, 1)
@@ -4924,7 +4912,7 @@ useItem = function(itemName)
         fade.spawnY = 15*32
         
         -- Confirmation message
-        messageState.currentMessage = "Class reset! Choose your new class to continue your adventure."
+        messageState.currentMessage = "Class reset! Your spells and progress are preserved. Choose your new class to continue your adventure."
         messageState.messageTimer = 5
         
         return true
@@ -5078,6 +5066,7 @@ checkInteraction = function()
                     spell = Spell.createStoneSpike()
                 end
                 
+                -- Learn the starter spell (learnSpell handles duplicate checking)
                 if spell then
                     spellSystem:learnSpell(spell)
                 end
@@ -5759,6 +5748,7 @@ function love.keypressed(key)
                     gameState.questState = "class_selected"  -- Mark class as selected for portal access
                     
                     -- Give the player their starter attack spell based on element
+                    local learnedNewSpell = false
                     if spellSystem and classSelection.selectedIcon.element then
                         local spell = nil
                         if classSelection.selectedIcon.element == "fire" then
@@ -5771,12 +5761,19 @@ function love.keypressed(key)
                             spell = Spell.createStoneSpike()
                         end
                         
+                        -- Learn the starter spell (learnSpell handles duplicate checking and returns false if already learned)
                         if spell then
-                            spellSystem:learnSpell(spell)
+                            local success = spellSystem:learnSpell(spell)
+                            learnedNewSpell = success
                         end
                     end
                     
-                    messageState.currentMessage = string.format("You have chosen to become a %s!\n\nYou've learned your first attack spell!", classSelection.selectedIcon.className)
+                    -- Update message based on whether they learned a new spell
+                    if learnedNewSpell then
+                        messageState.currentMessage = string.format("You have chosen to become a %s!\n\nYou've learned your first attack spell!", classSelection.selectedIcon.className)
+                    else
+                        messageState.currentMessage = string.format("You have chosen to become a %s!\n\nYour existing spells are preserved.", classSelection.selectedIcon.className)
+                    end
                     messageState.messageTimer = 5
                     messageState.currentMessageItem = nil
                     
