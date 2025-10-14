@@ -1367,6 +1367,12 @@ function love.update(dt)
                 world:loadMap(gameState.currentMap)
                 player.x = gameState.playerSpawn.x
                 player.y = gameState.playerSpawn.y
+                
+                -- Sync interactables with game state (important for chest states)
+                local interactables = world:getCurrentInteractables()
+                for _, obj in ipairs(interactables) do
+                    obj:syncWithGameState(gameState)
+                end
             end
             fade.state = "fade_in"
         end
