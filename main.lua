@@ -2845,7 +2845,7 @@ function drawPauseMenu()
         
         -- Music Volume Slider
         local sliderX = panelX + padding + 10
-        local sliderWidth = panelWidth - (padding * 2) - 20
+        local sliderWidth = panelWidth - (padding * 2) - 70 -- Reserve space for percentage text
         local sliderHeight = 12
         
         -- Slider background
@@ -4979,7 +4979,7 @@ function love.mousepressed(x, y, button)
             
             -- Music slider hitbox
             local sliderX = panelX + padding + 10
-            local sliderWidth = panelWidth - (padding * 2) - 20
+            local sliderWidth = panelWidth - (padding * 2) - 70 -- Reserve space for percentage text
             local sliderHeight = 12
             local musicSliderY = yPos + 25
             
@@ -5135,7 +5135,7 @@ function love.mousemoved(x, y, dx, dy)
         local panelY = (screenHeight - panelHeight) / 2
         local padding = 12
         local sliderX = panelX + padding + 10
-        local sliderWidth = panelWidth - (padding * 2) - 20
+        local sliderWidth = panelWidth - (padding * 2) - 70 -- Reserve space for percentage text
         
         local newVolume = math.max(0, math.min(1, (x - sliderX) / sliderWidth))
         
