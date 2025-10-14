@@ -274,6 +274,8 @@ local saveManager
 ---@field magicalVoyageMusic any
 ---@field trialsSpawnSound any
 ---@field fightSongMusic any
+---@field goldCoinsSound any
+---@field villageSound any
 local audio = {
     footstepSound = nil,
     footstepTargetVolume = 0,
@@ -292,11 +294,16 @@ local audio = {
     overworldTargetVolume = 0,
     overworldCurrentVolume = 0,
     overworldFadeSpeed = 0.5,
+    villageSound = nil,
+    villageTargetVolume = 0,
+    villageCurrentVolume = 0,
+    villageFadeSpeed = 0.5,
     chestCreakSound = nil,
     doorCreakSound = nil,
     unlockingDoorSound = nil,
     pauseMenuOpenSound = nil,
     panelSwipeSound = nil,
+    goldCoinsSound = nil,
     skeletonChaseSound = nil,
     npcTalkingSound = nil,
     npcTalkingTargetVolume = 0,
@@ -420,6 +427,39 @@ local cameraPan = {
     original = {x = 0, y = 0},
     caveCutsceneShown = false, -- Track if we've shown the cave cutscene
     northPathCutsceneShown = false -- Track if we've shown the northern path cutscene
+}
+
+-- Town greeting cutscene state (grouped to reduce upvalue count)
+local townGreeting = {
+    state = "none", -- "none", "player_walk", "pan_up", "pause", "npc_walk", "pan_back", "dialogue"
+    timer = 0,
+    duration = 0,
+    npcStartX = 0,
+    npcStartY = 0,
+    npcTargetX = 0,
+    npcTargetY = 0,
+    npc = nil -- Reference to the greeter NPC
+}
+
+-- Shop UI state (grouped to reduce upvalue count)
+local shopState = {
+    isOpen = false,
+    shopType = nil, -- "potions", "general", "weapons"
+    merchantNPC = nil, -- Reference to merchant NPC
+    selectedItem = nil, -- Currently hovered/selected item
+    scrollOffset = 0
+}
+
+-- Shop inventory definitions
+local shopInventories = {
+    potions = {
+        {name = "Health Potion", price = 25, description = "Restores 50 HP"},
+        {name = "Mana Potion", price = 30, description = "Restores 50 Mana"},
+        {name = "Class Changer Potion", price = 100, description = "Reset class & spell XP"},
+        {name = "Speed Potion", price = 50, description = "Low Stock - Shipment Coming Soon!", disabled = true},
+        {name = "Strength Potion", price = 50, description = "Low Stock - Shipment Coming Soon!", disabled = true},
+        {name = "Defense Potion", price = 50, description = "Low Stock - Shipment Coming Soon!", disabled = true}
+    }
 }
 
 -- Direction mappings
@@ -565,7 +605,7 @@ function love.load()
     if not audioSuccess then
         print("Warning: Could not load overworld-sounds.mp3: " .. tostring(audioError))
     else
-        print("[AUDIO] Loaded overworld-sounds.mp3 successfully. Looping: true, Max Volume: 0.225")
+        print("[AUDIO] Loaded overworld-sounds.mp3 successfully. Looping: true, Max Volume: 0.5")
         if audio.overworldSound then
             ---@type any
             local ow = audio.overworldSound
@@ -638,6 +678,40 @@ function love.load()
         print("Warning: Could not load panel-swipe.mp3: " .. tostring(audioError))
     else
         print("[AUDIO] Loaded panel-swipe.mp3 successfully. Volume: 0.5")
+    end
+    
+    -- Load gold coins sound effect
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local goldCoins = love.audio.newSource("assets/sounds/gold-coins.mp3", "static")
+        audio.goldCoinsSound = goldCoins
+        goldCoins:setVolume(0.6 * gameState.sfxVolume)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load gold-coins.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded gold-coins.mp3 successfully. Volume: 0.6")
+    end
+    
+    -- Load village ambient sound
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local village = love.audio.newSource("assets/sounds/village-sounds.mp3", "stream")
+        audio.villageSound = village
+        village:setLooping(true)
+        village:setVolume(0)  -- Start at 0, will fade in when in town
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load village-sounds.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded village-sounds.mp3 successfully. Looping: true, Volume: 0-0.3")
+        if audio.villageSound then
+            ---@type any
+            local village = audio.villageSound
+            print("[AUDIO] Village duration: " .. string.format("%.2f", village:getDuration()) .. "s")
+            village:play()  -- Start playing but at 0 volume
+            print("[AUDIO] Village playback started (will fade in when in town)")
+        end
     end
     
     -- Load skeleton chase sound effect
@@ -761,6 +835,7 @@ function love.load()
     world:createCaveLevel1()
     world:createClassSelection()
     world:createDefenseTrials()
+    world:createTown()
     world:loadMap("overworld")
     
     -- Sync all interactables with game state
@@ -1003,7 +1078,7 @@ function love.update(dt)
         local inOverworld = gameState.currentMap == "overworld"
         
         -- Set target volume based on whether player is in overworld
-        audio.overworldTargetVolume = inOverworld and 0.225 or 0  -- Max volume of 0.225 when in overworld
+        audio.overworldTargetVolume = inOverworld and 0.5 or 0  -- Max volume of 0.5 when in overworld
         
         -- Smoothly lerp current volume towards target
         if audio.overworldCurrentVolume < audio.overworldTargetVolume then
@@ -1025,6 +1100,37 @@ function love.update(dt)
                     inOverworld and "IN OVERWORLD" or "LEFT OVERWORLD", 
                     audio.overworldTargetVolume * 100, 
                     audio.overworldCurrentVolume * 100))
+            end
+        end
+    end
+    
+    -- Update village sound volume based on current map
+    if audio.villageSound and startScreen.gameStarted and gameState and not uiState.isPaused then
+        local inTown = gameState.currentMap == "town"
+        
+        -- Set target volume based on whether player is in town
+        audio.villageTargetVolume = inTown and 0.3 or 0  -- Max volume of 0.3 when in town
+        
+        -- Smoothly lerp current volume towards target
+        if audio.villageCurrentVolume < audio.villageTargetVolume then
+            audio.villageCurrentVolume = math.min(audio.villageTargetVolume, audio.villageCurrentVolume + audio.villageFadeSpeed * dt)
+        elseif audio.villageCurrentVolume > audio.villageTargetVolume then
+            audio.villageCurrentVolume = math.max(audio.villageTargetVolume, audio.villageCurrentVolume - audio.villageFadeSpeed * dt)
+        end
+        
+        -- Apply the current volume
+        ---@type any
+        local village = audio.villageSound
+        village:setVolume(audio.villageCurrentVolume * gameState.musicVolume)
+        
+        -- Debug logging for town state changes
+        if DEBUG_MODE then
+            local prevInTown = audio.villageTargetVolume > 0
+            if inTown ~= prevInTown then
+                print(string.format("[AUDIO] Town state: %s (target: %.0f%%, current: %.0f%%)", 
+                    inTown and "IN TOWN" or "LEFT TOWN", 
+                    audio.villageTargetVolume * 100, 
+                    audio.villageCurrentVolume * 100))
             end
         end
     end
@@ -1239,6 +1345,26 @@ function love.update(dt)
                 messageState.messageTimer = 5
             end
             
+            -- Trigger town greeting cutscene if entering town for the first time
+            if gameState.currentMap == "town" and not gameState.townGreetingShown then
+                -- Find the greeter NPC
+                local npcs = world:getCurrentNPCs()
+                for _, npc in ipairs(npcs) do
+                    if npc.questState == "town_greeter" then
+                        townGreeting.npc = npc
+                        townGreeting.npcStartX = npc.x
+                        townGreeting.npcStartY = npc.y
+                        townGreeting.npcTargetX = player.x
+                        townGreeting.npcTargetY = player.y - 80 -- Stand above player (NPC approaches from north)
+                        townGreeting.state = "player_walk"
+                        townGreeting.timer = 0
+                        townGreeting.duration = 1.0 -- 1 second walk
+                        cutsceneState.inCutscene = true
+                        break
+                    end
+                end
+            end
+            
             fade.targetMap = nil
         end
     end
@@ -1391,6 +1517,36 @@ function love.update(dt)
                 cameraPan.state = "pan_to_target"
                 
                 messageState.currentMessage = "An ancient path to the north has revealed itself!"
+                messageState.currentMessageItem = nil
+                messageState.messageTimer = 5
+            end
+            
+            -- Trigger eastern path cutscene if returning from defense trials to overworld
+            if portal.sourceMap == "defense_trials" and 
+               gameState.currentMap == "overworld" and 
+               not gameState.eastPathRevealed and
+               gameState.healingStrategy then -- Only if they completed the trials
+                gameState.eastPathRevealed = true
+                
+                -- Update collision to remove rocks at eastern path
+                world:loadMap("overworld")
+                
+                -- Start camera pan cutscene
+                cutsceneState.inCutscene = true
+                local screenWidth = love.graphics.getWidth()
+                local screenHeight = love.graphics.getHeight()
+                
+                -- Pan to the eastern path area (center of the bridge)
+                local eastPathX = 2528 + 96 -- Center of the bridge horizontally
+                local eastPathY = 878 + 64  -- Center of the bridge vertically
+                
+                cameraPan.original.x = player.x - screenWidth / 2
+                cameraPan.original.y = player.y - screenHeight / 2
+                cameraPan.target.x = eastPathX - screenWidth / 2
+                cameraPan.target.y = eastPathY - screenHeight / 2
+                cameraPan.state = "pan_to_target"
+                
+                messageState.currentMessage = "A path to the east has opened... leading to Sanctuary Village!"
                 messageState.currentMessageItem = nil
                 messageState.messageTimer = 5
             end
@@ -2186,6 +2342,123 @@ function love.update(dt)
         end
     end
     
+    -- Update town greeting cutscene
+    if townGreeting.state == "player_walk" then
+        townGreeting.timer = townGreeting.timer + dt
+        local progress = math.min(townGreeting.timer / townGreeting.duration, 1)
+        
+        -- Move player forward
+        player.y = gameState.playerSpawn.y + (32 * progress)
+        player.isMoving = true
+        player.direction = "north"
+        
+        if progress >= 1 then
+            townGreeting.state = "pan_up"
+            townGreeting.timer = 0
+            townGreeting.duration = 1.5 -- 1.5 seconds to pan up
+            player.isMoving = false
+            
+            -- Store original camera position
+            local screenWidth = love.graphics.getWidth()
+            local screenHeight = love.graphics.getHeight()
+            cameraPan.original.x = player.x - screenWidth / 2
+            cameraPan.original.y = player.y - screenHeight / 2
+        end
+    elseif townGreeting.state == "pan_up" then
+        townGreeting.timer = townGreeting.timer + dt
+        local progress = math.min(townGreeting.timer / townGreeting.duration, 1)
+        
+        -- Pan camera up to show town
+        local screenWidth = love.graphics.getWidth()
+        local screenHeight = love.graphics.getHeight()
+        local targetY = player.y - screenHeight / 2 - 200 -- Pan up 200 pixels
+        camera.y = cameraPan.original.y + (targetY - cameraPan.original.y) * progress
+        
+        if progress >= 1 then
+            townGreeting.state = "pause"
+            townGreeting.timer = 0
+            townGreeting.duration = 2.0 -- 2 seconds pause
+        end
+    elseif townGreeting.state == "pause" then
+        townGreeting.timer = townGreeting.timer + dt
+        
+        if townGreeting.timer >= townGreeting.duration then
+            townGreeting.state = "npc_walk"
+            townGreeting.timer = 0
+            townGreeting.duration = 2.0 -- 2 seconds for NPC to walk
+            
+            -- Make NPC walk toward player
+            local npc = townGreeting.npc
+            if npc then
+                npc.moveTarget = {x = townGreeting.npcTargetX, y = townGreeting.npcTargetY}
+                npc.isMoving = true
+            end
+        end
+    elseif townGreeting.state == "npc_walk" then
+        townGreeting.timer = townGreeting.timer + dt
+        
+        -- Check if NPC reached target
+        local npc = townGreeting.npc
+        if npc and npc.moveTarget == nil then
+            townGreeting.state = "pan_back"
+            townGreeting.timer = 0
+            townGreeting.duration = 1.0 -- 1 second to pan back
+        elseif townGreeting.timer >= townGreeting.duration then
+            -- Timeout - force move to next state
+            if npc then
+                npc.moveTarget = nil
+                npc.isMoving = false
+                npc.x = townGreeting.npcTargetX
+                npc.y = townGreeting.npcTargetY
+            end
+            townGreeting.state = "pan_back"
+            townGreeting.timer = 0
+            townGreeting.duration = 1.0
+        end
+    elseif townGreeting.state == "pan_back" then
+        townGreeting.timer = townGreeting.timer + dt
+        local progress = math.min(townGreeting.timer / townGreeting.duration, 1)
+        
+        -- Pan camera back to player
+        local screenWidth = love.graphics.getWidth()
+        local screenHeight = love.graphics.getHeight()
+        local targetY = player.y - screenHeight / 2
+        local currentY = camera.y
+        camera.y = currentY + (targetY - currentY) * progress * 2 -- Faster pan back
+        
+        if progress >= 1 then
+            townGreeting.state = "dialogue"
+            townGreeting.timer = 0
+            townGreeting.duration = 5.0 -- 5 seconds for dialogue
+            
+            -- Show welcome message
+            messageState.currentMessage = "Welcome to Sanctuary Village, brave traveler!\nYour deeds against the skeletons are known.\nPlease, take this gold for a meal on us."
+            messageState.currentMessageItem = nil
+            messageState.messageTimer = 5
+            
+            -- Give player 50 gold
+            gameState:addGold(50)
+            gameState.townGreetingShown = true
+            
+            -- Play gold coins sound
+            if audio.goldCoinsSound then
+                ---@type any
+                local goldSound = audio.goldCoinsSound
+                goldSound:stop()
+                goldSound:play()
+            end
+        end
+    elseif townGreeting.state == "dialogue" then
+        townGreeting.timer = townGreeting.timer + dt
+        
+        if townGreeting.timer >= townGreeting.duration then
+            townGreeting.state = "none"
+            cutsceneState.inCutscene = false
+            messageState.currentMessage = nil
+            messageState.messageTimer = 0
+        end
+    end
+    
     -- Update camera to follow player (only when not in camera pan cutscene)
     if cameraPan.state == "none" then
         local screenWidth = love.graphics.getWidth()
@@ -2521,7 +2794,8 @@ function love.draw()
     
     -- Add temporary portal if it exists
     if portal.temp then
-        local sortY = portal.temp.y + portal.temp.height
+        -- Portal renders behind player
+        local sortY = portal.temp.y
         table.insert(entities, {
             y = sortY,
             draw = function()
@@ -2584,10 +2858,10 @@ function love.draw()
                 y = obj.y + 135,
                 draw = function() obj:draw("front_boulder") end
             })
-        elseif obj.type == "portal" and gameState.currentMap == "class_selection" then
-            -- Portal in class selection always renders behind player
+        elseif obj.type == "portal" or obj.type == "eastern_path" or obj.type == "ancient_path" then
+            -- Portals, eastern_path (bridge), and ancient_path always render behind player
             table.insert(entities, {
-                y = -1000, -- Very low Y to always be behind
+                y = obj.y, -- Use top of object to render behind
                 draw = function() obj:draw() end
             })
         else
@@ -2711,8 +2985,8 @@ function love.draw()
     local nearObj = getNearestInteractable()
     if nearObj then
         local ex = nearObj.x + nearObj.width/2 - 4
-        -- Ancient path needs lower E prompt due to vertical positioning
-        local ey = nearObj.y + (nearObj.type == "ancient_path" and 10 or -20)
+        -- Ancient path and eastern path need adjusted E prompt positioning
+        local ey = nearObj.y + ((nearObj.type == "ancient_path" or nearObj.type == "eastern_path") and 10 or -20)
         -- Subtle dark background
         love.graphics.setColor(0, 0, 0, 0.5)
         love.graphics.rectangle("fill", ex - 4, ey - 2, 16, 16, 3, 3)
@@ -3913,6 +4187,30 @@ function drawUI()
         love.graphics.print("(Collision boxes visible)", panelX + padding + 8, panelY + panelHeight - padding - 12)
     end
     
+    -- Draw gold counter (top right corner)
+    if gameState.gold > 0 or gameState.townGreetingShown then
+        local screenWidth = love.graphics.getWidth()
+        local goldText = string.format("Gold: %d", gameState.gold)
+        local textWidth = love.graphics.getFont():getWidth(goldText)
+        local goldX = screenWidth - textWidth - 75
+        local goldY = 15
+        
+        -- Background panel
+        love.graphics.setColor(0.08, 0.08, 0.10, 0.85)
+        love.graphics.rectangle("fill", goldX - 10, goldY - 5, textWidth + 20, 24, 3, 3)
+        
+        -- Border
+        love.graphics.setColor(0.75, 0.65, 0.25)
+        love.graphics.setLineWidth(2)
+        love.graphics.rectangle("line", goldX - 10, goldY - 5, textWidth + 20, 24, 3, 3)
+        love.graphics.setLineWidth(1)
+        
+        -- Gold text
+        love.graphics.setColor(1, 0.84, 0)
+        love.graphics.print(goldText, goldX, goldY)
+        love.graphics.setColor(1, 1, 1)
+    end
+    
     -- Draw inventory quick slots (always visible)
         local screenWidth = love.graphics.getWidth()
         local screenHeight = love.graphics.getHeight()
@@ -4097,6 +4395,115 @@ function drawUI()
                 love.graphics.print(hoveredItem, tooltipX + 10, tooltipY + 5)
         end
     end
+    
+    -- Draw shop UI (if open)
+    if shopState.isOpen and shopState.shopType then
+        local screenWidth = love.graphics.getWidth()
+        local screenHeight = love.graphics.getHeight()
+        
+        -- Semi-transparent overlay
+        love.graphics.setColor(0, 0, 0, 0.6)
+        love.graphics.rectangle("fill", 0, 0, screenWidth, screenHeight)
+        
+        -- Shop panel
+        local panelWidth = 500
+        local panelHeight = 400
+        local panelX = (screenWidth - panelWidth) / 2
+        local panelY = (screenHeight - panelHeight) / 2
+        
+        -- Background
+        love.graphics.setColor(0.08, 0.08, 0.10, 0.95)
+        love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 6, 6)
+        
+        -- Border
+        love.graphics.setColor(0.75, 0.65, 0.25)
+        love.graphics.setLineWidth(3)
+        love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 6, 6)
+        love.graphics.setLineWidth(1)
+        
+        -- Header
+        love.graphics.setColor(1, 0.95, 0.7)
+        local headerText = "Potion Shop"
+        local textWidth = love.graphics.getFont():getWidth(headerText)
+        love.graphics.print(headerText, panelX + (panelWidth - textWidth) / 2, panelY + 15)
+        
+        -- Gold display
+        love.graphics.setColor(1, 0.84, 0)
+        love.graphics.print("Your Gold: " .. gameState.gold, panelX + 20, panelY + 15)
+        
+        -- Divider
+        love.graphics.setColor(0.65, 0.55, 0.20)
+        love.graphics.setLineWidth(2)
+        love.graphics.line(panelX + 15, panelY + 45, panelX + panelWidth - 15, panelY + 45)
+        love.graphics.setLineWidth(1)
+        
+        -- Shop items
+        local items = shopInventories[shopState.shopType] or {}
+        local itemY = panelY + 60
+        local itemHeight = 50
+        local mouseX, mouseY = love.mouse.getPosition()
+        
+        for i, item in ipairs(items) do
+            local itemBoxY = itemY + (i - 1) * itemHeight
+            local isHovered = mouseX >= panelX + 15 and mouseX <= panelX + panelWidth - 15 and
+                            mouseY >= itemBoxY and mouseY <= itemBoxY + itemHeight - 5
+            
+            -- Item background
+            if isHovered and not item.disabled then
+                love.graphics.setColor(0.25, 0.22, 0.18, 0.95)
+                shopState.selectedItem = i
+            elseif item.disabled then
+                love.graphics.setColor(0.05, 0.05, 0.05, 0.5)
+            else
+                love.graphics.setColor(0.15, 0.13, 0.11, 0.8)
+            end
+            love.graphics.rectangle("fill", panelX + 15, itemBoxY, panelWidth - 30, itemHeight - 5, 3, 3)
+            
+            -- Item border
+            if isHovered and not item.disabled then
+                love.graphics.setColor(0.9, 0.8, 0.4)
+                love.graphics.setLineWidth(2)
+            else
+                love.graphics.setColor(0.35, 0.30, 0.20)
+                love.graphics.setLineWidth(1)
+            end
+            love.graphics.rectangle("line", panelX + 15, itemBoxY, panelWidth - 30, itemHeight - 5, 3, 3)
+            love.graphics.setLineWidth(1)
+            
+            -- Item name
+            if item.disabled then
+                love.graphics.setColor(0.5, 0.5, 0.5)
+            else
+                love.graphics.setColor(1, 1, 1)
+            end
+            love.graphics.print(item.name, panelX + 25, itemBoxY + 8)
+            
+            -- Item description
+            love.graphics.setColor(0.7, 0.7, 0.7)
+            love.graphics.print(item.description, panelX + 25, itemBoxY + 26)
+            
+            -- Price
+            if not item.disabled then
+                local canAfford = gameState.gold >= item.price
+                if canAfford then
+                    love.graphics.setColor(1, 0.84, 0)
+                else
+                    love.graphics.setColor(0.8, 0.3, 0.3)
+                end
+                local priceText = item.price .. " gold"
+                local priceWidth = love.graphics.getFont():getWidth(priceText)
+                love.graphics.print(priceText, panelX + panelWidth - 30 - priceWidth, itemBoxY + 15)
+            end
+        end
+        
+        -- Close instructions
+        love.graphics.setColor(0.8, 0.8, 0.8)
+        local closeText = "Press ESC to close"
+        local closeWidth = love.graphics.getFont():getWidth(closeText)
+        love.graphics.print(closeText, panelX + (panelWidth - closeWidth) / 2, panelY + panelHeight - 30)
+        
+        love.graphics.setColor(1, 1, 1)
+    end
 end
 
 function drawMessage()
@@ -4215,6 +4622,71 @@ useItem = function(itemName)
         messageState.currentMessage = string.format("Healed %d HP!", actualHeal)
         messageState.messageTimer = 2
         return true
+    elseif itemName == "Mana Potion" then
+        -- Restore mana
+        if not spellSystem then
+            messageState.currentMessage = "You haven't learned any spells yet!"
+            messageState.messageTimer = 2
+            return false
+        end
+        
+        if spellSystem.currentMana >= spellSystem.maxMana then
+            messageState.currentMessage = "Mana is already full!"
+            messageState.messageTimer = 2
+            return false
+        end
+        
+        local restoreAmount = 50
+        local oldMana = spellSystem.currentMana
+        spellSystem.currentMana = math.min(spellSystem.maxMana, spellSystem.currentMana + restoreAmount)
+        local actualRestore = spellSystem.currentMana - oldMana
+        
+        -- Remove item from inventory
+        gameState:removeItem(itemName, 1)
+        
+        messageState.currentMessage = string.format("Restored %d Mana!", actualRestore)
+        messageState.messageTimer = 2
+        return true
+    elseif itemName == "Class Changer Potion" then
+        -- Reset class and spells
+        if not gameState.playerClass then
+            messageState.currentMessage = "You haven't chosen a class yet!"
+            messageState.messageTimer = 2
+            return false
+        end
+        
+        -- Confirmation message
+        messageState.currentMessage = "Class reset! Return to the portal west of the house to choose a new class."
+        messageState.messageTimer = 5
+        
+        -- Reset class and spells
+        gameState.playerClass = nil
+        gameState.playerElement = nil
+        gameState.learnedSpells = {}
+        gameState.equippedSpells = {nil, nil, nil, nil, nil}
+        gameState.spellLevels = {}
+        gameState.spellExperience = {}
+        
+        -- Reset spell system
+        if spellSystem then
+            spellSystem.learnedSpells = {}
+            spellSystem.currentMana = 100
+            spellSystem.maxMana = 100
+        end
+        
+        -- Reset player stats
+        player.health = player.maxHealth
+        player.armor = 0
+        player.maxArmor = 0
+        
+        -- Reset healing strategy
+        gameState.healingStrategy = nil
+        gameState.resistanceSpellLearned = false
+        
+        -- Remove item from inventory
+        gameState:removeItem(itemName, 1)
+        
+        return true
     else
         -- Other items don't have use functionality yet
         messageState.currentMessage = string.format("%s cannot be used", itemName)
@@ -4227,6 +4699,25 @@ checkInteraction = function()
     -- Check NPC interaction first
     local npc = getNearestNPC()
     if npc then
+        -- Check if this is a shop merchant (potion merchant)
+        if npc.questState == "potion_merchant" and npc.data.shopType then
+            -- Open shop UI
+            shopState.isOpen = true
+            shopState.shopType = npc.data.shopType
+            shopState.merchantNPC = npc
+            shopState.selectedItem = nil
+            shopState.scrollOffset = 0
+            
+            -- Play panel swipe sound
+            if audio.panelSwipeSound then
+                ---@type any
+                local panel = audio.panelSwipeSound
+                panel:stop()
+                panel:play()
+            end
+            return
+        end
+        
         -- Play unlocking door sound if player is returning the key to merchant
         if npc.npcType == "merchant" and gameState:hasItem("Gold Key") and audio.unlockingDoorSound then
             ---@type any
@@ -4633,6 +5124,23 @@ function love.keypressed(key)
             return
         end
         
+        -- Close shop if open
+        if shopState.isOpen then
+            shopState.isOpen = false
+            shopState.shopType = nil
+            shopState.merchantNPC = nil
+            shopState.selectedItem = nil
+            
+            -- Play panel swipe sound
+            if audio.panelSwipeSound then
+                ---@type any
+                local swipe = audio.panelSwipeSound
+                swipe:stop()
+                swipe:play()
+            end
+            return
+        end
+        
         -- Close profile menu if open
         if startScreen.showProfileMenu then
             startScreen.showProfileMenu = false
@@ -4841,6 +5349,21 @@ function love.keypressed(key)
                 -- Rebuild spell system from loaded data
                 spellSystem.gameState = gameState
                 spellSystem:rebuildLearnedSpells()
+                
+                -- Restore armor system if player has tank strategy
+                if gameState.healingStrategy == "armor" then
+                    for _, spell in ipairs(spellSystem.learnedSpells) do
+                        if spell.name == "Iron Fortitude" then
+                            player.maxArmor = 50 + (spell.level - 1) * 10
+                            player.armor = player.maxArmor  -- Start with full armor on load
+                            player.armorRegenRate = 2 + (spell.level - 1) * 0.5
+                            if DEBUG_MODE then
+                                print(string.format("[ARMOR] Restored on pause menu load: %d/%d", player.armor, player.maxArmor))
+                            end
+                            break
+                        end
+                    end
+                end
                 
                 -- Sync interactables with loaded state (chests, etc.)
                 local interactables = world:getCurrentInteractables()
@@ -5279,6 +5802,46 @@ function love.mousepressed(x, y, button)
         -- Handle spell menu clicks
         if spellSystem and spellSystem.showSpellMenu then
             spellSystem:handleClick(x, y)
+        end
+        
+        -- Handle shop clicks (purchasing items)
+        if shopState.isOpen and shopState.shopType then
+            local screenWidth = love.graphics.getWidth()
+            local screenHeight = love.graphics.getHeight()
+            local panelWidth = 500
+            local panelHeight = 400
+            local panelX = (screenWidth - panelWidth) / 2
+            local panelY = (screenHeight - panelHeight) / 2
+            local itemY = panelY + 60
+            local itemHeight = 50
+            
+            local items = shopInventories[shopState.shopType] or {}
+            for i, item in ipairs(items) do
+                local itemBoxY = itemY + (i - 1) * itemHeight
+                if x >= panelX + 15 and x <= panelX + panelWidth - 15 and
+                   y >= itemBoxY and y <= itemBoxY + itemHeight - 5 and
+                   not item.disabled then
+                    -- Attempt to purchase
+                    if gameState:hasGold(item.price) then
+                        gameState:removeGold(item.price)
+                        gameState:addItem(item.name)
+                        messageState.currentMessage = string.format("Purchased %s for %d gold!", item.name, item.price)
+                        messageState.messageTimer = 3
+                        
+                        -- Play panel swipe sound for purchase
+                        if audio.panelSwipeSound then
+                            ---@type any
+                            local panel = audio.panelSwipeSound
+                            panel:stop()
+                            panel:play()
+                        end
+                    else
+                        messageState.currentMessage = "Not enough gold!"
+                        messageState.messageTimer = 2
+                    end
+                    return
+                end
+            end
         end
         
         -- Handle inventory clicks (equipping to quick slots)

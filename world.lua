@@ -90,6 +90,13 @@ function World:createExampleOverworld()
         collision[0][x] = 0 -- No collision at row 0 (will add back if no class)
     end
     
+    -- Eastern border at path location (tiles 27-31, y coordinates)
+    -- Visible rocks before eastern path reveal, removed after trials completion
+    for y = 27, 31 do
+        collision[y][79] = 2 -- Rocks on eastern edge that will be removed
+        collision[y][78] = 0 -- Keep row 78 clear for path opening
+    end
+    
     -- Add some scattered rocks/obstacles
     for i = 1, 30 do
         local tx = math.random(5, 75)
@@ -261,6 +268,17 @@ function World:createExampleOverworld()
             spawnX = 14*32,
             spawnY = 35*32,
             questMinimum = "has_class" -- Custom quest check for having chosen a class
+        })
+    )
+    
+    -- Add eastern path to town (appears after defense trials completion)
+    -- Path-style exit on the east side (wider and positioned higher)
+    table.insert(self.interactables["overworld"],
+        Interactable:new(2528, 878, 192, 128, "eastern_path", {
+            targetMap = "town",
+            spawnX = 24*32,
+            spawnY = 37*32,
+            questMinimum = "east_path_revealed" -- Only visible after eastern path reveal
         })
     )
     
@@ -790,6 +808,309 @@ function World:createDefenseTrials()
     self.npcs["defense_trials"] = {}
 end
 
+function World:createTown()
+    -- Trading Town: Village marketplace with merchants and shops
+    local TileMap = require("tilemap")
+    local map = TileMap:new(50, 40, 32)
+    
+    -- Create ground layer (grass with variation + stone paths)
+    local ground = {}
+    for y = 0, 39 do
+        ground[y] = {}
+        for x = 0, 49 do
+            -- Add natural variation to grass
+            if (x + y) % 6 == 0 then
+                ground[y][x] = 4 -- Grass variant
+            else
+                ground[y][x] = 1 -- Normal grass
+            end
+        end
+    end
+    
+    -- Main stone path from entrance (south) to central plaza
+    for y = 30, 39 do
+        for x = 22, 27 do
+            ground[y][x] = 2 -- Path
+        end
+    end
+    
+    -- Central plaza (circular-ish stone area with fountain)
+    for y = 15, 28 do
+        for x = 18, 31 do
+            ground[y][x] = 2
+        end
+    end
+    
+    -- Paths to shops
+    -- West shop row
+    for y = 18, 25 do
+        for x = 10, 17 do
+            ground[y][x] = 2
+        end
+    end
+    
+    -- East shop row
+    for y = 18, 25 do
+        for x = 32, 39 do
+            ground[y][x] = 2
+        end
+    end
+    
+    -- North market area
+    for y = 8, 14 do
+        for x = 20, 29 do
+            ground[y][x] = 2
+        end
+    end
+    
+    -- Create collision layer
+    local collision = {}
+    for y = 0, 39 do
+        collision[y] = {}
+        for x = 0, 49 do
+            collision[y][x] = 0 -- Walkable by default
+        end
+    end
+    
+    -- Outer walls/fences (invisible barriers at edges)
+    for x = 0, 49 do
+        collision[0][x] = 1 -- North wall (invisible barrier)
+        collision[39][x] = 1 -- South wall (invisible barrier, but we'll open entrance)
+    end
+    for y = 0, 39 do
+        collision[y][0] = 1 -- West wall (invisible barrier)
+        collision[y][49] = 1 -- East wall (invisible barrier)
+    end
+    
+    -- Entrance opening (south)
+    for x = 22, 27 do
+        collision[39][x] = 0
+    end
+    
+    -- Add visible fence decorations just inside the invisible barriers
+    for x = 1, 48 do
+        if x < 22 or x > 27 then  -- Don't block entrance
+            collision[38][x] = 2 -- South fence
+        end
+        collision[1][x] = 2 -- North fence
+    end
+    for y = 1, 38 do
+        collision[y][1] = 2 -- West fence
+        collision[y][48] = 2 -- East fence
+    end
+    
+    -- Buildings/Shops (doors face toward paths for easy access)
+    
+    -- General Store (west side) - Door faces east (toward plaza)
+    for y = 10, 16 do
+        for x = 8, 14 do
+            if y == 10 or x == 8 then
+                collision[y][x] = 2 -- North and west walls
+            elseif y == 16 then
+                collision[y][x] = 2 -- South wall
+            elseif x == 14 and y ~= 13 then
+                collision[y][x] = 2 -- East wall except door
+            end
+        end
+    end
+    
+    -- Potion Shop (east side) - Door faces west (toward plaza)
+    for y = 10, 16 do
+        for x = 35, 41 do
+            if y == 10 or x == 41 then
+                collision[y][x] = 2 -- North and east walls
+            elseif y == 16 then
+                collision[y][x] = 2 -- South wall
+            elseif x == 35 and y ~= 13 then
+                collision[y][x] = 2 -- West wall except door
+            end
+        end
+    end
+    
+    -- Weapon/Armor Shop (north west) - Door faces east
+    for y = 3, 9 do
+        for x = 10, 16 do
+            if y == 3 or x == 10 then
+                collision[y][x] = 2 -- North and west walls
+            elseif y == 9 then
+                collision[y][x] = 2 -- South wall
+            elseif x == 16 and y ~= 6 then
+                collision[y][x] = 2 -- East wall except door
+            end
+        end
+    end
+    
+    -- Inn/Tavern (north east) - Door faces west
+    for y = 3, 9 do
+        for x = 33, 39 do
+            if y == 3 or x == 39 then
+                collision[y][x] = 2 -- North and east walls
+            elseif y == 9 then
+                collision[y][x] = 2 -- South wall
+            elseif x == 33 and y ~= 6 then
+                collision[y][x] = 2 -- West wall except door
+            end
+        end
+    end
+    
+    -- Central fountain with water
+    for y = 20, 23 do
+        for x = 23, 26 do
+            collision[y][x] = 1 -- Invisible barrier (can't walk through water)
+        end
+    end
+    
+    -- Decorative obstacles (trees, benches, etc.)
+    -- Trees around perimeter
+    local treePositions = {
+        {5, 5}, {5, 35}, {45, 5}, {45, 35},
+        {8, 20}, {41, 20}, {15, 30}, {34, 30},
+        {18, 8}, {31, 8}
+    }
+    for _, pos in ipairs(treePositions) do
+        collision[pos[2]][pos[1]] = 2
+    end
+    
+    -- Benches in plaza (decorative collision)
+    local benchPositions = {
+        {19, 19}, {30, 19}, {19, 24}, {30, 24}
+    }
+    for _, pos in ipairs(benchPositions) do
+        collision[pos[2]][pos[1]] = 2
+    end
+    
+    -- Create roofs layer
+    local roofs = {}
+    for y = 0, 39 do
+        roofs[y] = {}
+        for x = 0, 49 do
+            roofs[y][x] = 0
+        end
+    end
+    
+    -- Add roofs to buildings
+    -- General Store roof
+    for y = 10, 16 do
+        for x = 8, 14 do
+            roofs[y][x] = 1
+        end
+    end
+    
+    -- Potion Shop roof
+    for y = 10, 16 do
+        for x = 35, 41 do
+            roofs[y][x] = 1
+        end
+    end
+    
+    -- Weapon/Armor Shop roof
+    for y = 3, 9 do
+        for x = 10, 16 do
+            roofs[y][x] = 1
+        end
+    end
+    
+    -- Inn/Tavern roof
+    for y = 3, 9 do
+        for x = 33, 39 do
+            roofs[y][x] = 1
+        end
+    end
+    
+    -- Create water layer for fountain
+    local water = {}
+    for y = 0, 39 do
+        water[y] = {}
+        for x = 0, 49 do
+            water[y][x] = 0
+        end
+    end
+    
+    -- Add water to fountain
+    for y = 20, 23 do
+        for x = 23, 26 do
+            water[y][x] = 5 -- Water tile
+        end
+    end
+    
+    map:loadFromData({ground = ground, collision = collision, roofs = roofs, water = water})
+    self.maps["town"] = map
+    
+    -- Add interactables
+    self.interactables["town"] = {}
+    
+    -- Portal/Exit back to overworld (west entrance)
+    table.insert(self.interactables["town"],
+        Interactable:new(2*32, 20*32, 64, 64, "portal", {
+            destination = "overworld",
+            spawnX = 77*32,  -- East side of overworld
+            spawnY = 30*32
+        })
+    )
+    
+    -- Welcome sign near entrance (moved west to avoid spawn collision)
+    table.insert(self.interactables["town"],
+        Interactable:new(24*32 - 100, 36*32, 32, 32, "sign", {
+            message = "Welcome to Sanctuary Village!\nTraders welcome, danger is left at the gate."
+        })
+    )
+    
+    -- Fountain sign (decorative, away from fountain)
+    table.insert(self.interactables["town"],
+        Interactable:new(24*32, 18*32, 32, 32, "sign", {
+            message = "Sanctuary Fountain\nMay your travels be safe."
+        })
+    )
+    
+    -- Shop signs (positioned as specified)
+    -- General Store sign
+    table.insert(self.interactables["town"],
+        Interactable:new(15*32, 11*32, 32, 32, "sign", {
+            message = "General Store\n(Coming Soon)"
+        })
+    )
+    
+    -- Potion Shop sign
+    table.insert(self.interactables["town"],
+        Interactable:new(34*32, 11*32, 32, 32, "sign", {
+            message = "Potion Shop\nHealthy choices inside!"
+        })
+    )
+    
+    -- Weapon/Armor Shop sign
+    table.insert(self.interactables["town"],
+        Interactable:new(17*32, 4*32, 32, 32, "sign", {
+            message = "Weapon & Armor\n(Coming Soon)"
+        })
+    )
+    
+    -- Inn/Tavern sign
+    table.insert(self.interactables["town"],
+        Interactable:new(32*32, 4*32, 32, 32, "sign", {
+            message = "The Restful Inn\n(Coming Soon)"
+        })
+    )
+    
+    self.enemies["town"] = {}
+    self.npcs["town"] = {}
+    
+    -- Add town greeter NPC (near entrance, will trigger welcome cutscene)
+    table.insert(self.npcs["town"],
+        NPC:new(24*32, 32*32, "village_quest_giver", {
+            questState = "town_greeter",
+            useAnimations = true  -- Use animated quest giver
+        })
+    )
+    
+    -- Add potion merchant (inside potion shop, adjusted for new door position)
+    table.insert(self.npcs["town"],
+        NPC:new(37*32, 13*32, "merchant", {
+            questState = "potion_merchant",
+            shopType = "potions"
+        })
+    )
+end
+
 function World:loadMap(mapName)
     self.currentMap = self.maps[mapName]
     
@@ -810,6 +1131,20 @@ function World:loadMap(mapName)
                 collision[0][x] = 2 -- Visible rocks at ground level
             end
         end
+        
+        -- Update eastern path collision based on trials completion
+        if self.gameState.eastPathRevealed then
+            -- Remove rocks at eastern border to reveal path
+            for y = 27, 31 do
+                collision[y][79] = 0 -- Remove rocks
+                collision[y][78] = 0 -- Ensure path is clear
+            end
+        else
+            -- Keep rocks blocking the path
+            for y = 27, 31 do
+                collision[y][79] = 2 -- Visible rocks blocking path
+            end
+        end
     end
     
     return self.currentMap
@@ -825,7 +1160,12 @@ function World:getCurrentInteractables()
                 
                 -- Check if this interactable requires an exact quest state
                 if obj.data.questRequired and self.gameState then
-                    shouldShow = (self.gameState.questState == obj.data.questRequired)
+                    -- Special case: east_path_revealed checks if eastern path has been revealed
+                    if obj.data.questRequired == "east_path_revealed" then
+                        shouldShow = (self.gameState.eastPathRevealed == true)
+                    else
+                        shouldShow = (self.gameState.questState == obj.data.questRequired)
+                    end
                 end
                 
                 -- Check if this interactable requires a minimum quest state (unlocked and stays visible)
@@ -833,6 +1173,9 @@ function World:getCurrentInteractables()
                     -- Special case: has_class checks if player has chosen a class
                     if obj.data.questMinimum == "has_class" then
                         shouldShow = (self.gameState.playerClass ~= nil)
+                    -- Special case: east_path_revealed checks if eastern path has been revealed
+                    elseif obj.data.questMinimum == "east_path_revealed" then
+                        shouldShow = (self.gameState.eastPathRevealed == true)
                     else
                         -- Define quest progression order
                         local questOrder = {"initial", "sword_collected", "cave_completed", "final"}

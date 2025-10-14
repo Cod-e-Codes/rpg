@@ -549,6 +549,7 @@ function SpellSystem:rebuildLearnedSpells()
     for _, spellName in ipairs(self.gameState.learnedSpells) do
         local spell = nil
         
+        -- Basic elemental spells
         if spellName == "Illumination" then
             spell = Spell.createIllumination()
         elseif spellName == "Fireball" then
@@ -559,6 +560,24 @@ function SpellSystem:rebuildLearnedSpells()
             spell = Spell.createLightningBolt()
         elseif spellName == "Stone Spike" then
             spell = Spell.createStoneSpike()
+        
+        -- Defense trial strategy spells
+        elseif spellName == "Iron Fortitude" then
+            spell = Spell.createArmorBuff()
+        elseif spellName == "Soul Siphon" then
+            spell = Spell.createDrainBuff()
+        elseif spellName == "Death Harvest" then
+            spell = Spell.createNecromancerBuff()
+        
+        -- Elemental resistance spells
+        elseif spellName == "Fire Resistance" then
+            spell = Spell.createFireResistance()
+        elseif spellName == "Ice Resistance" then
+            spell = Spell.createIceResistance()
+        elseif spellName == "Lightning Resistance" then
+            spell = Spell.createLightningResistance()
+        elseif spellName == "Earth Resistance" then
+            spell = Spell.createEarthResistance()
         end
         
         if spell then

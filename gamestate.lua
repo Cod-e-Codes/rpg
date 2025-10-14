@@ -40,7 +40,12 @@ function GameState:new()
         
         -- Settings
         musicVolume = 1.0, -- Music volume (0.0 to 1.0)
-        sfxVolume = 1.0 -- SFX volume (0.0 to 1.0)
+        sfxVolume = 1.0, -- SFX volume (0.0 to 1.0)
+        
+        -- Currency & Trading
+        gold = 0, -- Player's gold currency
+        townGreetingShown = false, -- Has the town greeter welcomed the player
+        eastPathRevealed = false -- Has the eastern path been revealed
     }
     setmetatable(state, {__index = self})
     return state
@@ -214,6 +219,23 @@ function GameState:hasCompletedLevel(levelName)
         end
     end
     return false
+end
+
+-- Gold/Currency management
+function GameState:addGold(amount)
+    self.gold = self.gold + amount
+end
+
+function GameState:removeGold(amount)
+    if self.gold >= amount then
+        self.gold = self.gold - amount
+        return true
+    end
+    return false
+end
+
+function GameState:hasGold(amount)
+    return self.gold >= amount
 end
 
 return GameState

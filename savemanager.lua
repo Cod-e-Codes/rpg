@@ -110,7 +110,17 @@ function SaveManager:save(gameState, playerX, playerY, playerHealth)
         -- Level progression
         levelHistory = gameState.levelHistory,
         houseDoorLocked = gameState.houseDoorLocked,
-        mysteriousCaveHidden = gameState.mysteriousCaveHidden
+        mysteriousCaveHidden = gameState.mysteriousCaveHidden,
+        
+        -- Quest progression flags
+        defenseTrialsCompleted = gameState.defenseTrialsCompleted,
+        resistanceSpellLearned = gameState.resistanceSpellLearned,
+        eastPathRevealed = gameState.eastPathRevealed,
+        townGreetingShown = gameState.townGreetingShown,
+        healingStrategy = gameState.healingStrategy,
+        
+        -- Currency
+        gold = gameState.gold
     }
     
     -- Convert openedChests table to array for saving
@@ -232,6 +242,16 @@ function SaveManager:applySaveData(gameState, saveData)
     gameState.levelHistory = saveData.levelHistory or {}
     gameState.houseDoorLocked = saveData.houseDoorLocked ~= false -- Default true
     gameState.mysteriousCaveHidden = saveData.mysteriousCaveHidden or false -- Default false
+    
+    -- Quest progression flags
+    gameState.defenseTrialsCompleted = saveData.defenseTrialsCompleted or false
+    gameState.resistanceSpellLearned = saveData.resistanceSpellLearned or false
+    gameState.eastPathRevealed = saveData.eastPathRevealed or false
+    gameState.townGreetingShown = saveData.townGreetingShown or false
+    gameState.healingStrategy = saveData.healingStrategy or nil
+    
+    -- Currency
+    gameState.gold = saveData.gold or 0
     
     return true
 end
