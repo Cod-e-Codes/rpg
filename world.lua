@@ -97,6 +97,11 @@ function World:createExampleOverworld()
         collision[y][78] = 0 -- Keep row 78 clear for path opening
     end
     
+    -- Invisible eastern barrier (prevents going east of column 80)
+    for y = 27, 30 do
+        collision[y][80] = 1 -- Invisible collision barrier
+    end
+    
     -- Add some scattered rocks/obstacles
     for i = 1, 30 do
         local tx = math.random(5, 75)
@@ -882,9 +887,9 @@ function World:createTown()
         collision[y][49] = 1 -- East wall (invisible barrier)
     end
     
-    -- Entrance opening (south)
+    -- Entrance opening (south) - but with invisible barrier to prevent going further south
     for x = 22, 27 do
-        collision[39][x] = 0
+        collision[39][x] = 1 -- Invisible collision barrier (prevents going south of entrance)
     end
     
     -- Add visible fence decorations just inside the invisible barriers
