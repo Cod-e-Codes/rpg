@@ -256,6 +256,7 @@ local saveManager
 ---@field doorCreakSound any
 ---@field unlockingDoorSound any
 ---@field pauseMenuOpenSound any
+---@field panelSwipeSound any
 local audio = {
     footstepSound = nil,
     footstepTargetVolume = 0,
@@ -277,7 +278,8 @@ local audio = {
     chestCreakSound = nil,
     doorCreakSound = nil,
     unlockingDoorSound = nil,
-    pauseMenuOpenSound = nil
+    pauseMenuOpenSound = nil,
+    panelSwipeSound = nil
 }
 local devMode
 local currentMessage = nil
@@ -558,6 +560,19 @@ function love.load()
         print("Warning: Could not load pause-menu-open.mp3: " .. tostring(audioError))
     else
         print("[AUDIO] Loaded pause-menu-open.mp3 successfully. Volume: 0.5")
+    end
+    
+    -- Load panel swipe sound effect
+    audioSuccess, audioError = pcall(function()
+        ---@type any
+        local panelSwipe = love.audio.newSource("assets/sounds/panel-swipe.mp3", "static")
+        audio.panelSwipeSound = panelSwipe
+        panelSwipe:setVolume(0.5)
+    end)
+    if not audioSuccess then
+        print("Warning: Could not load panel-swipe.mp3: " .. tostring(audioError))
+    else
+        print("[AUDIO] Loaded panel-swipe.mp3 successfully. Volume: 0.5")
     end
     
     -- Create example maps
@@ -3585,14 +3600,15 @@ checkInteraction = function()
                 print("[AUDIO] Playing chest creak sound (from 0.2s)")
             end
         elseif obj.type == "door" then
-            -- Play door creak sound
+            -- Play door creak sound (skip initial silence for instant feedback)
             if audio.doorCreakSound then
                 ---@type any
                 local door = audio.doorCreakSound
                 door:stop() -- Stop any currently playing instance
-                door:play() -- Play from the beginning
+                door:seek(0.15) -- Skip 150ms initial silence for instant feedback
+                door:play()
                 if DEBUG_MODE then
-                    print("[AUDIO] Playing door creak sound")
+                    print("[AUDIO] Playing door creak sound (from 0.15s)")
                 end
             end
         end
@@ -3899,6 +3915,17 @@ function love.keypressed(key)
         -- Close spell menu if open
         if spellSystem and spellSystem.showSpellMenu then
             spellSystem:toggleSpellMenu()
+            
+            -- Play panel swipe sound
+            if audio.panelSwipeSound then
+                ---@type any
+                local swipe = audio.panelSwipeSound
+                swipe:stop()
+                swipe:play()
+                if DEBUG_MODE then
+                    print("[AUDIO] Playing panel swipe sound (closing spell book)")
+                end
+            end
             return
         end
         
@@ -3914,6 +3941,17 @@ function love.keypressed(key)
             inventoryTargetWidth = 0
             inventoryScrollOffset = 0
             selectedInventoryItem = nil -- Clear selection
+            
+            -- Play panel swipe sound
+            if audio.panelSwipeSound then
+                ---@type any
+                local swipe = audio.panelSwipeSound
+                swipe:stop()
+                swipe:play()
+                if DEBUG_MODE then
+                    print("[AUDIO] Playing panel swipe sound (closing inventory)")
+                end
+            end
             return
         end
         
@@ -4204,6 +4242,17 @@ function love.keypressed(key)
             inventoryScrollOffset = 0
             selectedInventoryItem = nil -- Clear selection when closing
         end
+        
+        -- Play panel swipe sound
+        if audio.panelSwipeSound then
+            ---@type any
+            local swipe = audio.panelSwipeSound
+            swipe:stop()
+            swipe:play()
+            if DEBUG_MODE then
+                print("[AUDIO] Playing panel swipe sound (inventory)")
+            end
+        end
     elseif key == "h" and not inCutscene then
         showHelp = not showHelp
     elseif key == "b" and not inCutscene then
@@ -4211,6 +4260,17 @@ function love.keypressed(key)
         if spellSystem then
             if #gameState.learnedSpells > 0 then
                 spellSystem:toggleSpellMenu()
+                
+                -- Play panel swipe sound
+                if audio.panelSwipeSound then
+                    ---@type any
+                    local swipe = audio.panelSwipeSound
+                    swipe:stop()
+                    swipe:play()
+                    if DEBUG_MODE then
+                        print("[AUDIO] Playing panel swipe sound (spell book)")
+                    end
+                end
             else
                 currentMessage = "You haven't learned any spells yet..."
                 messageTimer = 2
