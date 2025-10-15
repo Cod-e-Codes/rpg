@@ -9,8 +9,12 @@ local SpellSystem = require("spellsystem")
 local LightingSystem = require("src.systems.lighting")
 local SaveManager = require("src.core.savemanager")
 local DevMode = require("devmode")
+local TransitionSystem = require("src.systems.transition")
 local AudioSystem = require("src.systems.audio")
 local Projectile = require("projectile")
+
+-- Systems
+local transition -- initialized in love.load
 
 -- Debug mode
 DEBUG_MODE = false
@@ -545,6 +549,9 @@ function love.load()
     -- Initialize centralized audio system and load sources
     audio = AudioSystem.new()
     audio:loadAll(gameState)
+    
+    -- Initialize transitions system with references to fade/portal state
+    transition = TransitionSystem.new(fade, portal)
     
     -- Load audio
     local audioSuccess, audioError = pcall(function()
