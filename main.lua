@@ -1386,6 +1386,14 @@ function love.update(dt)
             
             -- Facing from town handled immediately on map switch above
             
+            -- If we just arrived inside the house via cutscene, show entry message
+            if fade.targetMap == "house_interior" and gameState.currentMap == "house_interior" then
+                messageState.currentMessage = "Inside the merchant's house..."
+                messageState.currentMessageItem = nil
+                messageState.messageTimer = 2
+                cutsceneState.inCutscene = false
+            end
+
             -- If we returned to overworld from defense trials via the DOOR and the
             -- trials were completed, reveal the eastern path and run the cutscene.
             if fade.targetMap == "overworld" and 
@@ -1823,17 +1831,13 @@ function love.update(dt)
             cutsceneState.inCutscene = true
             cutsceneState.cutsceneWalkTarget = {x = 55 * 32, y = 19 * 32} -- Door position
             cutsceneState.cutsceneOnComplete = function()
-                -- Transition to house interior
-                gameState:changeMap("house_interior", 7*32, 9*32)
-                world:loadMap(gameState.currentMap)
-                player.x = gameState.playerSpawn.x
-                player.y = gameState.playerSpawn.y
-                
-                messageState.currentMessage = "Inside the merchant's house..."
-                messageState.currentMessageItem = nil
-                messageState.messageTimer = 2
-                
-                cutsceneState.inCutscene = false
+                -- Transition to house interior with fade
+                fade.state = "fade_out"
+                fade.sourceMap = gameState.currentMap
+                fade.targetMap = "house_interior"
+                fade.spawnX = 7*32
+                fade.spawnY = 9*32
+                -- After fade completes, message/cutscene flags are handled in fade-in branch
                 cutsceneState.cutsceneWalkTarget = nil
                 cutsceneState.cutsceneOnComplete = nil
                 end
