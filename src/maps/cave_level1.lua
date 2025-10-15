@@ -1,6 +1,6 @@
 local TileMap = require("src.core.tilemap")
 local Interactable = require("src.entities.interactable")
-local Enemy = require("enemy")
+local Enemy = require("src.entities.enemy")
 
 local M = {}
 

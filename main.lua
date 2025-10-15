@@ -5126,7 +5126,7 @@ checkInteraction = function()
             end
             
             -- Spawn 2 skeletons at full size but transparent (in north arena)
-            local Enemy = require("enemy")
+            local Enemy = require("src.entities.enemy")
             local spawn1 = Enemy:new(10*32, 6*32, "skeleton", {})
             local spawn2 = Enemy:new(18*32, 6*32, "skeleton", {})
             spawn1.scale = 2

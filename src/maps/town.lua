@@ -1,6 +1,6 @@
 local TileMap = require("src.core.tilemap")
 local Interactable = require("src.entities.interactable")
-local NPC = require("npc")
+local NPC = require("src.entities.npc")
 
 local M = {}
 
