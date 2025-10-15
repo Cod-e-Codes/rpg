@@ -931,7 +931,6 @@ end
 function love.update(dt)
     -- Update centralized audio system volumes
 ---@diagnostic disable-next-line: undefined-field
-    ---@diagnostic disable-next-line: undefined-field
     if audio then audio:update(dt, gameState, startScreen, uiState, world, player, skeletonSpawn, camera) end
     
     -- Don't update game if not started (but update cursor blink)
