@@ -74,7 +74,7 @@ Save file: `savegame.sav`
 - [x] Spell system with progression and attack spells
 - [x] Inventory with quick slots, stacking, and usable items
 - [x] Quest progression
-- [x] Cave dungeon with dynamic lighting
+- [x] Cave dungeon with dynamic lighting (lighting moved to `src/systems/lighting.lua`)
 - [x] Save/load with persistent world state
 - [x] Portal animations with player effects
 - [x] Start screen and player profile

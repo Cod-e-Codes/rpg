@@ -6,7 +6,7 @@ local GameState = require("src.core.gamestate")
 local World = require("world")
 local Spell = require("spell")
 local SpellSystem = require("spellsystem")
-local Lighting = require("lighting")
+local LightingSystem = require("src.systems.lighting")
 local SaveManager = require("src.core.savemanager")
 local DevMode = require("devmode")
 local AudioSystem = require("src.systems.audio")
@@ -534,7 +534,7 @@ function love.load()
     spellSystem = SpellSystem:new(gameState)
     
     -- Initialize lighting system
-    lighting = Lighting:new()
+    lighting = LightingSystem.new()
     
     -- Initialize save manager
     saveManager = SaveManager
