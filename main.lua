@@ -2,12 +2,12 @@
 -- Controls: WASD/Arrows to move, E to interact, F3 for debug
 
 -- Require modules
-local GameState = require("gamestate")
+local GameState = require("src.core.gamestate")
 local World = require("world")
 local Spell = require("spell")
 local SpellSystem = require("spellsystem")
 local Lighting = require("lighting")
-local SaveManager = require("savemanager")
+local SaveManager = require("src.core.savemanager")
 local DevMode = require("devmode")
 local Projectile = require("projectile")
 

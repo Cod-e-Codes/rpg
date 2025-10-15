@@ -89,8 +89,12 @@ Save file: `savegame.sav`
 - [x] Settings menu with adjustable music and SFX volume
 - [x] Visual effects for elemental hazards
 - [x] Trading system with gold currency and shop
-- [x] Sanctuary Village with animated fountain
-- [x] The Restful Inn with interactive NPC and loot chests
+- [x] Sanctuary Village with animated fountain (extracted to `src/maps/town.lua`)
+- [x] The Restful Inn with interactive NPC and loot chests (extracted to `src/maps/inn_interior.lua`)
+- [x] Cave Level 1 (extracted to `src/maps/cave_level1.lua`)
+- [x] Class Selection (extracted to `src/maps/class_selection.lua`)
+- [x] Defense Trials (extracted to `src/maps/defense_trials.lua`)
+- [x] Overworld map construction (extracted to `src/maps/overworld.lua`)
 - [ ] More content and puzzles
 
 ## License
