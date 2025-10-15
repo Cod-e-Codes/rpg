@@ -1386,6 +1386,31 @@ function love.update(dt)
             
             -- Facing from town handled immediately on map switch above
             
+            -- If we returned to overworld from defense trials via the DOOR and the
+            -- trials were completed, reveal the eastern path and run the cutscene.
+            if fade.targetMap == "overworld" and 
+               gameState.currentMap == "overworld" and
+               fade.sourceMap == "defense_trials" and
+               not gameState.eastPathRevealed and
+               gameState.healingStrategy then
+                gameState.eastPathRevealed = true
+                world:loadMap("overworld")
+                
+                cutsceneState.inCutscene = true
+                local screenWidth = love.graphics.getWidth()
+                local screenHeight = love.graphics.getHeight()
+                local eastPathX = 2528 + 96
+                local eastPathY = 878 + 64
+                cameraPan.original.x = player.x - screenWidth / 2
+                cameraPan.original.y = player.y - screenHeight / 2
+                cameraPan.target.x = eastPathX - screenWidth / 2
+                cameraPan.target.y = eastPathY - screenHeight / 2
+                cameraPan.state = "pan_to_target"
+                messageState.currentMessage = "A path to the east has opened... leading to Sanctuary Village!"
+                messageState.currentMessageItem = nil
+                messageState.messageTimer = 5
+            end
+
             -- Check if arriving at class selection after class reset (create portal animation)
             if fade.targetMap == "class_selection" and 
                gameState.currentMap == "class_selection" then
