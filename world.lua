@@ -98,7 +98,7 @@ function World:createExampleOverworld()
     end
     
     -- Invisible eastern barrier (prevents going east of column 80)
-    for y = 27, 30 do
+    for y = 27, 31 do
         collision[y][80] = 1 -- Invisible collision barrier
     end
     
