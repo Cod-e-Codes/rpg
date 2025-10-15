@@ -1,12 +1,12 @@
-local TileMap = require("tilemap")
-local Interactable = require("interactable")
+local TileMap = require("src.core.tilemap")
+local Interactable = require("src.entities.interactable")
 
 local M = {}
 
 function M.build(world)
     -- Defense Trials: Elemental hazards, resistance spell, and healing strategy selection
     -- Two-part level: puzzle section with hazards + combat arena
-    local TileMap = require("tilemap")
+    local TileMap = require("src.core.tilemap")
     local map = TileMap:new(30, 40, 32)
     
     -- Create stone floor

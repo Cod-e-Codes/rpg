@@ -1,12 +1,12 @@
-local TileMap = require("tilemap")
-local Interactable = require("interactable")
+local TileMap = require("src.core.tilemap")
+local Interactable = require("src.entities.interactable")
 local NPC = require("npc")
 
 local M = {}
 
 function M.build(world)
     -- Trading Town: Village marketplace with merchants and shops
-    local TileMap = require("tilemap")
+    local TileMap = require("src.core.tilemap")
     local map = TileMap:new(50, 40, 32)
     
     -- Create ground layer (grass with variation + stone paths)

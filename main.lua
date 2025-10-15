@@ -4,15 +4,15 @@
 -- Require modules
 local GameState = require("src.core.gamestate")
 local World = require("world")
-local Spell = require("spell")
-local SpellSystem = require("spellsystem")
+local Spell = require("src.entities.spell")
+local SpellSystem = require("src.entities.spellsystem")
 local LightingSystem = require("src.systems.lighting")
 local SaveManager = require("src.core.savemanager")
 local DevMode = require("src.systems.devmode")
 local TransitionSystem = require("src.systems.transition")
 local AudioSystem = require("src.systems.audio")
 local Cutscenes = require("src.systems.cutscenes")
-local Projectile = require("projectile")
+local Projectile = require("src.entities.projectile")
 
 -- Systems
 local transition -- initialized in love.load

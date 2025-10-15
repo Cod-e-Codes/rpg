@@ -1,11 +1,11 @@
-local TileMap = require("tilemap")
-local Interactable = require("interactable")
+local TileMap = require("src.core.tilemap")
+local Interactable = require("src.entities.interactable")
 
 local M = {}
 
 function M.build(world)
     -- Class Selection: Choose your wizard class
-    local TileMap = require("tilemap")
+    local TileMap = require("src.core.tilemap")
     local map = TileMap:new(30, 20, 32)
     
     -- Simple grassy ground
