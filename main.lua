@@ -9,6 +9,7 @@ local SpellSystem = require("spellsystem")
 local Lighting = require("lighting")
 local SaveManager = require("src.core.savemanager")
 local DevMode = require("devmode")
+local AudioSystem = require("src.systems.audio")
 local Projectile = require("projectile")
 
 -- Debug mode
@@ -541,6 +542,10 @@ function love.load()
     -- Initialize dev mode
     devMode = DevMode:new()
     
+    -- Initialize centralized audio system and load sources
+    audio = AudioSystem.new()
+    audio:loadAll(gameState)
+    
     -- Load audio
     local audioSuccess, audioError = pcall(function()
         ---@type any
@@ -924,77 +929,10 @@ function loadAnimations()
 end
 
 function love.update(dt)
-    -- Update background music (works on start screen and in-game)
-    if audio.magicalVoyageMusic and not uiState.isPaused then
-        local onStartScreen = not startScreen.gameStarted
-        local inMusicMap = startScreen.gameStarted and gameState and (gameState.currentMap == "class_selection" or gameState.currentMap == "defense_trials")
-        local inCombat = (skeletonSpawn.state == "spawning" or skeletonSpawn.state == "combat")
-        
-        -- Set target volume for magical voyage (play on start screen, in music maps when not in combat, but not when dead)
-        if not player.isDead and (onStartScreen or (inMusicMap and not inCombat)) then
-            audio.magicalVoyageTargetVolume = 0.4
-        else
-            audio.magicalVoyageTargetVolume = 0
-        end
-        
-        -- Smoothly lerp current volume towards target
-        if audio.magicalVoyageCurrentVolume < audio.magicalVoyageTargetVolume then
-            audio.magicalVoyageCurrentVolume = math.min(audio.magicalVoyageTargetVolume, audio.magicalVoyageCurrentVolume + audio.magicalVoyageFadeSpeed * dt)
-        elseif audio.magicalVoyageCurrentVolume > audio.magicalVoyageTargetVolume then
-            audio.magicalVoyageCurrentVolume = math.max(audio.magicalVoyageTargetVolume, audio.magicalVoyageCurrentVolume - audio.magicalVoyageFadeSpeed * dt)
-        end
-        
-        ---@type any
-        local voyage = audio.magicalVoyageMusic
-        voyage:setVolume(audio.magicalVoyageCurrentVolume * gameState.musicVolume)
-        
-        -- Start or stop playing based on volume
-        if audio.magicalVoyageCurrentVolume > 0 and not voyage:isPlaying() then
-            voyage:play()
-            if DEBUG_MODE then
-                print("[AUDIO] Started magical voyage music")
-            end
-        elseif audio.magicalVoyageCurrentVolume <= 0 and voyage:isPlaying() then
-            voyage:stop()
-            if DEBUG_MODE then
-                print("[AUDIO] Stopped magical voyage music")
-            end
-        end
-    end
-    
-    -- Update fight song music (for death screen and combat)
-    if audio.fightSongMusic and not uiState.isPaused then
-        -- Set target volume based on death or combat state
-        if player.isDead or (startScreen.gameStarted and (skeletonSpawn.state == "spawning" or skeletonSpawn.state == "combat")) then
-            audio.fightSongTargetVolume = 0.4
-        else
-            audio.fightSongTargetVolume = 0
-        end
-        
-        -- Smoothly lerp current volume towards target
-        if audio.fightSongCurrentVolume < audio.fightSongTargetVolume then
-            audio.fightSongCurrentVolume = math.min(audio.fightSongTargetVolume, audio.fightSongCurrentVolume + audio.fightSongFadeSpeed * dt)
-        elseif audio.fightSongCurrentVolume > audio.fightSongTargetVolume then
-            audio.fightSongCurrentVolume = math.max(audio.fightSongTargetVolume, audio.fightSongCurrentVolume - audio.fightSongFadeSpeed * dt)
-        end
-        
-        ---@type any
-        local fight = audio.fightSongMusic
-        fight:setVolume(audio.fightSongCurrentVolume * gameState.musicVolume)
-        
-        -- Start or stop playing based on volume
-        if audio.fightSongCurrentVolume > 0 and not fight:isPlaying() then
-            fight:play()
-            if DEBUG_MODE then
-                print("[AUDIO] Started fight song music")
-            end
-        elseif audio.fightSongCurrentVolume <= 0 and fight:isPlaying() then
-            fight:stop()
-            if DEBUG_MODE then
-                print("[AUDIO] Stopped fight song music")
-            end
-        end
-    end
+    -- Update centralized audio system volumes
+---@diagnostic disable-next-line: undefined-field
+    ---@diagnostic disable-next-line: undefined-field
+    if audio then audio:update(dt, gameState, startScreen, uiState, world, player, skeletonSpawn, camera) end
     
     -- Don't update game if not started (but update cursor blink)
     if not startScreen.gameStarted then
@@ -2617,7 +2555,7 @@ function love.update(dt)
     end
     
     -- Update NPC talking sound volume (smooth fade)
-    if audio.npcTalkingSound and not uiState.isPaused then
+    if audio and audio.npcTalkingSound and not uiState.isPaused then
         if audio.npcTalkingCurrentVolume < audio.npcTalkingTargetVolume then
             audio.npcTalkingCurrentVolume = math.min(audio.npcTalkingTargetVolume, audio.npcTalkingCurrentVolume + audio.npcTalkingFadeSpeed * dt)
         elseif audio.npcTalkingCurrentVolume > audio.npcTalkingTargetVolume then
@@ -2626,11 +2564,11 @@ function love.update(dt)
         
         ---@type any
         local npcTalk = audio.npcTalkingSound
-        npcTalk:setVolume(audio.npcTalkingCurrentVolume * gameState.sfxVolume)
+        if npcTalk and npcTalk.setVolume then npcTalk:setVolume(audio.npcTalkingCurrentVolume * gameState.sfxVolume) end
         
         -- Stop playing when fully faded out
-        if audio.npcTalkingCurrentVolume <= 0 and npcTalk:isPlaying() then
-            npcTalk:stop()
+        if audio.npcTalkingCurrentVolume <= 0 and npcTalk and npcTalk.isPlaying and npcTalk:isPlaying() then
+            if npcTalk.stop then npcTalk:stop() end
             if DEBUG_MODE then
                 print("[AUDIO] Stopped NPC talking sound (faded out)")
             end
