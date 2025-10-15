@@ -569,14 +569,14 @@ function SpellSystem:rebuildLearnedSpells()
         elseif spellName == "Death Harvest" then
             spell = Spell.createNecromancerBuff()
         
-        -- Elemental resistance spells
-        elseif spellName == "Fire Resistance" then
+        -- Elemental resistance spells (use in-game display names)
+        elseif spellName == "Fire Ward" then
             spell = Spell.createFireResistance()
-        elseif spellName == "Ice Resistance" then
+        elseif spellName == "Frost Barrier" then
             spell = Spell.createIceResistance()
-        elseif spellName == "Lightning Resistance" then
+        elseif spellName == "Storm Shield" then
             spell = Spell.createLightningResistance()
-        elseif spellName == "Earth Resistance" then
+        elseif spellName == "Stone Skin" then
             spell = Spell.createEarthResistance()
         end
         

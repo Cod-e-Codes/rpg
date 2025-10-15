@@ -412,7 +412,8 @@ local fade = {
     speed = 2, -- How fast to fade (alpha per second)
     targetMap = nil,
     spawnX = nil,
-    spawnY = nil
+    spawnY = nil,
+    sourceMap = nil -- Track where we came from for non-portal transitions
 }
 
 -- Portal animation state (grouped to reduce upvalue count)
@@ -1260,16 +1261,9 @@ function love.update(dt)
         gameState.currentMana = spellSystem.currentMana
         gameState.maxMana = spellSystem.maxMana
         
-        -- Rebuild learned spells from game state (after loading)
+        -- Rebuild learned and equipped spells from game state (after loading)
         if #spellSystem.learnedSpells == 0 and #gameState.learnedSpells > 0 then
-            for _, spellName in ipairs(gameState.learnedSpells) do
-                if spellName == "Illumination" then
-                    local spell = Spell.createIllumination()
-                    spell.level = gameState:getSpellLevel(spellName)
-                    spell.experience = gameState:getSpellExperience(spellName)
-                    spellSystem:learnSpell(spell)
-                end
-            end
+            spellSystem:rebuildLearnedSpells()
         end
         
         -- Passive healing strategy mechanics
@@ -1371,6 +1365,11 @@ function love.update(dt)
                 player.x = gameState.playerSpawn.x
                 player.y = gameState.playerSpawn.y
                 
+                -- Ensure correct facing when arriving from town path
+                if fade.targetMap == "overworld" and fade.sourceMap == "town" then
+                    player.direction = "west"
+                end
+                
                 -- Sync interactables with game state (important for chest states)
                 local interactables = world:getCurrentInteractables()
                 for _, obj in ipairs(interactables) do
@@ -1384,6 +1383,8 @@ function love.update(dt)
         if fade.alpha <= 0 then
             fade.alpha = 0
             fade.state = "none"
+            
+            -- Facing from town handled immediately on map switch above
             
             -- Check if arriving at class selection after class reset (create portal animation)
             if fade.targetMap == "class_selection" and 
@@ -1401,9 +1402,12 @@ function love.update(dt)
             end
             
             -- Check if returning to overworld from class selection via portal (create portal animation)
+            -- Do NOT show this when arriving from town/eastern path; only when the source
+            -- map was a portal-based transition like class selection or defense trials.
             if fade.targetMap == "overworld" and 
                gameState.currentMap == "overworld" and
-               gameState.playerClass then
+               gameState.playerClass and
+               (portal.sourceMap == "class_selection" or portal.sourceMap == "defense_trials") then
                 -- Create temporary portal at spawn location for class selection portal exit
                 portal.temp = {
                     x = player.x - 32,
@@ -5242,12 +5246,14 @@ checkInteraction = function()
                 portal.animTimer = 0
                 portal.playerScale = 1
                 portal.sourceMap = gameState.currentMap -- Track where we're coming from
+                fade.sourceMap = gameState.currentMap
                 fade.targetMap = result.targetMap
                 fade.spawnX = result.spawnX
                 fade.spawnY = result.spawnY
             else
                 -- Regular fade transition for caves
             fade.state = "fade_out"
+            fade.sourceMap = gameState.currentMap
             fade.targetMap = result.targetMap
             fade.spawnX = result.spawnX
             fade.spawnY = result.spawnY

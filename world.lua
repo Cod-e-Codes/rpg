@@ -1068,8 +1068,8 @@ function World:createTown()
     table.insert(self.interactables["town"],
         Interactable:new(24*32, 38*32, 64, 64, "eastern_path", {
             targetMap = "overworld",
-            spawnX = 77*32,  -- East side of overworld at eastern path
-            spawnY = 878  -- Y position of eastern path bridge
+            spawnX = 78*32,  -- East side of overworld at eastern path (tile 78)
+            spawnY = 29*32  -- Align with eastern path bridge (tile 29)
         })
     )
     
