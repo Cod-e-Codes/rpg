@@ -11,6 +11,7 @@ local SaveManager = require("src.core.savemanager")
 local DevMode = require("devmode")
 local TransitionSystem = require("src.systems.transition")
 local AudioSystem = require("src.systems.audio")
+local Cutscenes = require("src.systems.cutscenes")
 local Projectile = require("projectile")
 
 -- Systems
@@ -1397,29 +1398,9 @@ function love.update(dt)
                 portal.despawnTimer = 2.0 -- Portal lasts 2 seconds after player arrives
                 
                 -- Also trigger north path cutscene if not already shown and cave not hidden
-                if not cameraPan.northPathCutsceneShown and
-                   not gameState.mysteriousCaveHidden then -- Only if cave not already hidden
-                    cameraPan.northPathCutsceneShown = true
-                    gameState.mysteriousCaveHidden = true -- Hide the mysterious cave
-                    
-                    -- Start camera pan cutscene
+                if not cameraPan.northPathCutsceneShown and not gameState.mysteriousCaveHidden then
                     cutsceneState.inCutscene = true
-                    local screenWidth = love.graphics.getWidth()
-                    local screenHeight = love.graphics.getHeight()
-                    
-                    -- Pan to the northern path area (center of archway at 1280, 5)
-                    local northPathX = 1280
-                    local northPathY = 5 * 32
-                    
-                    cameraPan.original.x = player.x - screenWidth / 2
-                    cameraPan.original.y = player.y - screenHeight / 2
-                    cameraPan.target.x = northPathX - screenWidth / 2
-                    cameraPan.target.y = northPathY - screenHeight / 2
-                    cameraPan.state = "pan_to_target"
-                    
-                    messageState.currentMessage = "An ancient path to the north has revealed itself!"
-                    messageState.currentMessageItem = nil
-                    messageState.messageTimer = 5
+                    Cutscenes.startNorthPathReveal(cameraPan, gameState, player, messageState)
                 end
             end
             
@@ -1429,52 +1410,13 @@ function love.update(dt)
                gameState.questState == "sword_collected" and 
                not cameraPan.caveCutsceneShown and
                not gameState.mysteriousCaveHidden then -- Don't trigger if cave already hidden
-                cameraPan.caveCutsceneShown = true
-                
-                -- Start a walking cutscene first (player walks out)
-                cutsceneState.inCutscene = true
-                player.isMoving = false -- Stop any current movement
-                cutsceneState.cutsceneWalkTarget = {x = player.x, y = player.y + 64} -- Walk south a bit
-                cutsceneState.cutsceneOnComplete = function()
-                    -- After walking out, clear cutscene walk state
-                    cutsceneState.cutsceneWalkTarget = nil
-                    cutsceneState.cutsceneOnComplete = nil
-                    
-                    -- Start camera pan
-                    local screenWidth = love.graphics.getWidth()
-                    local screenHeight = love.graphics.getHeight()
-                    local caveX = 80  -- Cave center (new large entrance at x=0, width=160)
-                    local caveY = 26*32 + 96  -- Cave center (y=26*32, height=192)
-                    
-                    cameraPan.original.x = player.x - screenWidth / 2
-                    cameraPan.original.y = player.y - screenHeight / 2
-                    cameraPan.target.x = caveX - screenWidth / 2
-                    cameraPan.target.y = caveY - screenHeight / 2
-                    cameraPan.state = "pan_to_target"
-                    
-                    messageState.currentMessage = "A mysterious cave has appeared to the west!"
-                    messageState.currentMessageItem = nil -- Clear any item icon
-                    messageState.messageTimer = 999 -- Keep message until cutscene ends
-                end
+                Cutscenes.startCaveReveal(cameraPan, cutsceneState, player, messageState)
             end
             
             -- Trigger town greeting cutscene if entering town for the first time
             if gameState.currentMap == "town" and not gameState.townGreetingShown then
-                -- Find the greeter NPC
-                local npcs = world:getCurrentNPCs()
-                for _, npc in ipairs(npcs) do
-                    if npc.questState == "town_greeter" then
-                        townGreeting.npc = npc
-                        townGreeting.npcStartX = npc.x
-                        townGreeting.npcStartY = npc.y
-                        townGreeting.npcTargetX = player.x
-                        townGreeting.npcTargetY = player.y - 80 -- Stand above player (NPC approaches from north)
-                        townGreeting.state = "player_walk"
-                        townGreeting.timer = 0
-                        townGreeting.duration = 1.0 -- 1 second walk
-                        cutsceneState.inCutscene = true
-                        break
-                    end
+                if Cutscenes.tryStartTownGreeting(townGreeting, world, player) then
+                    cutsceneState.inCutscene = true
                 end
             end
             
