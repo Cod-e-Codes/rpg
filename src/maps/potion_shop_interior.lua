@@ -47,7 +47,7 @@ function M.build(world)
     table.insert(world.interactables["potion_shop_interior"],
         Interactable:new(9*32, 13.5*32, 32, 40, "door", {
             destination = "town",
-            spawnX = 37*32,
+            spawnX = 35*32,
             spawnY = 13*32
         })
     )
