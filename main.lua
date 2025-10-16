@@ -24,6 +24,7 @@ DEBUG_MODE = false
 local deathScreenImage = nil
 local titleScreenImage = nil
 local classImages = {}
+SideDoorImage = nil
 
 -- Class Information Database
 local classInfo = {
@@ -528,6 +529,15 @@ function love.load()
         else
             print("Warning: Could not load " .. filename)
         end
+    end
+    
+    -- Load door image
+    success, image = pcall(love.graphics.newImage, "assets/buildings/side-door.png")
+    if success then
+        SideDoorImage = image
+    else
+        print("Warning: Could not load side-door.png")
+        SideDoorImage = nil
     end
     
     -- Initialize game systems

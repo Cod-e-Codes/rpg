@@ -308,7 +308,28 @@ function Interactable:draw(layer)
         local isSideDoor = self.data.isSideDoor or false
         
         if isSideDoor then
-            -- Side-of-building isometric door with artistic detail
+            -- Use custom side-door image if available
+            if SideDoorImage then
+                local doorAlpha = 1 - (self.openProgress * 0.3)
+                
+                -- Scale to fit the height (48px) while maintaining aspect ratio, then make it 2x bigger
+                local maxHeight = self.height -- 48
+                local imageSize = 150
+                
+                -- Scale to fit height, then double it
+                local scale = (maxHeight / imageSize) * 2
+                
+                -- Calculate centered position with upward offset
+                local scaledWidth = imageSize * scale
+                local scaledHeight = imageSize * scale
+                local offsetX = (self.width - scaledWidth) / 2
+                local offsetY = (self.height - scaledHeight) / 2 - 8  -- Move up by 8 pixels
+                
+                love.graphics.setColor(1, 1, 1, doorAlpha)
+                love.graphics.draw(SideDoorImage, self.x + offsetX, self.y + offsetY, 0, scale, scale)
+                love.graphics.setColor(1, 1, 1)
+            else
+                -- Fallback to procedural side-of-building isometric door with artistic detail
             local doorAlpha = 1 - (self.openProgress * 0.3)
             local time = love.timer.getTime()
             local seed = self.x * 7 + self.y * 11
@@ -478,6 +499,7 @@ function Interactable:draw(layer)
                 leftX + offset + 2, bottomY + 2
             }
             love.graphics.polygon("fill", shadowPoints)
+            end -- End of procedural door fallback
             
         else
             -- Vertical door (interior style) - standing upright with perspective
