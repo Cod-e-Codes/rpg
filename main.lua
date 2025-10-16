@@ -892,6 +892,7 @@ function love.load()
     world:createDefenseTrials()
     world:createTown()
     world:createInnInterior()
+    world:createPotionShopInterior()
     world:loadMap("overworld")
     
     -- Sync all interactables with game state

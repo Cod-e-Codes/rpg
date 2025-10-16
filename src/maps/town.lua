@@ -170,6 +170,16 @@ function M.build(world)
             isSideDoor = true
         })
     )
+    
+    -- Potion Shop door - Door faces west at x=35, y=13
+    table.insert(world.interactables["town"],
+        Interactable:new(35*32, 13*32, 32, 48, "door", {
+            destination = "potion_shop_interior",
+            spawnX = 10*32,
+            spawnY = 12*32,
+            isSideDoor = true
+        })
+    )
     table.insert(world.interactables["town"],
         Interactable:new(24*32 - 100, 36*32, 32, 32, "sign", {
             message = "Welcome to Sanctuary Village!\nTraders welcome, danger is left at the gate."
@@ -198,9 +208,6 @@ function M.build(world)
     world.npcs["town"] = {}
     table.insert(world.npcs["town"],
         NPC:new(24*32, 32*32, "village_quest_giver", { questState = "town_greeter", useAnimations = true })
-    )
-    table.insert(world.npcs["town"],
-        NPC:new(37*32, 13*32, "merchant", { questState = "potion_merchant", shopType = "potions" })
     )
 end
 

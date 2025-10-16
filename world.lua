@@ -55,6 +55,11 @@ function World:createInnInterior()
     Inn.build(self)
 end
 
+function World:createPotionShopInterior()
+    local PotionShop = require("src.maps.potion_shop_interior")
+    PotionShop.build(self)
+end
+
 function World:loadMap(mapName)
     self.currentMap = self.maps[mapName]
     

@@ -91,6 +91,7 @@ Save file: `savegame.sav`
 - [x] Trading system with gold currency and shop
 - [x] Sanctuary Village with animated fountain (extracted to `src/maps/town.lua`)
 - [x] The Restful Inn with interactive NPC and loot chests (extracted to `src/maps/inn_interior.lua`)
+- [x] Potion Shop with merchant, magical equipment, and toon-shaded interiors (extracted to `src/maps/potion_shop_interior.lua`)
 - [x] Cave Level 1 (extracted to `src/maps/cave_level1.lua`)
 - [x] Class Selection (extracted to `src/maps/class_selection.lua`)
 - [x] Defense Trials (extracted to `src/maps/defense_trials.lua`)

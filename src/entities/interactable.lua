@@ -1483,6 +1483,276 @@ function Interactable:draw(layer)
     elseif self.type == "eastern_path" then
         -- Eastern path - Invisible transition point (no visual bridge)
         -- Just a cleared path with no rocks, no visual elements needed
+        
+    elseif self.type == "potion_shelf" then
+        -- Detailed potion shelf with magical bottles and toon shading
+        local time = love.timer.getTime()
+        local seed = self.x * 7 + self.y * 11
+        
+        -- Shelf base (dark wood)
+        love.graphics.setColor(0.28, 0.18, 0.10)
+        love.graphics.rectangle("fill", self.x, self.y + self.height - 8, self.width, 8)
+        
+        -- Shelf back (medium wood)
+        love.graphics.setColor(0.42, 0.30, 0.18)
+        love.graphics.rectangle("fill", self.x, self.y, 8, self.height)
+        
+        -- Draw potion bottles with magical glow effects
+        local bottleCount = 6
+        for i = 1, bottleCount do
+            local bottleX = self.x + 12 + (i - 1) * 12
+            local bottleY = self.y + 8 + ((i - 1) % 3) * 24
+            
+            -- Bottle type based on position
+            local bottleType = self.data.potionTypes[((i - 1) % #self.data.potionTypes) + 1]
+            local bottleColor = {1, 0.2, 0.2} -- Default red
+            
+            if bottleType == "health" then
+                bottleColor = {1, 0.2, 0.2} -- Red
+            elseif bottleType == "mana" then
+                bottleColor = {0.2, 0.2, 1} -- Blue
+            elseif bottleType == "magic" then
+                bottleColor = {0.8, 0.2, 1} -- Purple
+            elseif bottleType == "rare" then
+                bottleColor = {1, 1, 0.2} -- Gold
+            elseif bottleType == "mystic" then
+                bottleColor = {0.2, 1, 0.8} -- Cyan
+            elseif bottleType == "elixir" then
+                bottleColor = {1, 0.6, 0.2} -- Orange
+            end
+            
+            -- Magical glow effect
+            if self.data.hasGlow then
+                local glowPulse = 0.7 + math.sin(time * 2 + i) * 0.3
+                love.graphics.setColor(bottleColor[1], bottleColor[2], bottleColor[3], 0.3 * glowPulse)
+                love.graphics.circle("fill", bottleX + 4, bottleY + 8, 8)
+            end
+            
+            -- Bottle body
+            love.graphics.setColor(bottleColor[1], bottleColor[2], bottleColor[3])
+            love.graphics.rectangle("fill", bottleX, bottleY, 8, 12, 1, 1)
+            
+            -- Bottle neck
+            love.graphics.setColor(0.9, 0.9, 0.9)
+            love.graphics.rectangle("fill", bottleX + 2, bottleY - 2, 4, 4)
+            
+            -- Bottle cork
+            love.graphics.setColor(0.6, 0.4, 0.2)
+            love.graphics.rectangle("fill", bottleX + 2.5, bottleY - 3, 3, 2)
+            
+            -- Bottle outline with noise
+            local outlineNoise = math.sin(seed + i * 3) * 0.5
+            love.graphics.setColor(0.1, 0.1, 0.1)
+            love.graphics.setLineWidth(1 + outlineNoise)
+            love.graphics.rectangle("line", bottleX + outlineNoise, bottleY, 8, 12, 1, 1)
+            love.graphics.setLineWidth(1)
+        end
+        
+        -- Shelf outline with hand-drawn noise
+        love.graphics.setColor(0.15, 0.10, 0.06)
+        love.graphics.setLineWidth(2)
+        for i = 0, 3 do
+            local noise = math.sin(seed + i * 2) * 1
+            love.graphics.rectangle("line", self.x + noise, self.y + i * 2, self.width + noise * 2, 2)
+        end
+        love.graphics.setLineWidth(1)
+        
+    elseif self.type == "alchemy_table" then
+        -- Magical alchemy table with equipment and toon shading
+        local time = love.timer.getTime()
+        local seed = self.x * 7 + self.y * 11
+        
+        -- Table base (dark wood)
+        love.graphics.setColor(0.28, 0.18, 0.10)
+        love.graphics.rectangle("fill", self.x, self.y + self.height - 8, self.width, 8)
+        
+        -- Table top (medium wood)
+        love.graphics.setColor(0.42, 0.30, 0.18)
+        love.graphics.rectangle("fill", self.x, self.y, self.width, self.height - 8)
+        
+        -- Wood grain lines with noise
+        love.graphics.setColor(0.35, 0.24, 0.16)
+        for i = 1, 3 do
+            local grainY = self.y + i * 8 + math.sin(seed + i * 3) * 1
+            love.graphics.line(self.x + 2, grainY, self.x + self.width - 2, grainY)
+        end
+        
+        -- Mortar and pestle
+        if self.data.hasMortar then
+            local mortarX = self.x + 16
+            local mortarY = self.y + 16
+            
+            -- Mortar bowl
+            love.graphics.setColor(0.6, 0.6, 0.65)
+            love.graphics.rectangle("fill", mortarX, mortarY, 12, 8, 2, 2)
+            
+            -- Mortar contents (magical powder)
+            love.graphics.setColor(0.8, 0.7, 1.0)
+            love.graphics.rectangle("fill", mortarX + 2, mortarY + 2, 8, 4, 1, 1)
+            
+            -- Pestle
+            love.graphics.setColor(0.4, 0.3, 0.2)
+            love.graphics.rectangle("fill", mortarX + 20, mortarY - 4, 4, 16)
+            
+            -- Magical sparkles
+            for i = 1, 3 do
+                local sparkleX = mortarX + 8 + math.sin(time * 3 + i) * 4
+                local sparkleY = mortarY + 4 + math.cos(time * 2 + i) * 2
+                love.graphics.setColor(1, 1, 0.8, 0.8)
+                love.graphics.circle("fill", sparkleX, sparkleY, 1)
+            end
+        end
+        
+        -- Alchemy bottles
+        if self.data.hasBottles then
+            for i = 1, 4 do
+                local bottleX = self.x + 8 + (i - 1) * 16
+                local bottleY = self.y + 32
+                
+                -- Bottle with different colors
+                local colors = {{0.2, 1, 0.2}, {0.2, 0.2, 1}, {1, 0.2, 1}, {1, 1, 0.2}}
+                local color = colors[i]
+                
+                love.graphics.setColor(color[1], color[2], color[3])
+                love.graphics.rectangle("fill", bottleX, bottleY, 6, 10, 1, 1)
+                
+                -- Bottle outline with noise
+                local noise = math.sin(seed + i * 5) * 0.3
+                love.graphics.setColor(0.1, 0.1, 0.1)
+                love.graphics.setLineWidth(1 + noise)
+                love.graphics.rectangle("line", bottleX + noise, bottleY, 6, 10, 1, 1)
+                love.graphics.setLineWidth(1)
+            end
+        end
+        
+        -- Magical herbs
+        if self.data.hasHerbs then
+            local herbX = self.x + self.width - 20
+            local herbY = self.y + 16
+            
+            -- Herb bundles
+            for i = 1, 3 do
+                local bundleX = herbX + (i - 1) * 6
+                local bundleY = herbY + math.sin(time * 2 + i) * 2
+                
+                -- Herb colors
+                local herbColors = {{0.2, 0.8, 0.2}, {0.8, 0.6, 0.2}, {0.6, 0.4, 0.8}}
+                local herbColor = herbColors[i]
+                
+                love.graphics.setColor(herbColor[1], herbColor[2], herbColor[3])
+                love.graphics.rectangle("fill", bundleX, bundleY, 4, 12)
+                
+                -- Herb outline with noise
+                local noise = math.sin(seed + i * 7) * 0.5
+                love.graphics.setColor(0.1, 0.3, 0.1)
+                love.graphics.setLineWidth(1 + noise)
+                love.graphics.rectangle("line", bundleX + noise, bundleY, 4, 12)
+                love.graphics.setLineWidth(1)
+            end
+        end
+        
+        -- Table outline with hand-drawn noise
+        love.graphics.setColor(0.15, 0.10, 0.06)
+        love.graphics.setLineWidth(2)
+        for i = 0, 3 do
+            local noise = math.sin(seed + i * 2) * 1
+            love.graphics.rectangle("line", self.x + noise, self.y + i * 2, self.width + noise * 2, 2)
+        end
+        love.graphics.setLineWidth(1)
+        
+    elseif self.type == "ingredient_cabinet" then
+        -- Magical ingredient storage cabinet
+        local time = love.timer.getTime()
+        local seed = self.x * 7 + self.y * 11
+        
+        -- Cabinet frame (dark wood)
+        love.graphics.setColor(0.28, 0.18, 0.10)
+        love.graphics.rectangle("fill", self.x, self.y, self.width, self.height)
+        
+        -- Cabinet doors
+        love.graphics.setColor(0.42, 0.30, 0.18)
+        love.graphics.rectangle("fill", self.x + 4, self.y + 4, (self.width - 8) / 2, self.height - 8)
+        love.graphics.rectangle("fill", self.x + self.width / 2, self.y + 4, (self.width - 8) / 2, self.height - 8)
+        
+        -- Wood grain
+        love.graphics.setColor(0.35, 0.24, 0.16)
+        for i = 1, 3 do
+            local grainY = self.y + 8 + i * 8 + math.sin(seed + i * 3) * 0.5
+            love.graphics.line(self.x + 8, grainY, self.x + self.width - 8, grainY)
+        end
+        
+        -- Draw ingredient jars
+        if self.data.hasJars then
+            for i = 1, 6 do
+                local jarX = self.x + 8 + ((i - 1) % 3) * 16
+                local jarY = self.y + 12 + math.floor((i - 1) / 3) * 16
+                
+                -- Jar body
+                love.graphics.setColor(0.9, 0.9, 0.95)
+                love.graphics.rectangle("fill", jarX, jarY, 8, 10, 1, 1)
+                
+                -- Jar contents (different colors)
+                local contentsColors = {{1, 0.5, 0.5}, {0.5, 1, 0.5}, {0.5, 0.5, 1}, {1, 1, 0.5}, {1, 0.5, 1}, {0.5, 1, 1}}
+                local contentsColor = contentsColors[i]
+                
+                love.graphics.setColor(contentsColor[1], contentsColor[2], contentsColor[3], 0.8)
+                love.graphics.rectangle("fill", jarX + 1, jarY + 2, 6, 6, 1, 1)
+                
+                -- Jar lid
+                love.graphics.setColor(0.6, 0.4, 0.2)
+                love.graphics.rectangle("fill", jarX + 1, jarY - 2, 6, 3)
+                
+                -- Jar outline with noise
+                local noise = math.sin(seed + i * 4) * 0.3
+                love.graphics.setColor(0.1, 0.1, 0.1)
+                love.graphics.setLineWidth(1 + noise)
+                love.graphics.rectangle("line", jarX + noise, jarY, 8, 10, 1, 1)
+                love.graphics.setLineWidth(1)
+            end
+        end
+        
+        -- Magical crystals
+        if self.data.hasCrystals then
+            for i = 1, 4 do
+                local crystalX = self.x + self.width - 12
+                local crystalY = self.y + 8 + (i - 1) * 8
+                
+                -- Crystal body
+                local crystalColors = {{1, 0.2, 0.2}, {0.2, 1, 0.2}, {0.2, 0.2, 1}, {1, 1, 0.2}}
+                local crystalColor = crystalColors[i]
+                
+                love.graphics.setColor(crystalColor[1], crystalColor[2], crystalColor[3])
+                love.graphics.polygon("fill", 
+                    crystalX, crystalY,
+                    crystalX + 6, crystalY + 3,
+                    crystalX + 4, crystalY + 8,
+                    crystalX - 2, crystalY + 5
+                )
+                
+                -- Crystal glow
+                love.graphics.setColor(crystalColor[1], crystalColor[2], crystalColor[3], 0.5)
+                love.graphics.polygon("fill", 
+                    crystalX + 1, crystalY + 1,
+                    crystalX + 4, crystalY + 3,
+                    crystalX + 3, crystalY + 6,
+                    crystalX - 1, crystalY + 4
+                )
+            end
+        end
+        
+        -- Cabinet handles
+        love.graphics.setColor(0.7, 0.5, 0.3)
+        love.graphics.circle("fill", self.x + 12, self.y + self.height / 2, 2)
+        love.graphics.circle("fill", self.x + self.width - 12, self.y + self.height / 2, 2)
+        
+        -- Cabinet outline with hand-drawn noise
+        love.graphics.setColor(0.15, 0.10, 0.06)
+        love.graphics.setLineWidth(2)
+        for i = 0, 3 do
+            local noise = math.sin(seed + i * 2) * 1
+            love.graphics.rectangle("line", self.x + noise, self.y + i * 2, self.width + noise * 2, 2)
+        end
+        love.graphics.setLineWidth(1)
     end
     
     love.graphics.setColor(1, 1, 1)
