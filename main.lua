@@ -4863,9 +4863,9 @@ checkInteraction = function()
             local phrases = {
                 "Welcome to The Restful Inn! Make yourself at home.",
                 "Care for a drink? We have the finest ale in the village!",
-                "The rooms upstairs are cozy and warm. Perfect for weary travelers.",
+                "The common room is cozy and warm. Perfect for weary travelers.",
                 "I've been running this inn for twenty years. Seen all sorts pass through.",
-                "Help yourself to the chests upstairs. Consider it a gift for our guests!",
+                "Help yourself to the chests in the back. Consider it a gift for our guests!",
                 "The candles never seem to go out here. Must be the magic in the air."
             }
             local randomPhrase = phrases[math.random(1, #phrases)]
