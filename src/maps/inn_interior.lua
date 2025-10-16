@@ -13,7 +13,7 @@ function M.build(world)
     for y = 0, 14 do
         ground[y] = {}
         for x = 0, 19 do
-            ground[y][x] = 4 -- Wooden floor
+            ground[y][x] = 6 -- Wooden floor (tile ID 6)
         end
     end
     

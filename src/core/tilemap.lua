@@ -321,6 +321,41 @@ function TileMap:draw(camera, gameTime)
                         love.graphics.setColor(0.44, 0.34, 0.24, 0.3)
                         love.graphics.rectangle("fill", px + 2, py + 2, 8, 8)
                     end
+                    
+                elseif tile == 6 then
+                    -- Wooden floor with toon shading
+                    local seed = x * 11 + y * 7
+                    local toonLevel = (seed % 3)
+                    if toonLevel == 0 then
+                        love.graphics.setColor(0.42, 0.30, 0.18)  -- Dark wood
+                    elseif toonLevel == 1 then
+                        love.graphics.setColor(0.50, 0.35, 0.22)  -- Medium wood
+                    else
+                        love.graphics.setColor(0.58, 0.42, 0.26)  -- Light wood
+                    end
+                    
+                    love.graphics.rectangle("fill", px, py, self.tileSize, self.tileSize)
+                    
+                    -- Plank separations (dark lines)
+                    love.graphics.setColor(0.28, 0.18, 0.10)
+                    love.graphics.setLineWidth(2)
+                    for i = 0, 3 do
+                        love.graphics.line(px, py + i * 8, px + self.tileSize, py + i * 8)
+                    end
+                    love.graphics.setLineWidth(1)
+                    
+                    -- Wood grain lines (horizontal)
+                    love.graphics.setColor(0.35, 0.24, 0.16)
+                    for i = 1, 2 do
+                        local grainY = py + i * 10 + ((seed + i * 3) % 4) - 2
+                        love.graphics.line(px + 2, grainY, px + self.tileSize - 2, grainY)
+                    end
+                    
+                    -- Toon highlight (if light)
+                    if toonLevel == 2 then
+                        love.graphics.setColor(0.68, 0.52, 0.36, 0.5)
+                        love.graphics.rectangle("fill", px + 4, py + 4, self.tileSize - 8, 6)
+                    end
                 end
                 
                 -- Dirt path texture (only if it's a path tile)
